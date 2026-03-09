@@ -17,7 +17,7 @@ phases:
   post_build:
     commands:
       # S3へのデプロイ時も確実にディレクトリを指定
-      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      - cd $CODEBUILD_SRC_DIR/webapp
       - aws s3 sync dist s3://pr-times-4/ --delete
       # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する（追記）
       - rm -rf node_modules
