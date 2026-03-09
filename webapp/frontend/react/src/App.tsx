@@ -7,6 +7,7 @@ import Text from "@tiptap/extension-text";
 import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
 import ListItem from "@tiptap/extension-list-item";
+import Image from "@tiptap/extension-image";
 import { useState } from "react";
 import "./App.css";
 
@@ -67,8 +68,9 @@ type PressRelease = {
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
+  const [imageUrl, setImageUrl] = useState("");
   const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem],
+    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
     content,
   });
 
@@ -81,6 +83,27 @@ function Page({ title: initialTitle, content }: PressRelease) {
       title,
       content: JSON.stringify(editor.getJSON()),
     });
+  };
+
+  const handleInsertImage = () => {
+    if (!editor) return;
+
+    const trimmedUrl = imageUrl.trim();
+    if (!trimmedUrl) return;
+
+    try {
+      const url = new URL(trimmedUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        alert("http/https のURLを入力してください");
+        return;
+      }
+    } catch {
+      alert("有効なURLを入力してください");
+      return;
+    }
+
+    editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
+    setImageUrl("");
   };
 
   return (
@@ -125,10 +148,21 @@ function Page({ title: initialTitle, content }: PressRelease) {
               番号付きリスト
             </button>
           </div>
+          <div className="imageForm">
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="画像URLを入力してください (https://...)"
+              className="imageInput"
+            />
+            <button type="button" onClick={handleInsertImage} className="imageButton" disabled={!editor}>
+              画像を挿入
+            </button>
+          </div>
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
-
