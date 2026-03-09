@@ -108,7 +108,6 @@
   box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
 }
 
-<<<<<<< HEAD
 .imageForm {
   display: flex;
   gap: 0.5rem;
@@ -149,9 +148,43 @@
   cursor: not-allowed;
 }
 
-/* Tiptapエディターのスタイル */
-=======
->>>>>>> origin/main
+.imageButtonSecondary {
+  background: #fff;
+  color: #007bff;
+}
+
+.imageButtonSecondary:hover:not(:disabled) {
+  background: #eef5ff;
+  border-color: #0056b3;
+}
+
+.fileInputHidden {
+  display: none;
+}
+
+.dropZone {
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dropZone.is-dragging {
+  border-color: #007bff;
+  background: rgba(0, 123, 255, 0.06);
+}
+
+.dropZone.is-uploading {
+  opacity: 0.85;
+}
+
+.dropZoneHint {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+
 .tiptap {
   min-height: 240px;
   padding: 12px;

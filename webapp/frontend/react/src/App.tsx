@@ -1,21 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-<<<<<<< HEAD
-import { useEditor, EditorContent } from "@tiptap/react";
-import Heading from "@tiptap/extension-heading";
-import Document from "@tiptap/extension-document";
-import Paragraph from "@tiptap/extension-paragraph";
-import Text from "@tiptap/extension-text";
-import BulletList from "@tiptap/extension-bullet-list";
-import OrderedList from "@tiptap/extension-ordered-list";
-import ListItem from "@tiptap/extension-list-item";
-import Image from "@tiptap/extension-image";
-=======
 import type { JSONContent } from "@tiptap/core";
+import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
->>>>>>> origin/main
-import { useState } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
@@ -109,15 +98,14 @@ export function App() {
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
-<<<<<<< HEAD
   const [imageUrl, setImageUrl] = useState("");
-  const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
-=======
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragDepthRef = useRef(0);
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
->>>>>>> origin/main
+    extensions: [StarterKit, Underline, Image],
     content,
   });
 
@@ -130,19 +118,46 @@ function Page({ title: initialTitle, content }: PressRelease) {
     }),
   });
 
-  const { isPending, mutate } = useSavePressReleaseMutation();
+  const { isPending, mutate, mutateAsync } = useSavePressReleaseMutation();
 
-  const handleSave = () => {
+  const saveCurrentContent = async () => {
     if (!editor) return;
 
-    mutate({
+    await mutateAsync({
       title,
       content: JSON.stringify(editor.getJSON()),
     });
   };
 
-<<<<<<< HEAD
-  const handleInsertImage = () => {
+  const handleSave = () => {
+    mutate({
+      title,
+      content: JSON.stringify(editor?.getJSON() ?? EMPTY_CONTENT),
+    });
+  };
+
+  const uploadImageFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${BASE_URL}/uploads/images`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("画像のアップロードに失敗しました");
+    }
+
+    const data = (await response.json()) as { url?: string };
+    if (!data.url) {
+      throw new Error("画像URLの取得に失敗しました");
+    }
+
+    return data.url;
+  };
+
+  const handleInsertImage = async () => {
     if (!editor) return;
 
     const trimmedUrl = imageUrl.trim();
@@ -161,9 +176,78 @@ function Page({ title: initialTitle, content }: PressRelease) {
 
     editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
     setImageUrl("");
+    await saveCurrentContent();
   };
 
-=======
+  const insertUploadedImage = async (file: File) => {
+    if (!editor) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルを選択してください");
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      const uploadedUrl = await uploadImageFile(file);
+      editor.chain().focus().setImage({ src: uploadedUrl, alt: file.name || "アップロード画像" }).run();
+      await saveCurrentContent();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "画像の挿入に失敗しました";
+      alert(message);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      // Serialize uploads to prevent save request races.
+      // eslint-disable-next-line no-await-in-loop
+      await insertUploadedImage(file);
+    }
+    event.target.value = "";
+  };
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!event.dataTransfer.types.includes("Files")) return;
+
+    dragDepthRef.current += 1;
+    setIsDraggingImage(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsDraggingImage(false);
+    }
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingImage(false);
+
+    const files = Array.from(event.dataTransfer.files ?? []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      // eslint-disable-next-line no-await-in-loop
+      await insertUploadedImage(file);
+    }
+  };
+
   if (!editor) return null;
 
   const toggleMark = (mark: MarkType) => {
@@ -230,8 +314,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
       ],
     },
   ];
-
->>>>>>> origin/main
   return (
     <div className="container">
       <header className="header">
@@ -270,7 +352,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
               </div>
             ))}
           </div>
-<<<<<<< HEAD
           <div className="imageForm">
             <input
               type="url"
@@ -279,21 +360,49 @@ function Page({ title: initialTitle, content }: PressRelease) {
               placeholder="画像URLを入力してください (https://...)"
               className="imageInput"
             />
-            <button type="button" onClick={handleInsertImage} className="imageButton" disabled={!editor}>
+            <button
+              type="button"
+              onClick={handleInsertImage}
+              className="imageButton"
+              disabled={!editor || isUploadingImage}
+            >
               画像を挿入
             </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="imageButton imageButtonSecondary"
+              disabled={!editor || isUploadingImage}
+            >
+              画像ファイルを選択
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="fileInputHidden"
+              onChange={handleFileInputChange}
+            />
           </div>
-=======
-
->>>>>>> origin/main
-          <EditorContent editor={editor} />
+          <div
+            className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <div className="dropZoneHint">
+              画像をここにドラッグ&ドロップして追加できます
+              {isUploadingImage ? "（アップロード中...）" : ""}
+            </div>
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </main>
     </div>
   );
 }
-<<<<<<< HEAD
-=======
 
 type ToolbarButtonProps = {
   label: string;
@@ -314,4 +423,3 @@ function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps) {
     </button>
   );
 }
->>>>>>> origin/main
