@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { extname, join, resolve } from 'node:path';
 export const uploadRoutes = new Hono();
 const UPLOAD_DIR = resolve(process.cwd(), 'uploads');
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MIME_TO_EXT = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -36,6 +37,9 @@ uploadRoutes.post('/uploads/images', async (c) => {
     }
     if (uploaded.size <= 0) {
         return c.json({ code: 'EMPTY_FILE', message: 'Uploaded file is empty' }, 400);
+    }
+    if (uploaded.size > MAX_FILE_SIZE) {
+        return c.json({ code: 'FILE_TOO_LARGE', message: 'File size must be 10MB or less' }, 400);
     }
     const originalExt = extname(uploaded.name).toLowerCase();
     const ext = EXT_TO_MIME[originalExt] ? originalExt : (MIME_TO_EXT[uploaded.type] ?? '.bin');

@@ -2,7 +2,7 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /home/ec2-user/press-release-app # EC2上の配置先ディレクトリ
+    destination: /home/ec2-user/press-release-app
 hooks:
   ApplicationStop:
     - location: scripts/stop_containers.sh

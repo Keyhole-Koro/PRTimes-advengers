@@ -1,12 +1,29 @@
 version: 0.2
 
 phases:
+  install:
+    runtime-versions:
+      # Node.js 20を指定して Vite のバージョン要件をクリアする
+      nodejs: 20
+    commands:
+      # 環境変数を使って確実に目的のディレクトリへ移動
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      - npm install
   build:
     commands:
-      - echo "Preparing files for CodeDeploy..."
+      # 各フェーズの最初で確実にディレクトリを指定する
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      - npm run build
+  post_build:
+    commands:
+      # S3へのデプロイ時も確実にディレクトリを指定
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      - aws s3 sync dist s3://pr-times-4/ --delete
+      # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する（追記）
+      - rm -rf node_modules
+      - aws s3 sync dist s3://pr-times-4/ --delete
 
 artifacts:
-  # ▼ ここが最重要！ webapp フォルダの中身をZipのルートにします ▼
   base-directory: webapp
   files:
     - '**/*'
