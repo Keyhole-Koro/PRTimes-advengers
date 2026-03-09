@@ -97,6 +97,13 @@
   display: none;
 }
 
+.charCount {
+  margin-top: 6px;
+  color: #6c757d;
+  font-size: 13px;
+  text-align: right;
+}
+
 .tiptap {
   min-height: 240px;
   padding: 12px;

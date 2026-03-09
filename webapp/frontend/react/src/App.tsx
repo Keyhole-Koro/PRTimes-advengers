@@ -10,7 +10,7 @@ import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { ChangeEvent } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
@@ -26,6 +26,11 @@ type PressRelease = {
   title: string;
   content: JSONContent;
 };
+
+function countCharacters(value: string): number {
+  return Array.from(value).length;
+  console.log("bbbb");
+}
 
 const EMPTY_CONTENT: JSONContent = {
   type: "doc",
@@ -104,12 +109,40 @@ export function App() {
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(initialTitle);
+  const [bodyCharCount, setBodyCharCount] = useState(() => 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
     content,
+    onUpdate({ editor }) { 
+      setBodyCharCount(() => editor.getText({ blockSeparator: "\n" }).length);
+      // setBodyCharCount((prev) => prev + 1);
+      console.log('body char count:', editor.getText({ blockSeparator: "\n" }).length);
+    }
   });
+  const titleCharCount = countCharacters(title);
+
+  // useEffect(() => {
+  //   if (!editor) return;
+
+  //   const syncBodyCharCount = () => {
+  //     console.log(editor.getText({ blockSeparator: "\n" }));
+  //     console.log(countCharacters(editor.getText({ blockSeparator: "\n" })));
+  //     setBodyCharCount(countCharacters(editor.getText({ blockSeparator: "\n" })));
+  //   };
+
+  //   syncBodyCharCount();
+  //   editor.on("transaction", syncBodyCharCount);
+  //   editor.on("update", syncBodyCharCount);
+  //   editor.on("selectionUpdate", syncBodyCharCount);
+
+  //   return () => {
+  //     editor.off("transaction", syncBodyCharCount);
+  //     editor.off("update", syncBodyCharCount);
+  //     editor.off("selectionUpdate", syncBodyCharCount);
+  //   };
+  // }, [editor]);
 
   const editorState = useEditorState({
     editor,
@@ -174,6 +207,11 @@ function Page({ title: initialTitle, content }: PressRelease) {
     }
   };
 
+  const handleTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextTitle = event.target.value;
+    setTitle(nextTitle);
+  };
+
   return (
     <div className="container">
       <header className="header">
@@ -189,10 +227,11 @@ function Page({ title: initialTitle, content }: PressRelease) {
             <input
               type="text"
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={handleTitleChange}
               placeholder="タイトルを入力してください"
               className="titleInput"
             />
+            <div className="charCount">タイトル文字数: {titleCharCount}</div>
           </div>
 
           <div className="toolbar" aria-label="エディターツールバー">
@@ -228,6 +267,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
           />
 
           <EditorContent editor={editor} />
+          <div className="charCount">本文文字数: {bodyCharCount}</div>
         </div>
       </main>
     </div>
