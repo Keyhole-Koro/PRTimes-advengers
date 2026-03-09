@@ -10,8 +10,11 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
+    "@tiptap/extension-bullet-list": "^3.20.0",
     "@tiptap/extension-document": "^3.20.0",
     "@tiptap/extension-heading": "^3.20.0",
+    "@tiptap/extension-list-item": "^3.20.0",
+    "@tiptap/extension-ordered-list": "^3.20.0",
     "@tiptap/extension-paragraph": "^3.20.0",
     "@tiptap/extension-text": "^3.20.0",
     "@tiptap/pm": "^3.20.0",

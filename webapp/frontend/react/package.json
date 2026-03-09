@@ -14,12 +14,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
     "@tiptap/core": "^3.20.1",
-    "@tiptap/extension-document": "^3.20.0",
-    "@tiptap/extension-heading": "^3.20.0",
-    "@tiptap/extension-paragraph": "^3.20.0",
-    "@tiptap/extension-text": "^3.20.0",
     "@tiptap/extension-underline": "^3.20.1",
-    "@tiptap/pm": "^3.20.0",
     "@tiptap/react": "^3.20.1",
     "@tiptap/starter-kit": "^3.20.1",
     "react": "^19.2.0",

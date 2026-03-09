@@ -43,14 +43,39 @@
 
 .toolbar {
   display: flex;
+  gap: 12px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f9fbff 0%, #f1f6fb 100%);
+}
+
+.toolbarGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.toolbarGroupLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #5b6b7f;
+}
+
+.toolbarGroupButtons {
+  display: flex;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .toolbarButton {
   padding: 6px 10px;
   border: 1px solid #d0d0d0;
-  border-radius: 6px;
+  border-radius: 999px;
   background: #fff;
   color: #111;
   cursor: pointer;
@@ -58,11 +83,17 @@
   font-weight: 500;
   font-style: normal;
   text-decoration: none;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .toolbarButton:hover {
-  border-color: #999;
+  border-color: #7aa2d6;
+  color: #12385f;
 }
 
 .toolbarButton:focus-visible {
@@ -71,9 +102,10 @@
 }
 
 .toolbarButton.is-active {
-  background: #111;
+  background: #12385f;
   color: #fff;
-  border-color: #111;
+  border-color: #12385f;
+  box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
 }
 
 .tiptap {
@@ -85,16 +117,33 @@
   line-height: 1.7;
 }
 
-.tiptap strong { font-weight: 700; }
+.tiptap strong {
+  font-weight: 700;
+}
+
 .tiptap em {
   font-style: oblique 12deg;
   font-synthesis: style;
 }
-.tiptap u { text-decoration: underline; }
+
+.tiptap u {
+  text-decoration: underline;
+}
 
 .tiptap p {
   margin: 0 0 0.8em;
 }
+
 .tiptap p:last-child {
   margin-bottom: 0;
+}
+
+.tiptap ul,
+.tiptap ol {
+  margin: 1em 0;
+  padding-left: 1.5rem;
+}
+
+.tiptap li {
+  margin: 0.35em 0;
 }

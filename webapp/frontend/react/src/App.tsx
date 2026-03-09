@@ -1,9 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import { useState } from "react";
 import "./App.css";
 
@@ -22,6 +21,18 @@ type PressRelease = {
 };
 
 type MarkType = "bold" | "italic" | "underline";
+
+type ToolbarButtonConfig = {
+  key: string;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+};
+
+type ToolbarGroupConfig = {
+  label: string;
+  buttons: ToolbarButtonConfig[];
+};
 
 const MARK_BUTTONS: Array<{ key: MarkType; label: string }> = [
   { key: "bold", label: "太字" },
@@ -105,6 +116,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
 
   const handleSave = () => {
     if (!editor) return;
+
     mutate({
       title,
       content: JSON.stringify(editor.getJSON()),
@@ -125,6 +137,58 @@ function Page({ title: initialTitle, content }: PressRelease) {
     }
     chain.toggleUnderline().run();
   };
+
+  const toolbarGroups: ToolbarGroupConfig[] = [
+    {
+      label: "書式",
+      buttons: MARK_BUTTONS.map((button) => ({
+        key: button.key,
+        label: button.label,
+        isActive: markState[button.key],
+        onClick: () => toggleMark(button.key),
+      })),
+    },
+    {
+      label: "見出し",
+      buttons: [
+        {
+          key: "paragraph",
+          label: "本文",
+          isActive: editor.isActive("paragraph"),
+          onClick: () => editor.chain().focus().setParagraph().run(),
+        },
+        {
+          key: "heading-1",
+          label: "H1",
+          isActive: editor.isActive("heading", { level: 1 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+        },
+        {
+          key: "heading-2",
+          label: "H2",
+          isActive: editor.isActive("heading", { level: 2 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+        },
+      ],
+    },
+    {
+      label: "リスト",
+      buttons: [
+        {
+          key: "bullet-list",
+          label: "箇条書き",
+          isActive: editor.isActive("bulletList"),
+          onClick: () => editor.chain().focus().toggleBulletList().run(),
+        },
+        {
+          key: "ordered-list",
+          label: "番号付き",
+          isActive: editor.isActive("orderedList"),
+          onClick: () => editor.chain().focus().toggleOrderedList().run(),
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="container">
@@ -147,15 +211,21 @@ function Page({ title: initialTitle, content }: PressRelease) {
             />
           </div>
 
-          {/* ツールバー */}
-          <div className="toolbar">
-            {MARK_BUTTONS.map((button) => (
-              <ToolbarButton
-                key={button.key}
-                label={button.label}
-                isActive={markState[button.key]}
-                onClick={() => toggleMark(button.key)}
-              />
+          <div className="toolbar" aria-label="エディターツールバー">
+            {toolbarGroups.map((group) => (
+              <div key={group.label} className="toolbarGroup">
+                <span className="toolbarGroupLabel">{group.label}</span>
+                <div className="toolbarGroupButtons">
+                  {group.buttons.map((button) => (
+                    <ToolbarButton
+                      key={button.key}
+                      label={button.label}
+                      isActive={button.isActive}
+                      onClick={button.onClick}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 
