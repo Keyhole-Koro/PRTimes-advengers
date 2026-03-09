@@ -27,10 +27,33 @@ type PressRelease = {
   content: JSONContent;
 };
 
+type FileWithRelativePath = File & {
+  webkitRelativePath?: string;
+};
+
 const EMPTY_CONTENT: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
+
+function isImageFile(file: FileWithRelativePath): boolean {
+  if (file.type.startsWith("image/")) {
+    return true;
+  }
+
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
+}
+
+function normalizePathKey(path: string): string {
+  return decodeURIComponent(path)
+    .trim()
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .toLowerCase();
+}
 
 function parseContent(rawContent: string): JSONContent {
   try {
@@ -105,6 +128,7 @@ export function App() {
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(initialTitle);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const htmlInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
@@ -119,7 +143,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
     }),
   });
 
-  const { isPending, mutate } = useSavePressReleaseMutation();
+  const { isPending, mutate, mutateAsync } = useSavePressReleaseMutation();
 
   if (!editor) {
     return null;
@@ -148,8 +172,19 @@ function Page({ title: initialTitle, content }: PressRelease) {
     return (await response.json()) as { url: string };
   };
 
+  const buildFileFromDataUrl = async (dataUrl: string, fallbackName: string) => {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const ext = blob.type.split("/")[1] || "png";
+    return new File([blob], `${fallbackName}.${ext}`, { type: blob.type || "image/png" });
+  };
+
   const handlePickImage = () => {
     fileInputRef.current?.click();
+  };
+
+  const handlePickHtml = () => {
+    htmlInputRef.current?.click();
   };
 
   const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -162,13 +197,135 @@ function Page({ title: initialTitle, content }: PressRelease) {
       const { url } = await uploadImage(file);
       editor.chain().focus().setImage({ src: url, alt: file.name }).run();
 
-      mutate({
+      await mutateAsync({
         title,
         content: JSON.stringify(editor.getJSON()),
       });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
       alert(message);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleImportHtml = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []) as FileWithRelativePath[];
+    if (selectedFiles.length === 0) {
+      return;
+    }
+    const selectedFileNames = selectedFiles.map((file) => file.name);
+
+    try {
+      const htmlFile = selectedFiles.find(
+        (f) => f.type === "text/html" || f.name.toLowerCase().endsWith(".html"),
+      );
+      if (!htmlFile) {
+        alert("HTMLファイルを選択してください");
+        return;
+      }
+
+      const imageFileMap = new Map<string, File>();
+      const selectedImageFiles: File[] = [];
+      for (const file of selectedFiles) {
+        if (!isImageFile(file)) {
+          continue;
+        }
+        selectedImageFiles.push(file);
+
+        const normalizedName = normalizePathKey(file.name);
+        imageFileMap.set(normalizedName, file);
+
+        if (file.webkitRelativePath) {
+          imageFileMap.set(normalizePathKey(file.webkitRelativePath), file);
+        }
+      }
+
+      const htmlText = await htmlFile.text();
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const skippedImageSrcList: string[] = [];
+      const usedImageNames = new Set<string>();
+
+      const images = Array.from(doc.querySelectorAll("img"));
+      const hasRelativeImages = images.some((img) => {
+        const src = img.getAttribute("src")?.trim();
+        return !!src && !src.startsWith("data:") && !/^https?:\/\//i.test(src);
+      });
+
+      if (hasRelativeImages && selectedImageFiles.length === 0) {
+        alert(
+          `HTML以外の画像ファイルが選択されていません。\n選択されたファイル: ${selectedFileNames.join(", ")}`,
+        );
+      }
+
+      for (const [index, img] of images.entries()) {
+        const src = img.getAttribute("src")?.trim();
+        if (!src) {
+          continue;
+        }
+
+        try {
+          let uploadedUrl = "";
+
+          if (src.startsWith("data:")) {
+            const dataFile = await buildFileFromDataUrl(src, `imported-image-${index + 1}`);
+            const uploaded = await uploadImage(dataFile);
+            uploadedUrl = uploaded.url;
+          } else if (/^https?:\/\//i.test(src)) {
+            const fetchedImage = await fetch(src);
+            if (!fetchedImage.ok) {
+              throw new Error("画像の取得に失敗しました");
+            }
+            const blob = await fetchedImage.blob();
+            const ext = blob.type.split("/")[1] || "png";
+            const httpFile = new File([blob], `imported-image-${index + 1}.${ext}`, {
+              type: blob.type || "image/png",
+            });
+            const uploaded = await uploadImage(httpFile);
+            uploadedUrl = uploaded.url;
+          } else {
+            const normalizedSrc = normalizePathKey(src);
+            const srcName = normalizedSrc.split("/").pop() ?? normalizedSrc;
+            let localImageFile = imageFileMap.get(normalizedSrc) ?? imageFileMap.get(srcName);
+
+            if (!localImageFile) {
+              localImageFile = selectedImageFiles.find((f) => !usedImageNames.has(f.name));
+            }
+            if (!localImageFile) {
+              skippedImageSrcList.push(src);
+              continue;
+            }
+            usedImageNames.add(localImageFile.name);
+
+            const uploaded = await uploadImage(localImageFile);
+            uploadedUrl = uploaded.url;
+          }
+
+          img.setAttribute("src", uploadedUrl);
+        } catch {
+          skippedImageSrcList.push(src);
+        }
+      }
+
+      const importedTitle =
+        doc.querySelector("title")?.textContent?.trim() || doc.querySelector("h1")?.textContent?.trim() || title;
+      const bodyHtml = doc.body?.innerHTML?.trim() || "<p></p>";
+
+      setTitle(importedTitle);
+      editor.commands.setContent(bodyHtml);
+
+      await mutateAsync({
+        title: importedTitle,
+        content: JSON.stringify(editor.getJSON()),
+      });
+
+      if (skippedImageSrcList.length > 0) {
+        alert(
+          `取り込めなかった画像: ${skippedImageSrcList.join(", ")}\n選択されたファイル: ${selectedFileNames.join(", ")}`,
+        );
+      }
+    } catch {
+      alert("HTMLの読み込みに失敗しました");
     } finally {
       event.target.value = "";
     }
@@ -217,6 +374,9 @@ function Page({ title: initialTitle, content }: PressRelease) {
             <button type="button" onClick={handlePickImage} className="toolbarButton">
               画像を追加
             </button>
+            <button type="button" onClick={handlePickHtml} className="toolbarButton">
+              HTMLをインポート
+            </button>
           </div>
 
           <input
@@ -225,6 +385,15 @@ function Page({ title: initialTitle, content }: PressRelease) {
             accept="image/png,image/jpeg,image/gif,image/webp"
             className="hiddenFileInput"
             onChange={handleImageSelected}
+          />
+
+          <input
+            ref={htmlInputRef}
+            type="file"
+            accept="*/*"
+            multiple
+            className="hiddenFileInput"
+            onChange={handleImportHtml}
           />
 
           <EditorContent editor={editor} />
