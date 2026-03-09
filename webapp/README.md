@@ -36,7 +36,18 @@ curl -X POST http://localhost:8080/press-releases/1 \
   -H "Content-Type: application/json" \
   -d '{
     "title": "新しいタイトル",
-    "content": "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"テキスト内容\"}]}]}"
+    "content": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "テキスト内容" }
+          ]
+        }
+      ]
+    },
+    "version": 1
   }'
 ```
 
@@ -106,7 +117,17 @@ docker compose up -d
 {
   "id": 1,
   "title": "サンプルプレスリリース",
-  "content": "{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"Sample Press Release\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"This is a sample press release content.\"}]}]}",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": { "level": 1 },
+        "content": [{ "type": "text", "text": "Sample Press Release" }]
+      }
+    ]
+  },
+  "version": 1,
   "created_at": "2026-02-13T06:14:04.732533",
   "updated_at": "2026-02-13T06:14:04.732533"
 }
@@ -120,18 +141,36 @@ docker compose up -d
 ```json
 {
   "title": "タイトル",
-  "content": "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"本文\"}]}]}"
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "本文" }]
+      }
+    ]
+  },
+  "version": 1
 }
 ```
 
-**注意**: `content`フィールドはTipTap形式のJSON**文字列**です。JSONオブジェクトではなく、文字列としてエスケープして送信してください。
+`content` フィールドは TipTap 形式の JSON オブジェクトです。共同編集に備えて `version` を返し、更新時はその値を送ります。
 
 **レスポンス（更新されたPressReleaseオブジェクト）:**
 ```json
 {
   "id": 1,
   "title": "新しいタイトル",
-  "content": "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"本文\"}]}]}",
+  "content": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "本文" }]
+      }
+    ]
+  },
+  "version": 2,
   "created_at": "2026-02-13T06:14:04.732533",
   "updated_at": "2026-02-16T15:30:00.123456"
 }
@@ -152,6 +191,7 @@ docker compose up -d
 |---------|-----|------|
 | id | SERIAL | プライマリキー |
 | title | VARCHAR(255) | タイトル |
-| content | TEXT | TipTap形式のJSON文字列 |
+| content | JSONB | TipTap形式のJSONオブジェクト |
+| version | INTEGER | 楽観ロック用バージョン |
 | created_at | TIMESTAMP | 作成日時 |
 | updated_at | TIMESTAMP | 更新日時 |

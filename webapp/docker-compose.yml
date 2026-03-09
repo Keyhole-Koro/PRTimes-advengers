@@ -32,7 +32,7 @@ services:
       DB_USER: press_release
       DB_PASSWORD: press_release
       DB_NAME: press_release_db
-    command: npm run dev
+    command: sh -c "npm install && npm run dev"
     depends_on:
       postgresql:
         condition: service_healthy

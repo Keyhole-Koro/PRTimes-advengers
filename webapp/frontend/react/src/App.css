@@ -12,9 +12,22 @@
   margin-bottom: 16px;
 }
 
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .title {
   margin: 0;
   font-size: 20px;
+}
+
+.metaRow {
+  display: flex;
+  gap: 12px;
+  color: #556274;
+  font-size: 13px;
 }
 
 .saveButton {
