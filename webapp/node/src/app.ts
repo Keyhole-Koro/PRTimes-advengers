@@ -24,6 +24,7 @@ const resolveCorsOrigin = () => {
   }
 
   const baseApiUrl = process.env.APP_BASE_API_URL
+  console.log(`CORS configuration for environment "${appEnv}":`, { baseApiUrl })
   if (!baseApiUrl) {
     return (origin: string) => {
       if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
