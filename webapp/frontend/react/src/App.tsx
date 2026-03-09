@@ -222,7 +222,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
+            accept=".jpg,.png,.gif"
             className="hiddenFileInput"
             onChange={handleImageSelected}
           />
