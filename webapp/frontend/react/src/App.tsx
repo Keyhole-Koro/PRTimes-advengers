@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { JSONContent } from "@tiptap/core";
 import Heading from "@tiptap/extension-heading";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
@@ -7,7 +8,9 @@ import Text from "@tiptap/extension-text";
 import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
 import ListItem from "@tiptap/extension-list-item";
-import { useState } from "react";
+import Image from "@tiptap/extension-image";
+import { useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
@@ -53,22 +56,45 @@ function useSavePressReleaseMutation() {
 }
 
 export function App() {
-  const { data, isPending, isError } = usePressReleaseQuery();
+  const { data, isPending, isError, error } = usePressReleaseQuery();
 
-  if (isPending || isError) return null;
+  if (isPending) {
+    return (
+      <div className="statusScreen">
+        <p>読み込み中です...</p>
+      </div>
+    );
+  }
 
-  return <Page title={data.title} content={JSON.parse(data.content)} />;
+  if (isError || !data) {
+    return (
+      <div className="statusScreen">
+        <p>データ取得に失敗しました。</p>
+        <p className="statusDetail">{error instanceof Error ? error.message : "サーバーを確認してください"}</p>
+      </div>
+    );
+  }
+
+  let parsedContent: JSONContent;
+  try {
+    parsedContent = JSON.parse(data.content) as JSONContent;
+  } catch {
+    parsedContent = { type: "doc", content: [{ type: "paragraph" }] };
+  }
+
+  return <Page title={data.title} content={parsedContent} />;
 }
 
 type PressRelease = {
   title: string;
-  content: string;
+  content: JSONContent;
 };
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem],
+    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
     content,
   });
 
@@ -81,6 +107,46 @@ function Page({ title: initialTitle, content }: PressRelease) {
       title,
       content: JSON.stringify(editor.getJSON()),
     });
+  };
+
+  const uploadImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${BASE_URL}/uploads/images`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("画像のアップロードに失敗しました");
+    }
+
+    return response.json() as Promise<{ url: string }>;
+  };
+
+  const handlePickImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editor) return;
+
+    try {
+      const { url } = await uploadImage(file);
+      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+
+      mutate({
+        title,
+        content: JSON.stringify(editor.getJSON()),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "画像アップロードに失敗しました";
+      alert(message);
+    } finally {
+      event.target.value = "";
+    }
   };
 
   return (
@@ -124,11 +190,25 @@ function Page({ title: initialTitle, content }: PressRelease) {
             >
               番号付きリスト
             </button>
+            <button
+              type="button"
+              onClick={handlePickImage}
+              className="toolbarButton"
+              disabled={!editor}
+            >
+              画像を追加
+            </button>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            className="hiddenFileInput"
+            onChange={handleImageSelected}
+          />
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
-

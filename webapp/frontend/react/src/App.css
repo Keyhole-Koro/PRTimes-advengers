@@ -74,30 +74,6 @@
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
-.toolbar {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.toolbarButton {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.toolbarButton:hover:not(:disabled) {
-  background: #f8f9fa;
-}
-
-.toolbarButton[data-active="true"] {
-  background: #007bff;
-  border-color: #007bff;
-  color: #fff;
-}
-
 /* Tiptapエディターのスタイル */
 .tiptap {
   outline: none;
@@ -108,14 +84,4 @@
   margin: 1em 0;
   line-height: 1.6;
   font-size: 1rem;
-}
-
-.tiptap ul,
-.tiptap ol {
-  margin: 1em 0;
-  padding-left: 1.5rem;
-}
-
-.tiptap li {
-  margin: 0.35em 0;
 }
