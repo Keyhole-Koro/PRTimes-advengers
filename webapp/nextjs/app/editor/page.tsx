@@ -7,6 +7,9 @@ import Document from '@tiptap/extension-document';
 import Heading from '@tiptap/extension-heading';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
 import type { PressRelease } from '@/lib/types';
 import styles from './page.module.css';
 
@@ -82,7 +85,7 @@ interface EditorProps {
 function Editor({ initialTitle, initialContent }: EditorProps) {
   const [title, setTitle] = useState(initialTitle);
   const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text],
+    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem],
     content: initialContent,
     immediatelyRender: false
   });
@@ -117,6 +120,26 @@ function Editor({ initialTitle, initialContent }: EditorProps) {
               placeholder="タイトルを入力してください"
               className={styles.titleInput}
             />
+          </div>
+          <div className={styles.toolbar}>
+            <button
+              type="button"
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              className={styles.toolbarButton}
+              data-active={editor?.isActive('bulletList') ?? false}
+              disabled={!editor}
+            >
+              箇条書き
+            </button>
+            <button
+              type="button"
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              className={styles.toolbarButton}
+              data-active={editor?.isActive('orderedList') ?? false}
+              disabled={!editor}
+            >
+              番号付きリスト
+            </button>
           </div>
           <EditorContent editor={editor} />
         </div>
