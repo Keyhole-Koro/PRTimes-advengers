@@ -2,17 +2,23 @@ version: 0.2
 
 phases:
   install:
+    runtime-versions:
+      # Node.js 20を指定して Vite のバージョン要件をクリアする
+      nodejs: 20
     commands:
-      - cd webapp/frontend/react
+      # 環境変数を使って確実に目的のディレクトリへ移動
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm install
   build:
     commands:
-      - cd webapp/frontend/react
+      # 各フェーズの最初で確実にディレクトリを指定する
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm run build
   post_build:
     commands:
-      # ホスティング用S3バケットに直接コピー
-      - aws s3 sync webapp/frontend/react/dist s3://pr-times-4/ --delete
+      # S3へのデプロイ時も確実にディレクトリを指定
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      - aws s3 sync dist s3://pr-times-4/ --delete
 
 artifacts:
   base-directory: webapp
