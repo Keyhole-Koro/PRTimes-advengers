@@ -10,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import type { CSSProperties, ChangeEvent, DragEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import { LinkCard } from "./editor/linkCard";
 import { RemotePresence, setRemotePresence, type PresenceUser } from "./editor/remotePresence";
 
 const queryKey = ["fetch-press-release"];
@@ -39,6 +40,13 @@ type PressReleaseRevisionResponse = {
   title: string;
   content: JSONContent;
   created_at: string;
+};
+
+type LinkPreviewResponse = {
+  url: string;
+  title: string;
+  description: string;
+  image: string | null;
 };
 
 type MarkType = "bold" | "italic" | "underline";
@@ -316,7 +324,9 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [selectedRevisionId, setSelectedRevisionId] = useState<number | null>(null);
   const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
   const [imageUrl, setImageUrl] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isFetchingLinkPreview, setIsFetchingLinkPreview] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
@@ -334,10 +344,11 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             StarterKit,
             Underline,
             Image,
+            LinkCard,
             RemotePresence,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, Image, RemotePresence],
+        : [StarterKit, Underline, Image, LinkCard, RemotePresence],
       content: session?.snapshot.content ?? content,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -616,6 +627,15 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     return (await response.json()) as { url: string };
   };
 
+  const fetchLinkPreview = async (url: string) => {
+    const response = await fetch(`${BASE_URL}/link-previews?url=${encodeURIComponent(url)}`);
+    if (!response.ok) {
+      throw new Error("リンク先のOGP情報を取得できませんでした");
+    }
+
+    return (await response.json()) as LinkPreviewResponse;
+  };
+
   const handlePickImage = () => {
     fileInputRef.current?.click();
   };
@@ -640,6 +660,39 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
     setImageUrl("");
     flushAfterImageChange();
+  };
+
+  const handleInsertLinkCard = async () => {
+    if (!editor) {
+      return;
+    }
+
+    const trimmedUrl = linkUrl.trim();
+    if (!trimmedUrl) {
+      alert("URLを入力してください");
+      return;
+    }
+
+    setIsFetchingLinkPreview(true);
+
+    try {
+      const preview = await fetchLinkPreview(trimmedUrl);
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "linkCard",
+          attrs: preview,
+        })
+        .run();
+      setLinkUrl("");
+      flushAfterImageChange();
+    } catch (previewError) {
+      const message = previewError instanceof Error ? previewError.message : "リンクカードを追加できませんでした";
+      alert(message);
+    } finally {
+      setIsFetchingLinkPreview(false);
+    }
   };
 
   const insertUploadedImage = async (file: File) => {
@@ -914,6 +967,24 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
                 disabled={!editor || isUploadingImage}
               >
                 画像ファイルを選択
+              </button>
+            </div>
+
+            <div className="linkCardForm">
+              <input
+                type="url"
+                value={linkUrl}
+                onChange={(event) => setLinkUrl(event.target.value)}
+                placeholder="リンクURLを入力してください (https://...)"
+                className="imageInput"
+              />
+              <button
+                type="button"
+                onClick={() => void handleInsertLinkCard()}
+                className="imageButton"
+                disabled={!editor || isFetchingLinkPreview}
+              >
+                {isFetchingLinkPreview ? "取得中..." : "リンクカードを追加"}
               </button>
             </div>
 

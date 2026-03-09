@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { healthRoutes } from './routes/health.js'
+import { linkPreviewRoutes } from './routes/linkPreviews.js'
 import { pressReleaseRoutes } from './routes/pressReleases.js'
 import { uploadRoutes } from './routes/uploads.js'
 
@@ -56,5 +57,6 @@ app.use(
 
 app.use('/uploads/*', serveStatic({ root: './' }))
 app.route('/', healthRoutes)
+app.route('/', linkPreviewRoutes)
 app.route('/', pressReleaseRoutes)
 app.route('/', uploadRoutes)
