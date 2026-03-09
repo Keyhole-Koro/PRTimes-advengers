@@ -3,6 +3,8 @@ import { pressReleaseRepository } from '../repositories/pressReleaseRepository.j
 import { formatTimestamp } from '../utils/formatTimestamp.js';
 export class PressReleaseNotFoundError extends Error {
 }
+export class PressReleaseRevisionNotFoundError extends Error {
+}
 export class PressReleaseVersionConflictError extends Error {
     currentVersion;
     constructor(currentVersion) {
@@ -30,6 +32,31 @@ export class PressReleaseService {
         }
         return toResponse(result.pressRelease);
     }
+    async getPressReleaseRevisions(id) {
+        await ensureDatabaseSchema();
+        const pressRelease = await pressReleaseRepository.findById(id);
+        if (!pressRelease) {
+            throw new PressReleaseNotFoundError();
+        }
+        const revisions = await pressReleaseRepository.findRevisionsByPressReleaseId(id);
+        return revisions.map(toRevisionResponse);
+    }
+    async restorePressReleaseRevision(id, revisionId) {
+        await ensureDatabaseSchema();
+        const pressRelease = await pressReleaseRepository.findById(id);
+        if (!pressRelease) {
+            throw new PressReleaseNotFoundError();
+        }
+        const revision = await pressReleaseRepository.findRevisionById(id, revisionId);
+        if (!revision) {
+            throw new PressReleaseRevisionNotFoundError();
+        }
+        return this.updatePressRelease(id, {
+            title: revision.title,
+            content: revision.content,
+            version: pressRelease.version,
+        });
+    }
 }
 function toResponse(pressRelease) {
     return {
@@ -42,3 +69,13 @@ function toResponse(pressRelease) {
     };
 }
 export const pressReleaseService = new PressReleaseService();
+function toRevisionResponse(revision) {
+    return {
+        id: revision.id,
+        press_release_id: revision.pressReleaseId,
+        version: revision.version,
+        title: revision.title,
+        content: revision.content,
+        created_at: formatTimestamp(revision.createdAt),
+    };
+}

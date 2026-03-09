@@ -9,6 +9,15 @@ export type PressReleaseRecord = {
   updatedAt: Date
 }
 
+export type PressReleaseRevisionRecord = {
+  id: number
+  pressReleaseId: number
+  version: number
+  title: string
+  content: PressReleaseContent
+  createdAt: Date
+}
+
 export type PressReleaseResponse = {
   id: number
   title: string
@@ -16,6 +25,15 @@ export type PressReleaseResponse = {
   version: number
   created_at: string
   updated_at: string
+}
+
+export type PressReleaseRevisionResponse = {
+  id: number
+  press_release_id: number
+  version: number
+  title: string
+  content: PressReleaseContent
+  created_at: string
 }
 
 export type UpdatePressReleaseInput = {

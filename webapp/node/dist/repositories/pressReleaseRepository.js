@@ -48,6 +48,28 @@ export class PressReleaseRepository {
             client.release();
         }
     }
+    async findRevisionsByPressReleaseId(id) {
+        const pool = getPool();
+        const result = await pool.query(`
+        SELECT id, press_release_id, version, title, content, created_at
+        FROM press_release_revisions
+        WHERE press_release_id = $1
+        ORDER BY version DESC
+      `, [id]);
+        return result.rows.map(mapRevisionRow);
+    }
+    async findRevisionById(pressReleaseId, revisionId) {
+        const pool = getPool();
+        const result = await pool.query(`
+        SELECT id, press_release_id, version, title, content, created_at
+        FROM press_release_revisions
+        WHERE press_release_id = $1 AND id = $2
+      `, [pressReleaseId, revisionId]);
+        if (result.rows.length === 0) {
+            return null;
+        }
+        return mapRevisionRow(result.rows[0]);
+    }
     async findByIdForUpdate(client, id) {
         const result = await client.query(`
         SELECT id, title, content, version, created_at, updated_at
@@ -72,3 +94,13 @@ function mapRow(row) {
     };
 }
 export const pressReleaseRepository = new PressReleaseRepository();
+function mapRevisionRow(row) {
+    return {
+        id: row.id,
+        pressReleaseId: row.press_release_id,
+        version: row.version,
+        title: row.title,
+        content: row.content,
+        createdAt: new Date(row.created_at),
+    };
+}

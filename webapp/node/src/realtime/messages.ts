@@ -12,10 +12,17 @@ export type PresencePayload = {
 
 export type ClientRealtimeMessage =
   | {
-      type: 'document.update'
-      title: string
-      content: PressReleaseContent
+      type: 'document.steps'
       version: number
+      steps: unknown[]
+      content: PressReleaseContent
+    }
+  | {
+      type: 'title.update'
+      title: string
+    }
+  | {
+      type: 'document.flush'
     }
   | ({
       type: 'presence.update'
@@ -26,20 +33,30 @@ export type ServerRealtimeMessage =
       type: 'session.ready'
       clientId: string
       snapshot: Pick<PressReleaseResponse, 'title' | 'content' | 'version'>
+      revision: number
       presence: PresencePayload[]
     }
   | {
-      type: 'document.sync'
+      type: 'document.steps'
       sourceClientId: string
+      steps: unknown[]
+      clientIds: string[]
+      revision: number
+    }
+  | {
+      type: 'title.sync'
       title: string
-      content: PressReleaseContent
-      version: number
     }
   | {
       type: 'document.saved'
       title: string
       content: PressReleaseContent
       version: number
+    }
+  | {
+      type: 'document.resync'
+      snapshot: Pick<PressReleaseResponse, 'title' | 'content' | 'version'>
+      revision: number
     }
   | {
       type: 'presence.snapshot'

@@ -9,17 +9,33 @@ const appEnv = process.env.APP_ENV === 'prod' ? 'prod' : 'local';
 const resolveCorsOrigin = () => {
     if (appEnv === 'local') {
         // Allow all localhost origins with any port
-        return /^https?:\/\/localhost(:\d+)?$/;
+        return (origin) => {
+            if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+                return origin;
+            }
+            return undefined;
+        };
     }
     const baseApiUrl = process.env.APP_BASE_API_URL;
     if (!baseApiUrl) {
-        return /^https?:\/\/localhost(:\d+)?$/;
+        return (origin) => {
+            if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+                return origin;
+            }
+            return undefined;
+        };
     }
     try {
-        return new URL(baseApiUrl).origin;
+        const allowedOrigin = new URL(baseApiUrl).origin;
+        return allowedOrigin;
     }
     catch {
-        return /^https?:\/\/localhost(:\d+)?$/;
+        return (origin) => {
+            if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+                return origin;
+            }
+            return undefined;
+        };
     }
 };
 const corsOrigin = resolveCorsOrigin();
