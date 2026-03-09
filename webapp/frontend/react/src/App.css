@@ -4,6 +4,7 @@
   padding: 16px;
 }
 
+.statusScreen,
 .errorState {
   min-height: 100vh;
   display: grid;
@@ -364,8 +365,81 @@
   box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
 }
 
+.imageForm {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.imageInput {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  outline: none;
+}
+
+.imageInput:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.imageButton {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  background: #007bff;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.imageButton:hover:not(:disabled) {
+  background: #0056b3;
+  border-color: #0056b3;
+}
+
+.imageButton:disabled {
+  background: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.imageButtonSecondary {
+  background: #fff;
+  color: #007bff;
+}
+
+.imageButtonSecondary:hover:not(:disabled) {
+  background: #eef5ff;
+  border-color: #0056b3;
+}
+
 .hiddenFileInput {
   display: none;
+}
+
+.dropZone {
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dropZone.is-dragging {
+  border-color: #007bff;
+  background: rgba(0, 123, 255, 0.06);
+}
+
+.dropZone.is-uploading {
+  opacity: 0.85;
+}
+
+.dropZoneHint {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #4a5568;
 }
 
 .tiptap {
