@@ -25,6 +25,9 @@ docker compose up -d
 ### 2. 動作確認
 
 ```bash
+# ヘルスチェック
+curl http://localhost:8080/health
+
 # プレスリリースの取得
 curl http://localhost:8080/press-releases/1
 
@@ -75,6 +78,24 @@ docker compose up -d
 ```
 
 ## API仕様
+
+### GET /health
+
+バックエンドとデータベース接続のヘルスチェックを行います。
+
+**正常時レスポンス例:**
+```json
+{
+  "status": "ok"
+}
+```
+
+**異常時レスポンス例:**
+```json
+{
+  "status": "error"
+}
+```
 
 ### GET /press-releases/:id
 
