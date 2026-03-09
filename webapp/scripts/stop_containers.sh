@@ -1,4 +1,3 @@
-#!/bin/bash
 if [ -d "/home/ec2-user/press-release-app" ]; then
   cd /home/ec2-user/press-release-app
   docker-compose down || true
