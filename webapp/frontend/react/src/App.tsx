@@ -10,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import type { CSSProperties, ChangeEvent, DragEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import { CommentHighlight } from "./editor/commentHighlight";
 import { LinkCard } from "./editor/linkCard";
 import { RemotePresence, setRemotePresence, type PresenceUser } from "./editor/remotePresence";
 
@@ -63,6 +64,29 @@ type PressReleaseTemplateResponse = {
 };
 
 type MarkType = "bold" | "italic" | "underline";
+
+type CommentThreadResponse = {
+  id: number;
+  press_release_id: number;
+  anchor_from: number;
+  anchor_to: number;
+  quote: string;
+  is_resolved: boolean;
+  created_by: string;
+  created_at: string;
+  resolved_at: string | null;
+  messages: CommentMessageResponse[];
+};
+
+type CommentMessageResponse = {
+  id: number;
+  thread_id: number;
+  body: string;
+  created_by: string;
+  created_at: string;
+};
+
+type SidebarTab = "history" | "comments";
 
 type ToolbarButtonConfig = {
   key: string;
@@ -534,6 +558,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isFetchingLinkPreview, setIsFetchingLinkPreview] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("history");
+  const [commentThreads, setCommentThreads] = useState<CommentThreadResponse[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
+  const [showResolvedComments, setShowResolvedComments] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [replyBodies, setReplyBodies] = useState<Record<number, string>>({});
+  const [isCreatingComment, setIsCreatingComment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
@@ -553,9 +584,10 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             Image,
             LinkCard,
             RemotePresence,
+            CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, Image, LinkCard, RemotePresence],
+        : [StarterKit, Underline, Image, LinkCard, RemotePresence, CommentHighlight],
       content: session?.snapshot.content ?? content,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -1154,6 +1186,152 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
   };
 
+  const fetchComments = async () => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/comments?includeResolved=${showResolvedComments}`,
+      );
+      if (response.ok) {
+        setCommentThreads((await response.json()) as CommentThreadResponse[]);
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
+  // biome-ignore lint: fetchComments depends on showResolvedComments
+  useEffect(() => {
+    if (session) {
+      void fetchComments();
+    }
+  }, [session, showResolvedComments]);
+
+  const handleCreateComment = async () => {
+    if (!editor || newCommentBody.trim() === "") return;
+
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      alert("コメントを追加するテキストを選択してください");
+      return;
+    }
+
+    const quote = editor.state.doc.textBetween(from, to, " ");
+
+    try {
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anchorFrom: from,
+          anchorTo: to,
+          quote,
+          body: newCommentBody.trim(),
+          createdBy: identity.name,
+        }),
+      });
+
+      if (response.ok) {
+        const thread = (await response.json()) as CommentThreadResponse;
+        editor
+          .chain()
+          .setTextSelection({ from, to })
+          .setMark("commentHighlight", { threadId: thread.id })
+          .run();
+        setNewCommentBody("");
+        setIsCreatingComment(false);
+        setActiveThreadId(thread.id);
+        setSidebarTab("comments");
+        requestFlush();
+        await fetchComments();
+      }
+    } catch {
+      alert("コメントの作成に失敗しました");
+    }
+  };
+
+  const handleAddReply = async (threadId: number) => {
+    const body = replyBodies[threadId]?.trim();
+    if (!body) return;
+
+    try {
+      const response = await fetch(`${BASE_URL}/comments/${threadId}/replies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, createdBy: identity.name }),
+      });
+
+      if (response.ok) {
+        setReplyBodies((prev) => ({ ...prev, [threadId]: "" }));
+        await fetchComments();
+      }
+    } catch {
+      alert("返信の送信に失敗しました");
+    }
+  };
+
+  const handleResolveThread = async (threadId: number) => {
+    try {
+      const response = await fetch(`${BASE_URL}/comments/${threadId}/resolve`, {
+        method: "PATCH",
+      });
+      if (response.ok) {
+        await fetchComments();
+      }
+    } catch {
+      alert("コメントの解決に失敗しました");
+    }
+  };
+
+  const handleUnresolveThread = async (threadId: number) => {
+    try {
+      const response = await fetch(`${BASE_URL}/comments/${threadId}/unresolve`, {
+        method: "PATCH",
+      });
+      if (response.ok) {
+        await fetchComments();
+      }
+    } catch {
+      alert("コメントの再開に失敗しました");
+    }
+  };
+
+  const handleStartComment = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) {
+      alert("テキストを選択してからコメントを追加してください");
+      return;
+    }
+    setIsCreatingComment(true);
+    setSidebarTab("comments");
+  };
+
+  const handleClickCommentMark = () => {
+    if (!editor) return;
+    const { from } = editor.state.selection;
+    const resolved = editor.state.doc.resolve(from);
+    const marks = resolved.marks();
+    const commentMark = marks.find((mark) => mark.type.name === "commentHighlight");
+    if (commentMark?.attrs.threadId) {
+      setActiveThreadId(commentMark.attrs.threadId as number);
+      setSidebarTab("comments");
+    }
+  };
+
+  // Detect comment mark click on selection change
+  useEffect(() => {
+    if (!editor || !session) return;
+
+    const onSelectionUpdate = () => {
+      handleClickCommentMark();
+    };
+
+    editor.on("selectionUpdate", onSelectionUpdate);
+    return () => {
+      editor.off("selectionUpdate", onSelectionUpdate);
+    };
+  }, [editor, session, commentThreads]);
+
   if (!editor || !session) {
     return (
       <div className="container">
@@ -1262,6 +1440,17 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           label: "HTMLをインポート",
           isActive: false,
           onClick: handlePickHtml,
+        },
+      ],
+    },
+    {
+      label: "コメント",
+      buttons: [
+        {
+          key: "add-comment",
+          label: "コメント追加",
+          isActive: isCreatingComment,
+          onClick: handleStartComment,
         },
       ],
     },
@@ -1408,119 +1597,280 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             </div>
           </div>
 
-          <aside className="historyPanel" aria-label="変更履歴">
-            <section className="templatePanel">
-              <div className="historyPanelHeader">
-                <h2 className="historyTitle">テンプレート</h2>
-                <span className="historyCount">{templates.length}件</span>
-              </div>
-              <div className="templateSaveRow">
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={(event) => setTemplateName(event.target.value)}
-                  placeholder="テンプレート名"
-                  className="templateInput"
-                />
-                <button
-                  type="button"
-                  className="templateButton"
-                  onClick={() => void saveCurrentAsTemplate()}
-                  disabled={isSavingTemplate}
-                >
-                  {isSavingTemplate ? "保存中..." : "保存"}
-                </button>
-              </div>
-              <div className="templateList">
-                {templates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    className="templateItem"
-                    onClick={() => void applyTemplate(template.id)}
-                    disabled={applyingTemplateId === template.id}
-                  >
-                    <span className="templateName">{template.name}</span>
-                    <span className="templateMeta">{template.updated_at}</span>
-                    <span className="templateTitle">{template.title}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <div className="historyPanelHeader">
-              <h2 className="historyTitle">変更履歴</h2>
-              <span className="historyCount">{revisions.length}件</span>
+          <aside className="sidebarPanel" aria-label="サイドパネル">
+            <div className="sidebarTabs">
+              <button
+                type="button"
+                className={`sidebarTab${sidebarTab === "comments" ? " is-active" : ""}`}
+                onClick={() => setSidebarTab("comments")}
+              >
+                コメント
+              </button>
+              <button
+                type="button"
+                className={`sidebarTab${sidebarTab === "history" ? " is-active" : ""}`}
+                onClick={() => setSidebarTab("history")}
+              >
+                履歴
+              </button>
             </div>
 
-            <div className="historyList">
-              {revisions.map((revision) => (
-                <button
-                  key={revision.id}
-                  type="button"
-                  className={`historyItem${revision.id === selectedRevision?.id ? " is-active" : ""}`}
-                  onClick={() => setSelectedRevisionId(revision.id)}
-                >
-                  <span className="historyItemVersion">v{revision.version}</span>
-                  <span className="historyItemDate">{revision.created_at}</span>
-                  <span className="historyItemMeta">
-                    +{revisionSummaries[revision.id]?.added ?? 0}
-                    {" / "}
-                    -{revisionSummaries[revision.id]?.removed ?? 0}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {selectedRevision && (
-              <section className="historyPreview">
-                <div className="historyPreviewMeta">
-                  <span>version {selectedRevision.version}</span>
-                  <span>{selectedRevision.created_at}</span>
-                </div>
-                <h3 className="historyPreviewTitle">
-                  {previousRevision ? `v${previousRevision.version} -> v${selectedRevision.version}` : "初回保存"}
-                </h3>
-                <button
-                  type="button"
-                  className="restoreButton"
-                  onClick={() => void restoreRevision(selectedRevision.id)}
-                  disabled={restoringRevisionId === selectedRevision.id}
-                >
-                  {restoringRevisionId === selectedRevision.id ? "復元中..." : "復元"}
-                </button>
-                {titleDiff.length > 0 && (
-                  <div className="diffGroup">
-                    <span className="diffLabel">タイトル</span>
-                    <div className="diffTokens">
-                      {titleDiff.map((segment, index) => (
-                        <span key={`${segment.type}-${index}`} className={`diffToken is-${segment.type}`}>
-                          {segment.type === "added" ? "+ " : "- "}
-                          {segment.value}
-                        </span>
-                      ))}
+            {sidebarTab === "comments" && (
+              <div className="commentPanel">
+                {isCreatingComment && (
+                  <div className="commentCreateForm">
+                    <p className="commentQuotePreview">
+                      「{editor.state.doc.textBetween(
+                        editor.state.selection.from,
+                        editor.state.selection.to,
+                        " ",
+                      )}」
+                    </p>
+                    <textarea
+                      value={newCommentBody}
+                      onChange={(e) => setNewCommentBody(e.target.value)}
+                      placeholder="コメントを入力..."
+                      className="commentInput"
+                      rows={3}
+                    />
+                    <div className="commentCreateActions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingComment(false);
+                          setNewCommentBody("");
+                        }}
+                        className="commentCancelButton"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateComment()}
+                        className="commentSubmitButton"
+                        disabled={!newCommentBody.trim()}
+                      >
+                        送信
+                      </button>
                     </div>
                   </div>
                 )}
-                <div className="diffGroup">
-                  <span className="diffLabel">本文差分</span>
-                  <div className="diffTokens">
-                    {visibleBodyDiff.length > 0 ? (
-                      visibleBodyDiff.map((segment, index) => (
-                        <span key={`${segment.type}-${index}`} className={`diffToken is-${segment.type}`}>
-                          {segment.type === "added" ? "+ " : "- "}
-                          {segment.value}
+
+                <label className="commentResolvedToggle">
+                  <input
+                    type="checkbox"
+                    checked={showResolvedComments}
+                    onChange={(e) => setShowResolvedComments(e.target.checked)}
+                  />
+                  解決済みを表示
+                </label>
+
+                <div className="commentThreadList">
+                  {commentThreads.map((thread) => (
+                    <div
+                      key={thread.id}
+                      className={`commentThread${thread.id === activeThreadId ? " is-active" : ""}${thread.is_resolved ? " is-resolved" : ""}`}
+                      onClick={() => setActiveThreadId(activeThreadId === thread.id ? null : thread.id)}
+                      onKeyDown={() => {}}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="commentThreadHeader">
+                        <span className="commentThreadQuote">「{thread.quote}」</span>
+                        <span className="commentThreadMeta">
+                          {thread.created_by} · {thread.created_at}
                         </span>
-                      ))
-                    ) : (
-                      <span className="diffEmpty">差分なし</span>
-                    )}
-                  </div>
+                      </div>
+
+                      <div className="commentMessages">
+                        {thread.messages.map((msg) => (
+                          <div key={msg.id} className="commentMessage">
+                            <div className="commentMessageHead">
+                              <span className="commentMessageAuthor">{msg.created_by}</span>
+                              <span className="commentMessageTime">{msg.created_at}</span>
+                            </div>
+                            <span className="commentMessageBody">{msg.body}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {activeThreadId === thread.id && (
+                        <div
+                          className="commentThreadActions"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          role="group"
+                        >
+                          <div className="commentReplyForm">
+                            <textarea
+                              value={replyBodies[thread.id] ?? ""}
+                              onChange={(e) =>
+                                setReplyBodies((prev) => ({
+                                  ...prev,
+                                  [thread.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="返信を入力..."
+                              className="commentReplyInput"
+                              rows={2}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAddReply(thread.id)}
+                              className="commentReplyButton"
+                              disabled={!replyBodies[thread.id]?.trim()}
+                            >
+                              返信
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void (thread.is_resolved
+                                ? handleUnresolveThread(thread.id)
+                                : handleResolveThread(thread.id))
+                            }
+                            className={`commentResolveButton${thread.is_resolved ? " is-resolved" : ""}`}
+                          >
+                            {thread.is_resolved ? "再開" : "解決"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {commentThreads.length === 0 && (
+                    <p className="commentEmpty">コメントはまだありません</p>
+                  )}
                 </div>
-                {bodyDiff.length > visibleBodyDiff.length && (
-                  <span className="historyMore">さらに {bodyDiff.length - visibleBodyDiff.length} 件</span>
+              </div>
+            )}
+
+            {sidebarTab === "history" && (
+              <>
+                <section className="templatePanel">
+                  <div className="historyPanelHeader">
+                    <h2 className="historyTitle">テンプレート</h2>
+                    <span className="historyCount">{templates.length}件</span>
+                  </div>
+                  <div className="templateSaveRow">
+                    <input
+                      type="text"
+                      value={templateName}
+                      onChange={(event) => setTemplateName(event.target.value)}
+                      placeholder="テンプレート名"
+                      className="templateInput"
+                    />
+                    <button
+                      type="button"
+                      className="templateButton"
+                      onClick={() => void saveCurrentAsTemplate()}
+                      disabled={isSavingTemplate}
+                    >
+                      {isSavingTemplate ? "保存中..." : "保存"}
+                    </button>
+                  </div>
+                  <div className="templateList">
+                    {templates.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        className="templateItem"
+                        onClick={() => void applyTemplate(template.id)}
+                        disabled={applyingTemplateId === template.id}
+                      >
+                        <span className="templateName">{template.name}</span>
+                        <span className="templateMeta">{template.updated_at}</span>
+                        <span className="templateTitle">{template.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="historyPanelHeader">
+                  <h2 className="historyTitle">変更履歴</h2>
+                  <span className="historyCount">{revisions.length}件</span>
+                </div>
+
+                <div className="historyList">
+                  {revisions.map((revision) => (
+                    <button
+                      key={revision.id}
+                      type="button"
+                      className={`historyItem${revision.id === selectedRevision?.id ? " is-active" : ""}`}
+                      onClick={() => setSelectedRevisionId(revision.id)}
+                    >
+                      <span className="historyItemVersion">v{revision.version}</span>
+                      <span className="historyItemDate">{revision.created_at}</span>
+                      <span className="historyItemMeta">
+                        +{revisionSummaries[revision.id]?.added ?? 0}
+                        {" / "}
+                        -{revisionSummaries[revision.id]?.removed ?? 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {selectedRevision && (
+                  <section className="historyPreview">
+                    <div className="historyPreviewMeta">
+                      <span>version {selectedRevision.version}</span>
+                      <span>{selectedRevision.created_at}</span>
+                    </div>
+                    <h3 className="historyPreviewTitle">
+                      {previousRevision
+                        ? `v${previousRevision.version} -> v${selectedRevision.version}`
+                        : "初回保存"}
+                    </h3>
+                    <button
+                      type="button"
+                      className="restoreButton"
+                      onClick={() => void restoreRevision(selectedRevision.id)}
+                      disabled={restoringRevisionId === selectedRevision.id}
+                    >
+                      {restoringRevisionId === selectedRevision.id ? "復元中..." : "復元"}
+                    </button>
+                    {titleDiff.length > 0 && (
+                      <div className="diffGroup">
+                        <span className="diffLabel">タイトル</span>
+                        <div className="diffTokens">
+                          {titleDiff.map((segment, index) => (
+                            <span
+                              key={`${segment.type}-${index}`}
+                              className={`diffToken is-${segment.type}`}
+                            >
+                              {segment.type === "added" ? "+ " : "- "}
+                              {segment.value}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="diffGroup">
+                      <span className="diffLabel">本文差分</span>
+                      <div className="diffTokens">
+                        {visibleBodyDiff.length > 0 ? (
+                          visibleBodyDiff.map((segment, index) => (
+                            <span
+                              key={`${segment.type}-${index}`}
+                              className={`diffToken is-${segment.type}`}
+                            >
+                              {segment.type === "added" ? "+ " : "- "}
+                              {segment.value}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="diffEmpty">差分なし</span>
+                        )}
+                      </div>
+                    </div>
+                    {bodyDiff.length > visibleBodyDiff.length && (
+                      <span className="historyMore">
+                        さらに {bodyDiff.length - visibleBodyDiff.length} 件
+                      </span>
+                    )}
+                  </section>
                 )}
-              </section>
+              </>
             )}
           </aside>
         </div>

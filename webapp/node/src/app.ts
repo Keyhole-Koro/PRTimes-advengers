@@ -6,6 +6,7 @@ import { linkPreviewRoutes } from './routes/linkPreviews.js'
 import { pressReleaseTemplateRoutes } from './routes/pressReleaseTemplates.js'
 import { pressReleaseRoutes } from './routes/pressReleases.js'
 import { uploadRoutes } from './routes/uploads.js'
+import { commentRoutes } from './routes/comments.js'
 
 export const app = new Hono()
 
@@ -62,3 +63,4 @@ app.route('/', linkPreviewRoutes)
 app.route('/', pressReleaseTemplateRoutes)
 app.route('/', pressReleaseRoutes)
 app.route('/', uploadRoutes)
+app.route('/', commentRoutes)
