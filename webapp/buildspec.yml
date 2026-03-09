@@ -18,14 +18,16 @@ phases:
     commands:
       # S3へのデプロイ時も確実にディレクトリを指定
       - aws s3 sync $CODEBUILD_SRC_DIR/webapp/frontend/react/dist s3://pr-times-4/ --delete
-
+      - aws s3 sync dist s3://pr-times-4/ --delete
+      # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する（追記）
+      - rm -rf node_modules
+      - aws s3 sync dist s3://pr-times-4/ --delete
 
 artifacts:
   base-directory: webapp
   files:
     - appspec.yml         # ← CodeDeployに必要
     - scripts/**/*        # ← フックスクリプト
-    - "**/*"   
-  exclude-paths:
-    - frontend/react/node_modules/**
-    - node/node_modules/**
+    - webapp/**/*    
+exclude-paths:
+    - webapp/frontend/react/node_modules/**  
