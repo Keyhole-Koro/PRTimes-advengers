@@ -33,6 +33,10 @@ type PressRelease = {
   version: number;
 };
 
+type FileWithRelativePath = File & {
+  webkitRelativePath?: string;
+};
+
 type PressReleaseRevisionResponse = {
   id: number;
   press_release_id: number;
@@ -308,6 +312,24 @@ const MOCK_TEMPLATES: PressReleaseTemplateResponse[] = [
   },
 ];
 
+function isImageFile(file: FileWithRelativePath): boolean {
+  if (file.type.startsWith("image/")) {
+    return true;
+  }
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
+}
+
+function normalizePathKey(path: string): string {
+  return decodeURIComponent(path)
+    .trim()
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .toLowerCase();
+}
+
 function createRealtimeIdentity() {
   const userId = crypto.randomUUID();
   const suffix = userId.slice(0, 4);
@@ -513,6 +535,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [isFetchingLinkPreview, setIsFetchingLinkPreview] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const dragDepthRef = useRef(0);
@@ -885,6 +908,10 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     fileInputRef.current?.click();
   };
 
+  const handlePickHtml = () => {
+    htmlInputRef.current?.click();
+  };
+
   const flushAfterImageChange = () => {
     window.setTimeout(() => {
       requestFlush();
@@ -976,6 +1003,116 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
 
     event.target.value = "";
+  };
+
+  const buildFileFromDataUrl = async (dataUrl: string, fallbackName: string) => {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const ext = blob.type.split("/")[1] || "png";
+    return new File([blob], `${fallbackName}.${ext}`, { type: blob.type || "image/png" });
+  };
+
+  const handleImportHtml = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []) as FileWithRelativePath[];
+    if (selectedFiles.length === 0 || !editor) {
+      return;
+    }
+
+    try {
+      const htmlFile = selectedFiles.find(
+        (file) => file.type === "text/html" || file.name.toLowerCase().endsWith(".html"),
+      );
+      if (!htmlFile) {
+        alert("HTMLファイルを選択してください");
+        return;
+      }
+
+      const imageFileMap = new Map<string, File>();
+      const selectedImageFiles: File[] = [];
+      for (const file of selectedFiles) {
+        if (!isImageFile(file)) {
+          continue;
+        }
+        selectedImageFiles.push(file);
+        imageFileMap.set(normalizePathKey(file.name), file);
+        if (file.webkitRelativePath) {
+          imageFileMap.set(normalizePathKey(file.webkitRelativePath), file);
+        }
+      }
+
+      const htmlText = await htmlFile.text();
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const skippedImageSrcList: string[] = [];
+      const usedImageNames = new Set<string>();
+      const images = Array.from(doc.querySelectorAll("img"));
+
+      for (const [index, img] of images.entries()) {
+        const src = img.getAttribute("src")?.trim();
+        if (!src) {
+          continue;
+        }
+
+        try {
+          let uploadedUrl = "";
+
+          if (src.startsWith("data:")) {
+            const dataFile = await buildFileFromDataUrl(src, `imported-image-${index + 1}`);
+            const uploaded = await uploadImage(dataFile);
+            uploadedUrl = uploaded.url;
+          } else if (/^https?:\/\//i.test(src)) {
+            const fetchedImage = await fetch(src);
+            if (!fetchedImage.ok) {
+              throw new Error("画像の取得に失敗しました");
+            }
+            const blob = await fetchedImage.blob();
+            const ext = blob.type.split("/")[1] || "png";
+            const httpFile = new File([blob], `imported-image-${index + 1}.${ext}`, {
+              type: blob.type || "image/png",
+            });
+            const uploaded = await uploadImage(httpFile);
+            uploadedUrl = uploaded.url;
+          } else {
+            const normalizedSrc = normalizePathKey(src);
+            const srcName = normalizedSrc.split("/").pop() ?? normalizedSrc;
+            let localImageFile = imageFileMap.get(normalizedSrc) ?? imageFileMap.get(srcName);
+
+            if (!localImageFile) {
+              localImageFile = selectedImageFiles.find((f) => !usedImageNames.has(f.name));
+            }
+
+            if (!localImageFile) {
+              skippedImageSrcList.push(src);
+              continue;
+            }
+
+            usedImageNames.add(localImageFile.name);
+            const uploaded = await uploadImage(localImageFile);
+            uploadedUrl = uploaded.url;
+          }
+
+          img.setAttribute("src", uploadedUrl);
+        } catch {
+          skippedImageSrcList.push(src);
+        }
+      }
+
+      const importedTitle =
+        doc.querySelector("title")?.textContent?.trim() || doc.querySelector("h1")?.textContent?.trim() || title;
+      const bodyHtml = doc.body?.innerHTML?.trim() || "<p></p>";
+
+      setTitle(importedTitle);
+      editor.commands.setContent(bodyHtml);
+      setSaveStatus("dirty");
+      flushAfterImageChange();
+
+      if (skippedImageSrcList.length > 0) {
+        alert(`取り込めなかった画像: ${skippedImageSrcList.join(", ")}`);
+      }
+    } catch {
+      alert("HTMLの読み込みに失敗しました");
+    } finally {
+      event.target.value = "";
+    }
   };
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -1120,6 +1257,12 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           isActive: false,
           onClick: handlePickImage,
         },
+        {
+          key: "html-import",
+          label: "HTMLをインポート",
+          isActive: false,
+          onClick: handlePickHtml,
+        },
       ],
     },
   ];
@@ -1240,6 +1383,14 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               accept="image/*"
               className="hiddenFileInput"
               onChange={(event) => void handleImageSelected(event)}
+            />
+            <input
+              ref={htmlInputRef}
+              type="file"
+              multiple
+              accept=".html,text/html,image/*"
+              className="hiddenFileInput"
+              onChange={(event) => void handleImportHtml(event)}
             />
 
             <div
