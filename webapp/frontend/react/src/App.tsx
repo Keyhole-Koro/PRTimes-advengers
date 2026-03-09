@@ -1,25 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-<<<<<<< HEAD
-import { useEditor, EditorContent } from "@tiptap/react";
-import Heading from "@tiptap/extension-heading";
-import Document from "@tiptap/extension-document";
-import Paragraph from "@tiptap/extension-paragraph";
-import Text from "@tiptap/extension-text";
-import BulletList from "@tiptap/extension-bullet-list";
-import OrderedList from "@tiptap/extension-ordered-list";
-import ListItem from "@tiptap/extension-list-item";
-import Image from "@tiptap/extension-image";
-=======
 import type { JSONContent } from "@tiptap/core";
-import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
->>>>>>> origin/main
+import Underline from "@tiptap/extension-underline";
+import Image from "@tiptap/extension-image";
 import { useState } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
-const BASE_URL = "http://localhost:8080";
+
+const DEFAULT_LOCAL_API_URL = "http://localhost:8080";
+const APP_ENV = String((import.meta.env as any).APP_ENV ?? "local").toLowerCase();
+const API_BASE_URL = String(
+  (import.meta.env as any).VITE_API_BASE_URL ??
+    (import.meta.env as any).APP_API_BASE_URL ??
+    ""
+);
+const BASE_URL = APP_ENV === "local" ? DEFAULT_LOCAL_API_URL : (API_BASE_URL || "");
 const PRESS_RELEASE_ID = 1;
 
 type PressReleaseResponse = {
@@ -109,15 +106,10 @@ export function App() {
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
-<<<<<<< HEAD
   const [imageUrl, setImageUrl] = useState("");
-  const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
-=======
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
->>>>>>> origin/main
+    extensions: [StarterKit, Underline, Image],
     content,
   });
 
@@ -141,7 +133,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
     });
   };
 
-<<<<<<< HEAD
   const handleInsertImage = () => {
     if (!editor) return;
 
@@ -163,7 +154,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
     setImageUrl("");
   };
 
-=======
   if (!editor) return null;
 
   const toggleMark = (mark: MarkType) => {
@@ -231,7 +221,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
     },
   ];
 
->>>>>>> origin/main
   return (
     <div className="container">
       <header className="header">
@@ -270,7 +259,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
               </div>
             ))}
           </div>
-<<<<<<< HEAD
+
           <div className="imageForm">
             <input
               type="url"
@@ -283,17 +272,13 @@ function Page({ title: initialTitle, content }: PressRelease) {
               画像を挿入
             </button>
           </div>
-=======
 
->>>>>>> origin/main
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
-<<<<<<< HEAD
-=======
 
 type ToolbarButtonProps = {
   label: string;
@@ -314,4 +299,3 @@ function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps) {
     </button>
   );
 }
->>>>>>> origin/main
