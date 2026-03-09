@@ -543,7 +543,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
+            accept=".jpg,.png,.gif"
             className="hiddenFileInput"
             onChange={handleImageSelected}
           />
