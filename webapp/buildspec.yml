@@ -21,10 +21,11 @@ phases:
 
 
 artifacts:
-  base-directory: .
+  base-directory: webapp
   files:
     - appspec.yml         # ← CodeDeployに必要
     - scripts/**/*        # ← フックスクリプト
-    - webapp/**/*    
+    - "**/*"   
   exclude-paths:
-   - webapp/frontend/react/node_modules/**  
+    - frontend/react/node_modules/**
+    - node/node_modules/**
