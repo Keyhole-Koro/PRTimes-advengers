@@ -4,6 +4,9 @@ import Heading from "@tiptap/extension-heading";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
+import BulletList from "@tiptap/extension-bullet-list";
+import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
 import { useState } from "react";
 import "./App.css";
 
@@ -65,13 +68,15 @@ type PressRelease = {
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
   const editor = useEditor({
-    extensions: [Document, Heading, Paragraph, Text],
+    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem],
     content,
   });
 
   const { isPending, mutate } = useSavePressReleaseMutation();
 
   const handleSave = () => {
+    if (!editor) return;
+
     mutate({
       title,
       content: JSON.stringify(editor.getJSON()),
@@ -100,9 +105,30 @@ function Page({ title: initialTitle, content }: PressRelease) {
               className="titleInput"
             />
           </div>
+          <div className="toolbar">
+            <button
+              type="button"
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              className="toolbarButton"
+              data-active={editor?.isActive("bulletList") ?? false}
+              disabled={!editor}
+            >
+              箇条書き
+            </button>
+            <button
+              type="button"
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              className="toolbarButton"
+              data-active={editor?.isActive("orderedList") ?? false}
+              disabled={!editor}
+            >
+              番号付きリスト
+            </button>
+          </div>
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
+

@@ -6,6 +6,9 @@ import Heading from '@tiptap/extension-heading'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
+import BulletList from '@tiptap/extension-bullet-list'
+import OrderedList from '@tiptap/extension-ordered-list'
+import ListItem from '@tiptap/extension-list-item'
 
 const queryKey = ['fetch-press-release']
 const BASE_URL = 'http://localhost:8080'
@@ -25,7 +28,7 @@ const { data, isPending, isError } = useQuery({
 const title = ref('')
 
 const editor = useEditor({
-  extensions: [Document, Heading, Paragraph, Text],
+  extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem],
   content: '',
 })
 
@@ -77,6 +80,16 @@ const handleSave = () => {
     })
   }
 }
+
+const toggleBulletList = () => {
+  if (!editor.value) return
+  editor.value.chain().focus().toggleBulletList().run()
+}
+
+const toggleOrderedList = () => {
+  if (!editor.value) return
+  editor.value.chain().focus().toggleOrderedList().run()
+}
 </script>
 
 <template>
@@ -101,6 +114,26 @@ const handleSave = () => {
             placeholder="タイトルを入力してください"
             class="titleInput"
           />
+        </div>
+        <div class="toolbar">
+          <button
+            type="button"
+            @click="toggleBulletList"
+            class="toolbarButton"
+            :data-active="editor?.isActive('bulletList') ?? false"
+            :disabled="!editor"
+          >
+            箇条書き
+          </button>
+          <button
+            type="button"
+            @click="toggleOrderedList"
+            class="toolbarButton"
+            :data-active="editor?.isActive('orderedList') ?? false"
+            :disabled="!editor"
+          >
+            番号付きリスト
+          </button>
         </div>
         <EditorContent :editor="editor" />
       </div>
