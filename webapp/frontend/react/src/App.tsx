@@ -1,8 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+<<<<<<< HEAD
+import { useEditor, EditorContent } from "@tiptap/react";
+import Heading from "@tiptap/extension-heading";
+import Document from "@tiptap/extension-document";
+import Paragraph from "@tiptap/extension-paragraph";
+import Text from "@tiptap/extension-text";
+import BulletList from "@tiptap/extension-bullet-list";
+import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
+import Image from "@tiptap/extension-image";
+=======
 import type { JSONContent } from "@tiptap/core";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+>>>>>>> origin/main
 import { useState } from "react";
 import "./App.css";
 
@@ -97,9 +109,15 @@ export function App() {
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
+<<<<<<< HEAD
+  const [imageUrl, setImageUrl] = useState("");
+  const editor = useEditor({
+    extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
+=======
 
   const editor = useEditor({
     extensions: [StarterKit, Underline],
+>>>>>>> origin/main
     content,
   });
 
@@ -123,6 +141,29 @@ function Page({ title: initialTitle, content }: PressRelease) {
     });
   };
 
+<<<<<<< HEAD
+  const handleInsertImage = () => {
+    if (!editor) return;
+
+    const trimmedUrl = imageUrl.trim();
+    if (!trimmedUrl) return;
+
+    try {
+      const url = new URL(trimmedUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        alert("http/https のURLを入力してください");
+        return;
+      }
+    } catch {
+      alert("有効なURLを入力してください");
+      return;
+    }
+
+    editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
+    setImageUrl("");
+  };
+
+=======
   if (!editor) return null;
 
   const toggleMark = (mark: MarkType) => {
@@ -190,6 +231,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
     },
   ];
 
+>>>>>>> origin/main
   return (
     <div className="container">
       <header className="header">
@@ -228,13 +270,30 @@ function Page({ title: initialTitle, content }: PressRelease) {
               </div>
             ))}
           </div>
+<<<<<<< HEAD
+          <div className="imageForm">
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="画像URLを入力してください (https://...)"
+              className="imageInput"
+            />
+            <button type="button" onClick={handleInsertImage} className="imageButton" disabled={!editor}>
+              画像を挿入
+            </button>
+          </div>
+=======
 
+>>>>>>> origin/main
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
+<<<<<<< HEAD
+=======
 
 type ToolbarButtonProps = {
   label: string;
@@ -255,3 +314,4 @@ function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps) {
     </button>
   );
 }
+>>>>>>> origin/main
