@@ -4,8 +4,7 @@ import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { ChangeEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
@@ -164,13 +163,27 @@ function useSavePressReleaseMutation(onSaved: (pressRelease: PressReleaseRespons
 
 export function App() {
   const { data, isPending, isError, error } = usePressReleaseQuery();
-  if (isPending) return null;
+  if (isPending) {
+    return (
+      <div className="statusScreen">
+        <p>読み込み中です...</p>
+      </div>
+    );
+  }
   if (isError) {
     return (
       <div className="errorState">
         <h1>エディターを読み込めません</h1>
         <p>{error.message}</p>
         <p>バックエンドの起動状態を確認してください。</p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="statusScreen">
+        <p>データがありません</p>
       </div>
     );
   }
@@ -182,7 +195,12 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
   const [identity] = useState(createRealtimeIdentity);
+  const [imageUrl, setImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragDepthRef = useRef(0);
+
   const editor = useEditor({
     extensions: [StarterKit, Underline, Image],
     content,
@@ -213,7 +231,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }),
   });
 
-  const { isPending, mutate } = useSavePressReleaseMutation((pressRelease) => {
+  const { isPending, mutate, mutateAsync } = useSavePressReleaseMutation((pressRelease) => {
     setVersion(pressRelease.version);
   });
 
@@ -320,10 +338,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
       sendPresenceUpdate();
     });
 
-    websocket.addEventListener("close", () => {});
-
-    websocket.addEventListener("error", () => {});
-
     websocket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data) as RealtimeMessage;
 
@@ -376,8 +390,22 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     };
   }, [editor, identity]);
 
+  const saveCurrentContent = async () => {
+    if (!editor) {
+      return;
+    }
+
+    await mutateAsync({
+      title,
+      content: editor.getJSON(),
+      version,
+    });
+  };
+
   const handleSave = () => {
-    if (!editor) return;
+    if (!editor) {
+      return;
+    }
 
     mutate({
       title,
@@ -406,20 +434,97 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     fileInputRef.current?.click();
   };
 
-  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !editor) {
+  const handleInsertImage = async () => {
+    if (!editor) {
       return;
     }
 
+    const trimmedUrl = imageUrl.trim();
+    if (!trimmedUrl) {
+      alert("画像URLを入力してください");
+      return;
+    }
+
+    editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
+    setImageUrl("");
+    await saveCurrentContent();
+  };
+
+  const insertUploadedImage = async (file: File) => {
+    if (!editor) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルを選択してください");
+      return;
+    }
+
+    setIsUploadingImage(true);
+
     try {
       const { url } = await uploadImage(file);
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      editor.chain().focus().setImage({ src: url, alt: file.name || "アップロード画像" }).run();
+      await saveCurrentContent();
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
       alert(message);
     } finally {
-      event.target.value = "";
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+
+    for (const file of files) {
+      // Serialize uploads to avoid version races during autosave.
+      // eslint-disable-next-line no-await-in-loop
+      await insertUploadedImage(file);
+    }
+
+    event.target.value = "";
+  };
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!event.dataTransfer.types.includes("Files")) {
+      return;
+    }
+
+    dragDepthRef.current += 1;
+    setIsDraggingImage(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsDraggingImage(false);
+    }
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingImage(false);
+
+    const files = Array.from(event.dataTransfer.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+
+    for (const file of files) {
+      // eslint-disable-next-line no-await-in-loop
+      await insertUploadedImage(file);
     }
   };
 
@@ -540,15 +645,54 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             ))}
           </div>
 
+          <div className="imageForm">
+            <input
+              type="url"
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
+              placeholder="画像URLを入力してください (https://...)"
+              className="imageInput"
+            />
+            <button
+              type="button"
+              onClick={() => void handleInsertImage()}
+              className="imageButton"
+              disabled={!editor || isUploadingImage}
+            >
+              画像を挿入
+            </button>
+            <button
+              type="button"
+              onClick={handlePickImage}
+              className="imageButton imageButtonSecondary"
+              disabled={!editor || isUploadingImage}
+            >
+              画像ファイルを選択
+            </button>
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"
-            accept=".jpg,.png,.gif"
+            multiple
+            accept="image/*"
             className="hiddenFileInput"
-            onChange={handleImageSelected}
+            onChange={(event) => void handleImageSelected(event)}
           />
 
-          <EditorContent editor={editor} />
+          <div
+            className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={(event) => void handleDrop(event)}
+          >
+            <div className="dropZoneHint">
+              画像をここにドラッグ&ドロップして追加できます
+              {isUploadingImage ? "（アップロード中...）" : ""}
+            </div>
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </main>
     </div>

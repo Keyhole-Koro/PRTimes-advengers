@@ -8,6 +8,24 @@ CREATE TABLE IF NOT EXISTS press_releases (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'press_releases'
+          AND column_name = 'content'
+          AND data_type = 'text'
+    ) THEN
+        ALTER TABLE press_releases
+            ALTER COLUMN content TYPE JSONB
+            USING content::jsonb;
+    END IF;
+END $$;
+
+ALTER TABLE press_releases
+    ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+
 CREATE TABLE IF NOT EXISTS press_release_revisions (
     id SERIAL PRIMARY KEY,
     press_release_id INTEGER NOT NULL REFERENCES press_releases(id) ON DELETE CASCADE,
@@ -17,9 +35,6 @@ CREATE TABLE IF NOT EXISTS press_release_revisions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (press_release_id, version)
 );
-
-ALTER TABLE press_releases
-    ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
 
 -- Insert initial data
 INSERT INTO press_releases (id, title, content, version, created_at, updated_at)
