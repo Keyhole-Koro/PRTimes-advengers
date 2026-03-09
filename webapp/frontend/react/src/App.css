@@ -4,6 +4,20 @@
   padding: 16px;
 }
 
+.statusScreen {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+.statusDetail {
+  color: #6c757d;
+  font-size: 14px;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -43,39 +57,16 @@
 
 .toolbar {
   display: flex;
-  gap: 12px;
-  align-items: stretch;
-  overflow-x: auto;
-  padding: 10px;
-  margin-bottom: 12px;
-  border: 1px solid #dbe5f0;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #f9fbff 0%, #f1f6fb 100%);
-}
-
-.toolbarGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: max-content;
-}
-
-.toolbarGroupLabel {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #5b6b7f;
-}
-
-.toolbarGroupButtons {
-  display: flex;
   gap: 8px;
+  margin-bottom: 10px;
 }
 
 .toolbarButton {
+  appearance: none;
+  -webkit-appearance: none;
   padding: 6px 10px;
   border: 1px solid #d0d0d0;
-  border-radius: 999px;
+  border-radius: 6px;
   background: #fff;
   color: #111;
   cursor: pointer;
@@ -83,17 +74,12 @@
   font-weight: 500;
   font-style: normal;
   text-decoration: none;
-  white-space: nowrap;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+  line-height: 1.2;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .toolbarButton:hover {
-  border-color: #7aa2d6;
-  color: #12385f;
+  border-color: #999;
 }
 
 .toolbarButton:focus-visible {
@@ -101,57 +87,16 @@
   outline-offset: 1px;
 }
 
-.toolbarButton.is-active {
-  background: #12385f;
+.toolbarButton[data-active="true"] {
+  background: #111;
   color: #fff;
-  border-color: #12385f;
-  box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
+  border-color: #111;
 }
 
-<<<<<<< HEAD
-.imageForm {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+.hiddenFileInput {
+  display: none;
 }
 
-.imageInput {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  outline: none;
-}
-
-.imageInput:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-.imageButton {
-  padding: 0.5rem 0.9rem;
-  border: 1px solid #007bff;
-  border-radius: 4px;
-  background: #007bff;
-  color: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.imageButton:hover:not(:disabled) {
-  background: #0056b3;
-  border-color: #0056b3;
-}
-
-.imageButton:disabled {
-  background: #6c757d;
-  border-color: #6c757d;
-  cursor: not-allowed;
-}
-
-/* Tiptapエディターのスタイル */
-=======
->>>>>>> origin/main
 .tiptap {
   min-height: 240px;
   padding: 12px;
@@ -159,19 +104,6 @@
   border-radius: 6px;
   outline: none;
   line-height: 1.7;
-}
-
-.tiptap strong {
-  font-weight: 700;
-}
-
-.tiptap em {
-  font-style: oblique 12deg;
-  font-synthesis: style;
-}
-
-.tiptap u {
-  text-decoration: underline;
 }
 
 .tiptap p {
@@ -197,4 +129,5 @@
   height: auto;
   display: block;
   margin: 1rem 0;
+  border-radius: 6px;
 }
