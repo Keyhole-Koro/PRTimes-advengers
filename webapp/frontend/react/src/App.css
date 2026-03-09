@@ -1,87 +1,100 @@
 .container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  margin: 0;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
 }
 
 .header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #f8f9fa;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 20px;
 }
 
 .saveButton {
-  padding: 0.5rem 1.5rem;
-  font-size: 1rem;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.saveButton:hover:not(:disabled) {
-  background-color: #0056b3;
-}
-
-.saveButton:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
+  padding: 8px 12px;
 }
 
 .main {
-  flex: 1;
-  padding: 2rem;
-  overflow: auto;
+  display: block;
 }
 
 .editorWrapper {
-  max-width: 800px;
-  margin: 0 auto;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e5e5e5;
   border-radius: 8px;
-  padding: 1.5rem;
-  background-color: white;
-  min-height: 400px;
+  padding: 12px;
 }
 
 .titleInputWrapper {
-  margin-bottom: 1.5rem;
+  margin-bottom: 12px;
 }
 
 .titleInput {
   width: 100%;
-  padding: 0.75rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  outline: none;
-  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 18px;
 }
 
-.titleInput:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-/* Tiptapエディターのスタイル */
+.toolbarButton {
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  font-style: normal;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.toolbarButton:hover {
+  border-color: #999;
+}
+
+.toolbarButton:focus-visible {
+  outline: 2px solid #6b7280;
+  outline-offset: 1px;
+}
+
+.toolbarButton.is-active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
 .tiptap {
+  min-height: 240px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
   outline: none;
-  min-height: 400px;
+  line-height: 1.7;
 }
+
+.tiptap strong { font-weight: 700; }
+.tiptap em {
+  font-style: oblique 12deg;
+  font-synthesis: style;
+}
+.tiptap u { text-decoration: underline; }
 
 .tiptap p {
-  margin: 1em 0;
-  line-height: 1.6;
-  font-size: 1rem;
+  margin: 0 0 0.8em;
+}
+.tiptap p:last-child {
+  margin-bottom: 0;
 }
