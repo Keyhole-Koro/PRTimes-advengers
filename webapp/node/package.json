@@ -1,0 +1,22 @@
+{
+  "name": "node",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.10",
+    "hono": "^4.12.5",
+    "pg": "^8.13.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.7.1",
+    "typescript": "^5.8.3"
+  }
+}

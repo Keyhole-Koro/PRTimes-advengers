@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: Press Release API
+  version: 1.0.0
+  description: プレスリリースの保存および取得API
+
+servers:
+  - url: http://localhost
+
+paths:
+  /press-releases/{id}:
+    post:
+      summary: 指定IDでプレスリリースを保存する
+      operationId: savePressRelease
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: プレスリリースID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PressReleaseSaveRequest"
+      responses:
+        "200":
+          description: 保存成功（更新）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PressRelease"
+        "400":
+          description: 不正なリクエスト
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 指定IDが存在しない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    get:
+      summary: 指定IDのプレスリリースを取得する
+      operationId: getPressRelease
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: プレスリリースID
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PressRelease"
+        "404":
+          description: 指定IDが存在しない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    PressReleaseSaveRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          description: プレスリリースのタイトル
+          example: "新製品発表のお知らせ"
+        content:
+          type: string
+          description: プレスリリースの本文（TipTap形式のJSON文字列）
+          example: "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"本文内容\"}]}]}"
+
+    PressRelease:
+      type: object
+      required:
+        - id
+        - title
+        - content
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "サンプルプレスリリース"
+        content:
+          type: string
+          description: TipTap形式のJSON文字列
+          example: "{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":1},\"content\":[{\"type\":\"text\",\"text\":\"Sample Press Release\"}]}]}"
+        created_at:
+          type: string
+          description: ISO 8601形式の日時文字列
+          example: "2026-02-13T06:14:04.732533"
+        updated_at:
+          type: string
+          description: ISO 8601形式の日時文字列
+          example: "2026-02-16T15:30:00.123456"
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+          description: エラーメッセージ
+          example: "Press release not found"
