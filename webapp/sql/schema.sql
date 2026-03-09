@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS press_release_revisions (
     UNIQUE (press_release_id, version)
 );
 
+CREATE TABLE IF NOT EXISTS press_release_templates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Insert initial data
 INSERT INTO press_releases (id, title, content, version, created_at, updated_at)
 VALUES (

@@ -129,6 +129,73 @@
   background: #f8fbff;
 }
 
+.templatePanel {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dbe5f0;
+}
+
+.templateSaveRow {
+  display: flex;
+  gap: 8px;
+}
+
+.templateInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.templateButton {
+  padding: 8px 10px;
+  border: 1px solid #12385f;
+  border-radius: 8px;
+  background: #12385f;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.templateList {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.templateItem {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.templateName {
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.templateMeta {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.templateTitle {
+  color: #111827;
+  font-size: 13px;
+}
+
 .historyPanelHeader {
   display: flex;
   align-items: baseline;
@@ -592,6 +659,10 @@
 
   .historyList {
     max-height: none;
+  }
+
+  .templateSaveRow {
+    flex-direction: column;
   }
 
   .imageForm,

@@ -49,6 +49,15 @@ type LinkPreviewResponse = {
   image: string | null;
 };
 
+type PressReleaseTemplateResponse = {
+  id: number;
+  name: string;
+  title: string;
+  content: JSONContent;
+  created_at: string;
+  updated_at: string;
+};
+
 type MarkType = "bold" | "italic" | "underline";
 
 type ToolbarButtonConfig = {
@@ -127,6 +136,177 @@ const EMPTY_CONTENT: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
+
+const MOCK_TEMPLATES: PressReleaseTemplateResponse[] = [
+  {
+    id: 1,
+    name: "採用告知",
+    title: "2026年度 新卒採用の募集開始に関するお知らせ",
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "概要" }],
+        },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "株式会社○○は、" },
+            { type: "text", marks: [{ type: "bold" }], text: "2026年度新卒採用" },
+            { type: "text", text: "の募集を開始しました。" },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "募集職種" }],
+        },
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ソフトウェアエンジニア" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "プロダクトデザイナー" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ビジネス職（営業・企画）" }] }] },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "選考フロー" }],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 1 },
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "エントリー" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "書類選考" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "面接（複数回）" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "内定" }] }] },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", marks: [{ type: "underline" }], text: "詳細は採用サイトをご確認ください。" }],
+        },
+      ],
+    },
+    created_at: "2026-03-09 09:00",
+    updated_at: "2026-03-09 09:00",
+  },
+  {
+    id: 2,
+    name: "サービスリリース",
+    title: "新サービス「○○」提供開始のお知らせ",
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "サービス概要" }],
+        },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "株式会社○○は、本日より新サービス「○○」の提供を開始しました。" },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "本サービスは、" },
+            { type: "text", marks: [{ type: "italic" }], text: "情報整理・共有・進行管理" },
+            { type: "text", text: "を一つの画面で行えることを特徴としています。" },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "主な特長" }],
+        },
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "操作しやすいダッシュボード" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "チーム横断での情報共有" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "分析レポートの自動生成" }] }] },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "提供開始までの流れ" }],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 1 },
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "先行導入企業による検証" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "正式版の機能拡充" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "一般提供開始" }] }] },
+          ],
+        },
+      ],
+    },
+    created_at: "2026-03-08 15:30",
+    updated_at: "2026-03-08 15:30",
+  },
+  {
+    id: 3,
+    name: "イベント開催",
+    title: "イベント「○○ 2026」開催決定のお知らせ",
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 1 },
+          content: [{ type: "text", text: "イベント開催概要" }],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "株式会社○○は、2026年5月にイベント「○○ 2026」を開催します。" }],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "開催目的" }],
+        },
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "業界関係者との接点創出" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "新しい取り組みの発信" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "来場者との双方向コミュニケーション" }] }] },
+          ],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "当日のプログラム" }],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 1 },
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "オープニングセッション" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "基調講演" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "パネルディスカッション" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ネットワーキング" }] }] },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "開催概要、参加方法、登壇情報は特設ページで順次公開予定です。" }],
+        },
+      ],
+    },
+    created_at: "2026-03-07 12:00",
+    updated_at: "2026-03-07 12:00",
+  },
+];
 
 function createRealtimeIdentity() {
   const userId = crypto.randomUUID();
@@ -323,6 +503,10 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [editorResetToken, setEditorResetToken] = useState(0);
   const [selectedRevisionId, setSelectedRevisionId] = useState<number | null>(null);
   const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [applyingTemplateId, setApplyingTemplateId] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<PressReleaseTemplateResponse[]>(MOCK_TEMPLATES);
   const [imageUrl, setImageUrl] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -396,7 +580,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   });
 
   const { data: revisions = [] } = usePressReleaseRevisionsQuery();
-
   useEffect(() => {
     if (revisions.length === 0) {
       return;
@@ -568,6 +751,20 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     websocket.send(JSON.stringify({ type: "document.flush" }));
   };
 
+  const sendTitleUpdate = (nextTitle: string) => {
+    const websocket = websocketRef.current;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    websocket.send(
+      JSON.stringify({
+        type: "title.update",
+        title: nextTitle,
+      }),
+    );
+  };
+
   const restoreRevision = async (revisionId: number) => {
     setRestoringRevisionId(revisionId);
     setSaveStatus("saving");
@@ -597,18 +794,66 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     const nextTitle = event.target.value;
     setTitle(nextTitle);
     setSaveStatus("dirty");
+    sendTitleUpdate(nextTitle);
+  };
 
-    const websocket = websocketRef.current;
-    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+  const saveCurrentAsTemplate = async () => {
+    if (!editor) {
       return;
     }
 
-    websocket.send(
-      JSON.stringify({
-        type: "title.update",
-        title: nextTitle,
-      }),
-    );
+    const trimmedName = templateName.trim();
+    if (!trimmedName) {
+      alert("テンプレート名を入力してください");
+      return;
+    }
+
+    setIsSavingTemplate(true);
+    try {
+      const timestamp = new Date().toLocaleString("ja-JP");
+      setTemplates((current) => [
+        {
+          id: Date.now(),
+          name: trimmedName,
+          title,
+          content: editor.getJSON(),
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+        ...current,
+      ]);
+      setTemplateName("");
+    } catch (templateError) {
+      const message = templateError instanceof Error ? templateError.message : "テンプレートの保存に失敗しました";
+      alert(message);
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
+
+  const applyTemplate = async (templateId: number) => {
+    if (!editor) {
+      return;
+    }
+
+    setApplyingTemplateId(templateId);
+    try {
+      const template = templates.find((item) => item.id === templateId);
+      if (!template) {
+        throw new Error("テンプレートが見つかりません");
+      }
+
+      setTitle(template.title);
+      sendTitleUpdate(template.title);
+      editor.commands.setContent(template.content);
+      setSaveStatus("dirty");
+      requestFlush();
+    } catch (templateError) {
+      const message = templateError instanceof Error ? templateError.message : "テンプレートの適用に失敗しました";
+      alert(message);
+    } finally {
+      setApplyingTemplateId(null);
+    }
   };
 
   const uploadImage = async (file: File) => {
@@ -1013,6 +1258,45 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           </div>
 
           <aside className="historyPanel" aria-label="変更履歴">
+            <section className="templatePanel">
+              <div className="historyPanelHeader">
+                <h2 className="historyTitle">テンプレート</h2>
+                <span className="historyCount">{templates.length}件</span>
+              </div>
+              <div className="templateSaveRow">
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                  placeholder="テンプレート名"
+                  className="templateInput"
+                />
+                <button
+                  type="button"
+                  className="templateButton"
+                  onClick={() => void saveCurrentAsTemplate()}
+                  disabled={isSavingTemplate}
+                >
+                  {isSavingTemplate ? "保存中..." : "保存"}
+                </button>
+              </div>
+              <div className="templateList">
+                {templates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className="templateItem"
+                    onClick={() => void applyTemplate(template.id)}
+                    disabled={applyingTemplateId === template.id}
+                  >
+                    <span className="templateName">{template.name}</span>
+                    <span className="templateMeta">{template.updated_at}</span>
+                    <span className="templateTitle">{template.title}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <div className="historyPanelHeader">
               <h2 className="historyTitle">変更履歴</h2>
               <span className="historyCount">{revisions.length}件</span>
