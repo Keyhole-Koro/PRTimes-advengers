@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { healthRoutes } from './routes/health.js';
 import { linkPreviewRoutes } from './routes/linkPreviews.js';
+import { pressReleaseTemplateRoutes } from './routes/pressReleaseTemplates.js';
 import { pressReleaseRoutes } from './routes/pressReleases.js';
 import { uploadRoutes } from './routes/uploads.js';
 export const app = new Hono();
@@ -48,5 +49,6 @@ app.use('*', cors({
 app.use('/uploads/*', serveStatic({ root: './' }));
 app.route('/', healthRoutes);
 app.route('/', linkPreviewRoutes);
+app.route('/', pressReleaseTemplateRoutes);
 app.route('/', pressReleaseRoutes);
 app.route('/', uploadRoutes);
