@@ -32,12 +32,10 @@ type PressRelease = {
   version: number;
 };
 
-<<<<<<< HEAD
 type FileWithRelativePath = File & {
   webkitRelativePath?: string;
 };
 
-=======
 type PressReleaseRevisionResponse = {
   id: number;
   press_release_id: number;
@@ -121,18 +119,15 @@ const MARK_BUTTONS: Array<{ key: MarkType; label: string }> = [
   { key: "underline", label: "下線" },
 ];
 
->>>>>>> origin/main
 const EMPTY_CONTENT: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
 
-<<<<<<< HEAD
 function isImageFile(file: FileWithRelativePath): boolean {
   if (file.type.startsWith("image/")) {
     return true;
   }
-
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
 }
 
@@ -147,13 +142,6 @@ function normalizePathKey(path: string): string {
     .toLowerCase();
 }
 
-function parseContent(rawContent: string): JSONContent {
-  try {
-    return JSON.parse(rawContent) as JSONContent;
-  } catch {
-    return EMPTY_CONTENT;
-  }
-=======
 function createRealtimeIdentity() {
   const userId = crypto.randomUUID();
   const suffix = userId.slice(0, 4);
@@ -171,7 +159,6 @@ function createCollaborationExtension(version: number, clientId: string) {
       return [collab({ version, clientID: clientId })];
     },
   });
->>>>>>> origin/main
 }
 
 function usePressReleaseQuery() {
@@ -339,12 +326,6 @@ export function App() {
   return <Page title={data.title} content={data.content ?? EMPTY_CONTENT} version={data.version} />;
 }
 
-<<<<<<< HEAD
-function Page({ title: initialTitle, content }: PressRelease) {
-  const [title, setTitle] = useState(initialTitle);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const htmlInputRef = useRef<HTMLInputElement>(null);
-=======
 function Page({ title: initialTitle, content, version: initialVersion }: PressRelease) {
   const queryClient = useQueryClient();
   const [identity] = useState(createRealtimeIdentity);
@@ -360,12 +341,12 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const dragDepthRef = useRef(0);
   const isApplyingRemoteRef = useRef(false);
   const lastSentBatchRef = useRef<string | null>(null);
->>>>>>> origin/main
 
   const editor = useEditor(
     {
@@ -426,11 +407,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }),
   });
 
-<<<<<<< HEAD
-  const { isPending, mutate, mutateAsync } = useSavePressReleaseMutation();
-=======
   const { data: revisions = [] } = usePressReleaseRevisionsQuery();
->>>>>>> origin/main
 
   useEffect(() => {
     if (revisions.length === 0) {
@@ -662,26 +639,14 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     return (await response.json()) as { url: string };
   };
 
-  const buildFileFromDataUrl = async (dataUrl: string, fallbackName: string) => {
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    const ext = blob.type.split("/")[1] || "png";
-    return new File([blob], `${fallbackName}.${ext}`, { type: blob.type || "image/png" });
-  };
-
   const handlePickImage = () => {
     fileInputRef.current?.click();
   };
 
-<<<<<<< HEAD
   const handlePickHtml = () => {
     htmlInputRef.current?.click();
   };
 
-  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-=======
   const flushAfterImageChange = () => {
     window.setTimeout(() => {
       requestFlush();
@@ -690,7 +655,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
   const handleInsertImage = async () => {
     if (!editor) {
->>>>>>> origin/main
       return;
     }
 
@@ -719,17 +683,8 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
     try {
       const { url } = await uploadImage(file);
-<<<<<<< HEAD
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
-
-      await mutateAsync({
-        title,
-        content: JSON.stringify(editor.getJSON()),
-      });
-=======
       editor.chain().focus().setImage({ src: url, alt: file.name || "アップロード画像" }).run();
       flushAfterImageChange();
->>>>>>> origin/main
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
       alert(message);
@@ -738,17 +693,36 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
   };
 
-<<<<<<< HEAD
-  const handleImportHtml = async (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []) as FileWithRelativePath[];
-    if (selectedFiles.length === 0) {
+  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
       return;
     }
-    const selectedFileNames = selectedFiles.map((file) => file.name);
+
+    for (const file of files) {
+      // eslint-disable-next-line no-await-in-loop
+      await insertUploadedImage(file);
+    }
+
+    event.target.value = "";
+  };
+
+  const buildFileFromDataUrl = async (dataUrl: string, fallbackName: string) => {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const ext = blob.type.split("/")[1] || "png";
+    return new File([blob], `${fallbackName}.${ext}`, { type: blob.type || "image/png" });
+  };
+
+  const handleImportHtml = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []) as FileWithRelativePath[];
+    if (selectedFiles.length === 0 || !editor) {
+      return;
+    }
 
     try {
       const htmlFile = selectedFiles.find(
-        (f) => f.type === "text/html" || f.name.toLowerCase().endsWith(".html"),
+        (file) => file.type === "text/html" || file.name.toLowerCase().endsWith(".html"),
       );
       if (!htmlFile) {
         alert("HTMLファイルを選択してください");
@@ -762,10 +736,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           continue;
         }
         selectedImageFiles.push(file);
-
-        const normalizedName = normalizePathKey(file.name);
-        imageFileMap.set(normalizedName, file);
-
+        imageFileMap.set(normalizePathKey(file.name), file);
         if (file.webkitRelativePath) {
           imageFileMap.set(normalizePathKey(file.webkitRelativePath), file);
         }
@@ -775,18 +746,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
       const doc = new DOMParser().parseFromString(htmlText, "text/html");
       const skippedImageSrcList: string[] = [];
       const usedImageNames = new Set<string>();
-
       const images = Array.from(doc.querySelectorAll("img"));
-      const hasRelativeImages = images.some((img) => {
-        const src = img.getAttribute("src")?.trim();
-        return !!src && !src.startsWith("data:") && !/^https?:\/\//i.test(src);
-      });
-
-      if (hasRelativeImages && selectedImageFiles.length === 0) {
-        alert(
-          `HTML以外の画像ファイルが選択されていません。\n選択されたファイル: ${selectedFileNames.join(", ")}`,
-        );
-      }
 
       for (const [index, img] of images.entries()) {
         const src = img.getAttribute("src")?.trim();
@@ -821,12 +781,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             if (!localImageFile) {
               localImageFile = selectedImageFiles.find((f) => !usedImageNames.has(f.name));
             }
+
             if (!localImageFile) {
               skippedImageSrcList.push(src);
               continue;
             }
-            usedImageNames.add(localImageFile.name);
 
+            usedImageNames.add(localImageFile.name);
             const uploaded = await uploadImage(localImageFile);
             uploadedUrl = uploaded.url;
           }
@@ -843,37 +804,17 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
       setTitle(importedTitle);
       editor.commands.setContent(bodyHtml);
-
-      await mutateAsync({
-        title: importedTitle,
-        content: JSON.stringify(editor.getJSON()),
-      });
+      setSaveStatus("dirty");
+      flushAfterImageChange();
 
       if (skippedImageSrcList.length > 0) {
-        alert(
-          `取り込めなかった画像: ${skippedImageSrcList.join(", ")}\n選択されたファイル: ${selectedFileNames.join(", ")}`,
-        );
+        alert(`取り込めなかった画像: ${skippedImageSrcList.join(", ")}`);
       }
     } catch {
       alert("HTMLの読み込みに失敗しました");
     } finally {
       event.target.value = "";
     }
-  };
-
-=======
-  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) {
-      return;
-    }
-
-    for (const file of files) {
-      // eslint-disable-next-line no-await-in-loop
-      await insertUploadedImage(file);
-    }
-
-    event.target.value = "";
   };
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -1018,11 +959,16 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
           isActive: false,
           onClick: handlePickImage,
         },
+        {
+          key: "html-import",
+          label: "HTMLをインポート",
+          isActive: false,
+          onClick: handlePickHtml,
+        },
       ],
     },
   ];
 
->>>>>>> origin/main
   return (
     <div className="container">
       <header className="header">
@@ -1122,6 +1068,14 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               className="hiddenFileInput"
               onChange={(event) => void handleImageSelected(event)}
             />
+            <input
+              ref={htmlInputRef}
+              type="file"
+              multiple
+              accept=".html,text/html,image/*"
+              className="hiddenFileInput"
+              onChange={(event) => void handleImportHtml(event)}
+            />
 
             <div
               className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
@@ -1138,40 +1092,11 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             </div>
           </div>
 
-<<<<<<< HEAD
-          <div className="toolbar" aria-label="エディターツールバー">
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              className="toolbarButton"
-              data-active={editorState.bulletList}
-            >
-              箇条書き
-            </button>
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              className="toolbarButton"
-              data-active={editorState.orderedList}
-            >
-              番号付きリスト
-            </button>
-            <button type="button" onClick={handlePickImage} className="toolbarButton">
-              画像を追加
-            </button>
-            <button type="button" onClick={handlePickHtml} className="toolbarButton">
-              HTMLをインポート
-            </button>
-          </div>
-=======
           <aside className="historyPanel" aria-label="変更履歴">
             <div className="historyPanelHeader">
               <h2 className="historyTitle">変更履歴</h2>
               <span className="historyCount">{revisions.length}件</span>
             </div>
->>>>>>> origin/main
 
             <div className="historyList">
               {revisions.map((revision) => (
@@ -1192,18 +1117,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               ))}
             </div>
 
-<<<<<<< HEAD
-          <input
-            ref={htmlInputRef}
-            type="file"
-            accept="*/*"
-            multiple
-            className="hiddenFileInput"
-            onChange={handleImportHtml}
-          />
-
-          <EditorContent editor={editor} />
-=======
             {selectedRevision && (
               <section className="historyPreview">
                 <div className="historyPreviewMeta">
@@ -1255,7 +1168,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               </section>
             )}
           </aside>
->>>>>>> origin/main
         </div>
       </main>
     </div>
