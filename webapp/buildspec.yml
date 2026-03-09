@@ -9,14 +9,12 @@ phases:
     commands:
       - cd webapp/frontend/react
       - npm run build
+  post_build:
+    commands:
+      # ホスティング用S3バケットに直接コピー
+      - aws s3 sync webapp/frontend/react/dist s3://pr-times-4/ --delete
 
 artifacts:
-  secondary-artifacts:
-    FrontendArtifact:
-      base-directory: webapp/frontend/react/dist  # Viteならdist、CRAならbuild
-      files:
-        - '**/*'
-    BackendArtifact:
-      base-directory: webapp
-      files:
-        - '**/*'
+  base-directory: webapp
+  files:
+    - '**/*'
