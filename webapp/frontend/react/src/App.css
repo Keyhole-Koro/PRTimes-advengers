@@ -39,6 +39,26 @@
   font-size: 13px;
 }
 
+.saveStatus {
+  font-weight: 600;
+}
+
+.saveStatus-saved {
+  color: #1f7a1f;
+}
+
+.saveStatus-dirty {
+  color: #9a6700;
+}
+
+.saveStatus-saving {
+  color: #1d4ed8;
+}
+
+.saveStatus-error {
+  color: #b42318;
+}
+
 .saveButton {
   padding: 8px 12px;
 }

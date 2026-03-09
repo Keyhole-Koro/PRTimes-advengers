@@ -51,6 +51,8 @@ type ToolbarGroupConfig = {
   buttons: ToolbarButtonConfig[];
 };
 
+type SaveStatus = "saved" | "dirty" | "saving" | "error";
+
 type RealtimeMessage =
   | {
       type: "session.ready";
@@ -182,6 +184,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
   const [identity] = useState(createRealtimeIdentity);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editor = useEditor({
     extensions: [StarterKit, Underline, Image],
@@ -192,6 +195,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const remoteUpdateRef = useRef(false);
   const suppressNextTitleSyncRef = useRef(false);
   const documentSyncTimerRef = useRef<number | null>(null);
+  const autoSaveTimerRef = useRef<number | null>(null);
   const clientIdRef = useRef<string | null>(null);
   const titleRef = useRef(title);
   const versionRef = useRef(version);
@@ -213,9 +217,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }),
   });
 
-  const { isPending, mutate } = useSavePressReleaseMutation((pressRelease) => {
+  const { isPending, mutateAsync } = useSavePressReleaseMutation((pressRelease) => {
     setVersion(pressRelease.version);
   });
+
+  const markDirty = () => {
+    setSaveStatus((current) => (current === "saving" ? current : "dirty"));
+  };
 
   const sendPresenceUpdate = () => {
     if (!editor || !websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
@@ -266,6 +274,20 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }, 150);
   };
 
+  const scheduleAutoSave = () => {
+    if (remoteUpdateRef.current) {
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      void saveCurrentContent();
+    }, 1200);
+  };
+
   useEffect(() => {
     if (!editor) {
       return;
@@ -273,6 +295,8 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
     const handleEditorUpdate = () => {
       scheduleDocumentUpdate();
+      markDirty();
+      scheduleAutoSave();
     };
 
     const handleSelectionUpdate = () => {
@@ -300,6 +324,8 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
 
     scheduleDocumentUpdate();
+    markDirty();
+    scheduleAutoSave();
   }, [title, editor]);
 
   useEffect(() => {
@@ -334,6 +360,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         setTitle(message.snapshot.title);
         setVersion(message.snapshot.version);
         editor.commands.setContent(message.snapshot.content, { emitUpdate: false });
+        setSaveStatus("saved");
         logPresenceUsers(message.presence.filter((user) => user.userId !== identity.userId));
         remoteUpdateRef.current = false;
         sendPresenceUpdate();
@@ -350,6 +377,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         setTitle(message.title);
         setVersion(message.version);
         editor.commands.setContent(message.content, { emitUpdate: false });
+        setSaveStatus("saved");
         remoteUpdateRef.current = false;
         return;
       }
@@ -360,6 +388,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         setTitle(message.title);
         setVersion(message.version);
         editor.commands.setContent(message.content, { emitUpdate: false });
+        setSaveStatus("saved");
         remoteUpdateRef.current = false;
         return;
       }
@@ -371,19 +400,43 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
       if (documentSyncTimerRef.current) {
         window.clearTimeout(documentSyncTimerRef.current);
       }
+      if (autoSaveTimerRef.current) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
       websocket.close();
       websocketRef.current = null;
     };
   }, [editor, identity]);
 
-  const handleSave = () => {
-    if (!editor) return;
+  const saveCurrentContent = async () => {
+    if (!editor || isPending) {
+      return;
+    }
 
-    mutate({
-      title,
-      content: editor.getJSON(),
-      version,
-    });
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    setSaveStatus("saving");
+
+    try {
+      await mutateAsync({
+        title,
+        content: editor.getJSON(),
+        version,
+      });
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+      throw new Error("save failed");
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await saveCurrentContent();
+    } catch {}
   };
 
   const uploadImage = async (file: File) => {
@@ -504,8 +557,21 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   return (
     <div className="container">
       <header className="header">
-        <h1 className="title">プレスリリースエディター</h1>
-        <button onClick={handleSave} className="saveButton" disabled={isPending}>
+        <div className="titleBlock">
+          <h1 className="title">プレスリリースエディター</h1>
+          <div className="metaRow">
+            <span
+              className={`saveStatus saveStatus-${saveStatus}`}
+              aria-live="polite"
+            >
+              {saveStatus === "saving" && "保存中..."}
+              {saveStatus === "saved" && "保存しました"}
+              {saveStatus === "dirty" && "未保存の変更"}
+              {saveStatus === "error" && "保存に失敗しました"}
+            </span>
+          </div>
+        </div>
+        <button onClick={() => void handleSave()} className="saveButton" disabled={isPending}>
           {isPending ? "保存中..." : "保存"}
         </button>
       </header>
