@@ -73,6 +73,40 @@ async function setupDatabaseSchema(): Promise<void> {
   `)
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS comment_threads (
+      id SERIAL PRIMARY KEY,
+      press_release_id INTEGER NOT NULL REFERENCES press_releases(id) ON DELETE CASCADE,
+      anchor_from INTEGER NOT NULL,
+      anchor_to INTEGER NOT NULL,
+      quote TEXT NOT NULL DEFAULT '',
+      is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+      created_by VARCHAR(100) NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMP
+    );
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS comment_messages (
+      id SERIAL PRIMARY KEY,
+      thread_id INTEGER NOT NULL REFERENCES comment_threads(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_by VARCHAR(100) NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_comment_threads_press_release
+    ON comment_threads (press_release_id, is_resolved);
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_comment_messages_thread
+    ON comment_messages (thread_id);
+  `)
+
+  await pool.query(`
     INSERT INTO press_releases (id, title, content, version, created_at, updated_at)
     VALUES (
       1,

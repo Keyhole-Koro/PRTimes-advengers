@@ -1,4 +1,3 @@
-import { ensureDatabaseSchema } from '../db/schemaSetup.js'
 import { pressReleaseTemplateRepository } from '../repositories/pressReleaseTemplateRepository.js'
 import type {
   CreatePressReleaseTemplateInput,
@@ -11,19 +10,16 @@ export class PressReleaseTemplateNotFoundError extends Error {}
 
 export class PressReleaseTemplateService {
   async getTemplates(): Promise<PressReleaseTemplateResponse[]> {
-    await ensureDatabaseSchema()
     const templates = await pressReleaseTemplateRepository.findAll()
     return templates.map(toResponse)
   }
 
   async createTemplate(input: CreatePressReleaseTemplateInput): Promise<PressReleaseTemplateResponse> {
-    await ensureDatabaseSchema()
     const template = await pressReleaseTemplateRepository.create(input)
     return toResponse(template)
   }
 
   async getTemplate(id: number): Promise<PressReleaseTemplateResponse> {
-    await ensureDatabaseSchema()
     const template = await pressReleaseTemplateRepository.findById(id)
     if (!template) {
       throw new PressReleaseTemplateNotFoundError()

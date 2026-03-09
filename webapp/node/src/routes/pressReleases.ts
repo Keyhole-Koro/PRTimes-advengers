@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { collaborationHub } from '../realtime/collaborationHub.js'
 import { PressReleaseInputSchema } from '../schemas/pressRelease.js'
 import {
   PressReleaseNotFoundError,
@@ -8,18 +7,16 @@ import {
   PressReleaseVersionConflictError,
   pressReleaseService,
 } from '../services/pressReleaseService.js'
+import { invalidIdResponse, invalidJsonResponse, parseIdParam, parseJsonBody } from '../utils/requestHelpers.js'
 
 export function createPressReleaseRoutes(service: PressReleaseService = pressReleaseService): Hono {
   const pressReleaseRoutes = new Hono()
 
   pressReleaseRoutes.get('/press-releases/:id', async (c) => {
-    const idParam = c.req.param('id')
-
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
-
-    const id = parseInt(idParam, 10)
 
     try {
       return c.json(await service.getPressRelease(id))
@@ -34,13 +31,10 @@ export function createPressReleaseRoutes(service: PressReleaseService = pressRel
   })
 
   pressReleaseRoutes.get('/press-releases/:id/revisions', async (c) => {
-    const idParam = c.req.param('id')
-
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
-
-    const id = parseInt(idParam, 10)
 
     try {
       return c.json(await service.getPressReleaseRevisions(id))
@@ -55,19 +49,14 @@ export function createPressReleaseRoutes(service: PressReleaseService = pressRel
   })
 
   pressReleaseRoutes.post('/press-releases/:id', async (c) => {
-    const idParam = c.req.param('id')
-
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
 
-    const id = parseInt(idParam, 10)
-
-    let data: unknown
-    try {
-      data = await c.req.json()
-    } catch {
-      return c.json({ code: 'INVALID_JSON', message: 'Invalid JSON' }, 400)
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
     }
 
     const parsed = PressReleaseInputSchema.safeParse(data)
@@ -81,7 +70,6 @@ export function createPressReleaseRoutes(service: PressReleaseService = pressRel
 
     try {
       const pressRelease = await service.updatePressRelease(id, parsed.data)
-      collaborationHub.publishSavedSnapshot(pressRelease)
       return c.json(pressRelease)
     } catch (error) {
       if (error instanceof PressReleaseNotFoundError) {
@@ -105,23 +93,18 @@ export function createPressReleaseRoutes(service: PressReleaseService = pressRel
   })
 
   pressReleaseRoutes.post('/press-releases/:id/revisions/:revisionId/restore', async (c) => {
-    const idParam = c.req.param('id')
-    const revisionIdParam = c.req.param('revisionId')
-
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
 
-    if (!/^\d+$/.test(revisionIdParam) || parseInt(revisionIdParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_REVISION_ID', message: 'Invalid revision ID' }, 400)
+    const revisionId = parseIdParam(c, 'revisionId')
+    if (revisionId === null) {
+      return invalidIdResponse(c, 'revision ID')
     }
-
-    const id = parseInt(idParam, 10)
-    const revisionId = parseInt(revisionIdParam, 10)
 
     try {
       const pressRelease = await service.restorePressReleaseRevision(id, revisionId)
-      collaborationHub.publishSavedSnapshot(pressRelease)
       return c.json(pressRelease)
     } catch (error) {
       if (error instanceof PressReleaseNotFoundError) {
