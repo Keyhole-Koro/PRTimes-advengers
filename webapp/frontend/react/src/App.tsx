@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+<<<<<<< HEAD
 import { useEditor, EditorContent } from "@tiptap/react";
 import Heading from "@tiptap/extension-heading";
 import Document from "@tiptap/extension-document";
@@ -8,21 +9,71 @@ import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
 import ListItem from "@tiptap/extension-list-item";
 import Image from "@tiptap/extension-image";
+=======
+import type { JSONContent } from "@tiptap/core";
+import Underline from "@tiptap/extension-underline";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+>>>>>>> origin/main
 import { useState } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
 const BASE_URL = "http://localhost:8080";
+const PRESS_RELEASE_ID = 1;
+
+type PressReleaseResponse = {
+  title: string;
+  content: string;
+};
+
+type PressRelease = {
+  title: string;
+  content: JSONContent;
+};
+
+type MarkType = "bold" | "italic" | "underline";
+
+type ToolbarButtonConfig = {
+  key: string;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+};
+
+type ToolbarGroupConfig = {
+  label: string;
+  buttons: ToolbarButtonConfig[];
+};
+
+const MARK_BUTTONS: Array<{ key: MarkType; label: string }> = [
+  { key: "bold", label: "太字" },
+  { key: "italic", label: "斜体" },
+  { key: "underline", label: "下線" },
+];
+
+const EMPTY_CONTENT: JSONContent = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
+function parseContent(rawContent: string): JSONContent {
+  try {
+    return JSON.parse(rawContent) as JSONContent;
+  } catch {
+    return EMPTY_CONTENT;
+  }
+}
 
 function usePressReleaseQuery() {
-  return useQuery({
+  return useQuery<PressReleaseResponse>({
     queryKey,
     queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/1`);
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`);
       if (!response.ok) {
         throw new Error(`HTTPエラー: ${response.status}`);
       }
-      return response.json();
+      return (await response.json()) as PressReleaseResponse;
     },
   });
 }
@@ -32,16 +83,12 @@ function useSavePressReleaseMutation() {
 
   return useMutation({
     mutationFn: async (data: { title: string; content: string }) => {
-      const response = await fetch(`${BASE_URL}/press-releases/1`, {
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!response.ok) {
-        throw new Error("保存に失敗しました");
-      }
+      if (!response.ok) throw new Error("保存に失敗しました");
       return response.json();
     },
     onSuccess: () => {
@@ -55,23 +102,32 @@ function useSavePressReleaseMutation() {
 
 export function App() {
   const { data, isPending, isError } = usePressReleaseQuery();
-
   if (isPending || isError) return null;
 
-  return <Page title={data.title} content={JSON.parse(data.content)} />;
+  return <Page title={data.title} content={parseContent(data.content)} />;
 }
-
-type PressRelease = {
-  title: string;
-  content: string;
-};
 
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
+<<<<<<< HEAD
   const [imageUrl, setImageUrl] = useState("");
   const editor = useEditor({
     extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
+=======
+
+  const editor = useEditor({
+    extensions: [StarterKit, Underline],
+>>>>>>> origin/main
     content,
+  });
+
+  const markState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      bold: currentEditor?.isActive("bold") ?? false,
+      italic: currentEditor?.isActive("italic") ?? false,
+      underline: currentEditor?.isActive("underline") ?? false,
+    }),
   });
 
   const { isPending, mutate } = useSavePressReleaseMutation();
@@ -85,6 +141,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
     });
   };
 
+<<<<<<< HEAD
   const handleInsertImage = () => {
     if (!editor) return;
 
@@ -106,9 +163,77 @@ function Page({ title: initialTitle, content }: PressRelease) {
     setImageUrl("");
   };
 
+=======
+  if (!editor) return null;
+
+  const toggleMark = (mark: MarkType) => {
+    const chain = editor.chain().focus();
+    if (mark === "bold") {
+      chain.toggleBold().run();
+      return;
+    }
+    if (mark === "italic") {
+      chain.toggleItalic().run();
+      return;
+    }
+    chain.toggleUnderline().run();
+  };
+
+  const toolbarGroups: ToolbarGroupConfig[] = [
+    {
+      label: "書式",
+      buttons: MARK_BUTTONS.map((button) => ({
+        key: button.key,
+        label: button.label,
+        isActive: markState[button.key],
+        onClick: () => toggleMark(button.key),
+      })),
+    },
+    {
+      label: "見出し",
+      buttons: [
+        {
+          key: "paragraph",
+          label: "本文",
+          isActive: editor.isActive("paragraph"),
+          onClick: () => editor.chain().focus().setParagraph().run(),
+        },
+        {
+          key: "heading-1",
+          label: "H1",
+          isActive: editor.isActive("heading", { level: 1 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+        },
+        {
+          key: "heading-2",
+          label: "H2",
+          isActive: editor.isActive("heading", { level: 2 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+        },
+      ],
+    },
+    {
+      label: "リスト",
+      buttons: [
+        {
+          key: "bullet-list",
+          label: "箇条書き",
+          isActive: editor.isActive("bulletList"),
+          onClick: () => editor.chain().focus().toggleBulletList().run(),
+        },
+        {
+          key: "ordered-list",
+          label: "番号付き",
+          isActive: editor.isActive("orderedList"),
+          onClick: () => editor.chain().focus().toggleOrderedList().run(),
+        },
+      ],
+    },
+  ];
+
+>>>>>>> origin/main
   return (
     <div className="container">
-      {/* ヘッダー */}
       <header className="header">
         <h1 className="title">プレスリリースエディター</h1>
         <button onClick={handleSave} className="saveButton" disabled={isPending}>
@@ -116,7 +241,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
         </button>
       </header>
 
-      {/* メインコンテンツ */}
       <main className="main">
         <div className="editorWrapper">
           <div className="titleInputWrapper">
@@ -128,26 +252,25 @@ function Page({ title: initialTitle, content }: PressRelease) {
               className="titleInput"
             />
           </div>
-          <div className="toolbar">
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              className="toolbarButton"
-              data-active={editor?.isActive("bulletList") ?? false}
-              disabled={!editor}
-            >
-              箇条書き
-            </button>
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              className="toolbarButton"
-              data-active={editor?.isActive("orderedList") ?? false}
-              disabled={!editor}
-            >
-              番号付きリスト
-            </button>
+
+          <div className="toolbar" aria-label="エディターツールバー">
+            {toolbarGroups.map((group) => (
+              <div key={group.label} className="toolbarGroup">
+                <span className="toolbarGroupLabel">{group.label}</span>
+                <div className="toolbarGroupButtons">
+                  {group.buttons.map((button) => (
+                    <ToolbarButton
+                      key={button.key}
+                      label={button.label}
+                      isActive={button.isActive}
+                      onClick={button.onClick}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+<<<<<<< HEAD
           <div className="imageForm">
             <input
               type="url"
@@ -160,9 +283,35 @@ function Page({ title: initialTitle, content }: PressRelease) {
               画像を挿入
             </button>
           </div>
+=======
+
+>>>>>>> origin/main
           <EditorContent editor={editor} />
         </div>
       </main>
     </div>
   );
 }
+<<<<<<< HEAD
+=======
+
+type ToolbarButtonProps = {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+};
+
+function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={`toolbarButton${isActive ? " is-active" : ""}`}
+      aria-pressed={isActive}
+    >
+      {label}
+    </button>
+  );
+}
+>>>>>>> origin/main
