@@ -1,16 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { JSONContent } from "@tiptap/core";
+import { Extension } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
+import { collab, receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
+import { Step } from "@tiptap/pm/transform";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import type { CSSProperties, ChangeEvent, DragEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import { RemotePresence, setRemotePresence, type PresenceUser } from "./editor/remotePresence";
 
 const queryKey = ["fetch-press-release"];
 const BASE_URL = "http://localhost:8080";
 const WS_BASE_URL = "ws://localhost:8080";
 const PRESS_RELEASE_ID = 1;
+const revisionsQueryKey = ["fetch-press-release-revisions", PRESS_RELEASE_ID];
 const PRESENCE_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c"];
 
 type PressReleaseResponse = {
@@ -26,14 +32,13 @@ type PressRelease = {
   version: number;
 };
 
-type PresenceUser = {
-  userId: string;
-  name: string;
-  color: string;
-  selection: {
-    from: number;
-    to: number;
-  };
+type PressReleaseRevisionResponse = {
+  id: number;
+  press_release_id: number;
+  version: number;
+  title: string;
+  content: JSONContent;
+  created_at: string;
 };
 
 type MarkType = "bold" | "italic" | "underline";
@@ -50,29 +55,54 @@ type ToolbarGroupConfig = {
   buttons: ToolbarButtonConfig[];
 };
 
+type SaveStatus = "saved" | "dirty" | "saving" | "error";
+
+type SessionSnapshot = {
+  title: string;
+  content: JSONContent;
+  version: number;
+};
+
+type SessionState = {
+  clientId: string;
+  snapshot: SessionSnapshot;
+  revision: number;
+};
+
+type DiffSegment = {
+  type: "added" | "removed";
+  value: string;
+};
+
 type RealtimeMessage =
   | {
       type: "session.ready";
       clientId: string;
-      snapshot: {
-        title: string;
-        content: JSONContent;
-        version: number;
-      };
+      snapshot: SessionSnapshot;
+      revision: number;
       presence: PresenceUser[];
     }
   | {
-      type: "document.sync";
+      type: "document.steps";
       sourceClientId: string;
+      steps: unknown[];
+      clientIds: string[];
+      revision: number;
+    }
+  | {
+      type: "title.sync";
       title: string;
-      content: JSONContent;
-      version: number;
     }
   | {
       type: "document.saved";
       title: string;
       content: JSONContent;
       version: number;
+    }
+  | {
+      type: "document.resync";
+      snapshot: SessionSnapshot;
+      revision: number;
     }
   | {
       type: "presence.snapshot";
@@ -100,14 +130,12 @@ function createRealtimeIdentity() {
   };
 }
 
-function logPresenceUsers(users: PresenceUser[]) {
-  if (users.length === 0) {
-    console.log("No other tabs connected");
-    return;
-  }
-
-  users.forEach((user) => {
-    console.log(`${user.name} (${user.selection.from}-${user.selection.to})`);
+function createCollaborationExtension(version: number, clientId: string) {
+  return Extension.create({
+    name: "collaborationBridge",
+    addProseMirrorPlugins() {
+      return [collab({ version, clientID: clientId })];
+    },
   });
 }
 
@@ -124,41 +152,125 @@ function usePressReleaseQuery() {
   });
 }
 
-function useSavePressReleaseMutation(onSaved: (pressRelease: PressReleaseResponse) => void) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: { title: string; content: JSONContent; version: number }) => {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
+function usePressReleaseRevisionsQuery() {
+  return useQuery<PressReleaseRevisionResponse[]>({
+    queryKey: revisionsQueryKey,
+    queryFn: async () => {
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions`);
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => null)) as
-          | { message?: string; currentVersion?: number }
-          | null;
-
-        if (response.status === 409) {
-          throw new Error(
-            errorData?.message ?? `保存競合が発生しました。最新版 version=${errorData?.currentVersion ?? "unknown"}`,
-          );
-        }
-
-        throw new Error(errorData?.message ?? "保存に失敗しました");
+        throw new Error(`HTTPエラー: ${response.status}`);
       }
-
-      return (await response.json()) as PressReleaseResponse;
-    },
-    onSuccess: (pressRelease) => {
-      onSaved(pressRelease);
-      queryClient.invalidateQueries({ queryKey });
-    },
-    onError: (error) => {
-      alert(`エラー: ${error.message}`);
+      return (await response.json()) as PressReleaseRevisionResponse[];
     },
   });
+}
+
+function extractTextContent(content: JSONContent | undefined): string {
+  if (!content) {
+    return "";
+  }
+
+  const chunks: string[] = [];
+  const visit = (node: JSONContent) => {
+    if (typeof node.text === "string") {
+      chunks.push(node.text);
+    }
+
+    node.content?.forEach(visit);
+  };
+
+  visit(content);
+  return chunks.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function tokenizeDiffText(text: string): string[] {
+  return text
+    .split(/(?<=[。！？\n])|(\s+)/)
+    .map((token) => token?.trim())
+    .filter((token): token is string => Boolean(token));
+}
+
+function buildDiffSegments(previousText: string, nextText: string): DiffSegment[] {
+  const previousTokens = tokenizeDiffText(previousText);
+  const nextTokens = tokenizeDiffText(nextText);
+  const dp = Array.from({ length: previousTokens.length + 1 }, () =>
+    Array<number>(nextTokens.length + 1).fill(0),
+  );
+
+  for (let i = previousTokens.length - 1; i >= 0; i -= 1) {
+    for (let j = nextTokens.length - 1; j >= 0; j -= 1) {
+      dp[i][j] =
+        previousTokens[i] === nextTokens[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const segments: DiffSegment[] = [];
+  let i = 0;
+  let j = 0;
+
+  const pushSegment = (type: DiffSegment["type"], value: string) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      return;
+    }
+
+    const last = segments.at(-1);
+    if (last?.type === type) {
+      last.value = `${last.value} ${normalized}`.trim();
+      return;
+    }
+
+    segments.push({ type, value: normalized });
+  };
+
+  while (i < previousTokens.length && j < nextTokens.length) {
+    if (previousTokens[i] === nextTokens[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+
+    if (dp[i + 1][j] >= dp[i][j + 1]) {
+      pushSegment("removed", previousTokens[i]);
+      i += 1;
+      continue;
+    }
+
+    pushSegment("added", nextTokens[j]);
+    j += 1;
+  }
+
+  while (i < previousTokens.length) {
+    pushSegment("removed", previousTokens[i]);
+    i += 1;
+  }
+
+  while (j < nextTokens.length) {
+    pushSegment("added", nextTokens[j]);
+    j += 1;
+  }
+
+  return segments;
+}
+
+function buildRevisionDiffSummary(revisions: PressReleaseRevisionResponse[], revisionId: number) {
+  const index = revisions.findIndex((revision) => revision.id === revisionId);
+  const revision = index >= 0 ? revisions[index] : null;
+  const previousRevision = index >= 0 && index < revisions.length - 1 ? revisions[index + 1] : null;
+
+  const bodyDiff = revision
+    ? buildDiffSegments(
+        extractTextContent(previousRevision?.content),
+        extractTextContent(revision.content),
+      )
+    : [];
+
+  return {
+    added: bodyDiff.filter((segment) => segment.type === "added").length,
+    removed: bodyDiff.filter((segment) => segment.type === "removed").length,
+  };
 }
 
 export function App() {
@@ -170,6 +282,7 @@ export function App() {
       </div>
     );
   }
+
   if (isError) {
     return (
       <div className="errorState">
@@ -192,35 +305,75 @@ export function App() {
 }
 
 function Page({ title: initialTitle, content, version: initialVersion }: PressRelease) {
+  const queryClient = useQueryClient();
+  const [identity] = useState(createRealtimeIdentity);
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
-  const [identity] = useState(createRealtimeIdentity);
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [remoteUsers, setRemoteUsers] = useState<PresenceUser[]>([]);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [editorResetToken, setEditorResetToken] = useState(0);
+  const [selectedRevisionId, setSelectedRevisionId] = useState<number | null>(null);
+  const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
   const [imageUrl, setImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const dragDepthRef = useRef(0);
-
-  const editor = useEditor({
-    extensions: [StarterKit, Underline, Image],
-    content,
-  });
-
   const websocketRef = useRef<WebSocket | null>(null);
-  const remoteUpdateRef = useRef(false);
-  const suppressNextTitleSyncRef = useRef(false);
-  const documentSyncTimerRef = useRef<number | null>(null);
-  const clientIdRef = useRef<string | null>(null);
-  const titleRef = useRef(title);
-  const versionRef = useRef(version);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const dragDepthRef = useRef(0);
+  const isApplyingRemoteRef = useRef(false);
+  const lastSentBatchRef = useRef<string | null>(null);
+
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      editable: Boolean(session),
+      extensions: session
+        ? [
+            StarterKit,
+            Underline,
+            Image,
+            RemotePresence,
+            createCollaborationExtension(session.revision, session.clientId),
+          ]
+        : [StarterKit, Underline, Image, RemotePresence],
+      content: session?.snapshot.content ?? content,
+    },
+    [session?.clientId, session?.revision, editorResetToken],
+  );
 
   useEffect(() => {
-    titleRef.current = title;
-  }, [title]);
+    editorRef.current = editor;
+  }, [editor]);
 
-  useEffect(() => {
-    versionRef.current = version;
-  }, [version]);
+  const sendPendingSteps = (currentEditor: NonNullable<typeof editor>) => {
+    const websocket = websocketRef.current;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const pending = sendableSteps(currentEditor.state);
+    if (!pending || pending.steps.length === 0) {
+      lastSentBatchRef.current = null;
+      return;
+    }
+
+    const batchKey = `${pending.version}:${pending.steps.length}`;
+    if (lastSentBatchRef.current === batchKey) {
+      return;
+    }
+
+    lastSentBatchRef.current = batchKey;
+    websocket.send(
+      JSON.stringify({
+        type: "document.steps",
+        version: pending.version,
+        steps: pending.steps.map((step) => step.toJSON()),
+        content: currentEditor.getJSON(),
+      }),
+    );
+  };
 
   const markState = useEditorState({
     editor,
@@ -231,100 +384,19 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }),
   });
 
-  const { isPending, mutate, mutateAsync } = useSavePressReleaseMutation((pressRelease) => {
-    setVersion(pressRelease.version);
-  });
+  const { data: revisions = [] } = usePressReleaseRevisionsQuery();
 
-  const sendPresenceUpdate = () => {
-    if (!editor || !websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+  useEffect(() => {
+    if (revisions.length === 0) {
       return;
     }
 
-    const selection = editor.state.selection;
-    websocketRef.current.send(
-      JSON.stringify({
-        type: "presence.update",
-        userId: identity.userId,
-        name: identity.name,
-        color: identity.color,
-        selection: {
-          from: selection.from,
-          to: selection.to,
-        },
-      }),
+    setSelectedRevisionId((current) =>
+      current && revisions.some((revision) => revision.id === current) ? current : revisions[0].id,
     );
-  };
-
-  const sendDocumentUpdate = () => {
-    if (!editor || !websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
-      return;
-    }
-
-    websocketRef.current.send(
-      JSON.stringify({
-        type: "document.update",
-        title: titleRef.current,
-        content: editor.getJSON(),
-        version: versionRef.current,
-      }),
-    );
-  };
-
-  const scheduleDocumentUpdate = () => {
-    if (remoteUpdateRef.current) {
-      return;
-    }
-
-    if (documentSyncTimerRef.current) {
-      window.clearTimeout(documentSyncTimerRef.current);
-    }
-
-    documentSyncTimerRef.current = window.setTimeout(() => {
-      sendDocumentUpdate();
-    }, 150);
-  };
+  }, [revisions]);
 
   useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    const handleEditorUpdate = () => {
-      scheduleDocumentUpdate();
-    };
-
-    const handleSelectionUpdate = () => {
-      sendPresenceUpdate();
-    };
-
-    editor.on("update", handleEditorUpdate);
-    editor.on("selectionUpdate", handleSelectionUpdate);
-    sendPresenceUpdate();
-
-    return () => {
-      editor.off("update", handleEditorUpdate);
-      editor.off("selectionUpdate", handleSelectionUpdate);
-    };
-  }, [editor]);
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    if (suppressNextTitleSyncRef.current) {
-      suppressNextTitleSyncRef.current = false;
-      return;
-    }
-
-    scheduleDocumentUpdate();
-  }, [title, editor]);
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
     const params = new URLSearchParams({
       userId: identity.userId,
       name: identity.name,
@@ -334,84 +406,198 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     const websocket = new WebSocket(`${WS_BASE_URL}/ws/press-releases/${PRESS_RELEASE_ID}?${params.toString()}`);
     websocketRef.current = websocket;
 
-    websocket.addEventListener("open", () => {
-      sendPresenceUpdate();
-    });
-
     websocket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data) as RealtimeMessage;
 
       if (message.type === "session.ready") {
-        clientIdRef.current = message.clientId;
-        remoteUpdateRef.current = true;
-        suppressNextTitleSyncRef.current = true;
+        setSession({
+          clientId: message.clientId,
+          snapshot: message.snapshot,
+          revision: message.revision,
+        });
         setTitle(message.snapshot.title);
         setVersion(message.snapshot.version);
-        editor.commands.setContent(message.snapshot.content, { emitUpdate: false });
-        logPresenceUsers(message.presence.filter((user) => user.userId !== identity.userId));
-        remoteUpdateRef.current = false;
-        sendPresenceUpdate();
+        setRemoteUsers(message.presence.filter((user) => user.userId !== identity.userId));
+        setSaveStatus("saved");
         return;
       }
 
-      if (message.type === "document.sync") {
-        if (message.sourceClientId === clientIdRef.current) {
-          return;
-        }
+      if (message.type === "presence.snapshot") {
+        setRemoteUsers(message.users.filter((user) => user.userId !== identity.userId));
+        return;
+      }
 
-        remoteUpdateRef.current = true;
-        suppressNextTitleSyncRef.current = true;
+      if (message.type === "title.sync") {
         setTitle(message.title);
-        setVersion(message.version);
-        editor.commands.setContent(message.content, { emitUpdate: false });
-        remoteUpdateRef.current = false;
+        setSaveStatus("dirty");
         return;
       }
 
       if (message.type === "document.saved") {
-        remoteUpdateRef.current = true;
-        suppressNextTitleSyncRef.current = true;
         setTitle(message.title);
         setVersion(message.version);
-        editor.commands.setContent(message.content, { emitUpdate: false });
-        remoteUpdateRef.current = false;
+        setSaveStatus("saved");
+        void queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: revisionsQueryKey });
         return;
       }
 
-      logPresenceUsers(message.users.filter((user) => user.userId !== identity.userId));
+      if (message.type === "document.resync") {
+        setTitle(message.snapshot.title);
+        setVersion(message.snapshot.version);
+        setSaveStatus("saved");
+        setSession((current) =>
+          current
+            ? {
+                ...current,
+                snapshot: message.snapshot,
+                revision: message.revision,
+              }
+            : null,
+        );
+        lastSentBatchRef.current = null;
+        setEditorResetToken((current) => current + 1);
+        return;
+      }
+
+      const currentEditor = editorRef.current;
+      if (!currentEditor) {
+        return;
+      }
+
+      const nextSteps = message.steps.map((step) => Step.fromJSON(currentEditor.schema, step));
+      const transaction = receiveTransaction(currentEditor.state, nextSteps, message.clientIds);
+      isApplyingRemoteRef.current = true;
+      currentEditor.view.dispatch(transaction);
+      isApplyingRemoteRef.current = false;
+      lastSentBatchRef.current = null;
+      setSaveStatus("dirty");
+      sendPendingSteps(currentEditor);
+    });
+
+    websocket.addEventListener("close", () => {
+      setSaveStatus("error");
+    });
+
+    websocket.addEventListener("error", () => {
+      setSaveStatus("error");
     });
 
     return () => {
-      if (documentSyncTimerRef.current) {
-        window.clearTimeout(documentSyncTimerRef.current);
-      }
       websocket.close();
       websocketRef.current = null;
     };
-  }, [editor, identity]);
+  }, [identity, queryClient]);
 
-  const saveCurrentContent = async () => {
+  useEffect(() => {
     if (!editor) {
       return;
     }
 
-    await mutateAsync({
-      title,
-      content: editor.getJSON(),
-      version,
-    });
+    setRemotePresence(editor, remoteUsers);
+  }, [editor, remoteUsers]);
+
+  useEffect(() => {
+    if (!editor || !session) {
+      return;
+    }
+
+    const sendPresenceUpdate = () => {
+      const websocket = websocketRef.current;
+      if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const selection = editor.state.selection;
+      websocket.send(
+        JSON.stringify({
+          type: "presence.update",
+          userId: identity.userId,
+          name: identity.name,
+          color: identity.color,
+          selection: {
+            from: selection.from,
+            to: selection.to,
+          },
+        }),
+      );
+    };
+
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (isApplyingRemoteRef.current || !transaction.docChanged) {
+        return;
+      }
+
+      setSaveStatus("dirty");
+      sendPendingSteps(editor);
+    };
+
+    const handleSelectionUpdate = () => {
+      sendPresenceUpdate();
+    };
+
+    editor.on("transaction", handleTransaction);
+    editor.on("selectionUpdate", handleSelectionUpdate);
+    sendPresenceUpdate();
+
+    return () => {
+      editor.off("transaction", handleTransaction);
+      editor.off("selectionUpdate", handleSelectionUpdate);
+    };
+  }, [editor, identity, session]);
+
+  const requestFlush = () => {
+    const websocket = websocketRef.current;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      setSaveStatus("error");
+      return;
+    }
+
+    setSaveStatus("saving");
+    websocket.send(JSON.stringify({ type: "document.flush" }));
   };
 
-  const handleSave = () => {
-    if (!editor) {
+  const restoreRevision = async (revisionId: number) => {
+    setRestoringRevisionId(revisionId);
+    setSaveStatus("saving");
+
+    try {
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions/${revisionId}/restore`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("変更履歴の復元に失敗しました");
+      }
+
+      await queryClient.invalidateQueries({ queryKey });
+      await queryClient.invalidateQueries({ queryKey: revisionsQueryKey });
+      setSaveStatus("saved");
+    } catch (restoreError) {
+      setSaveStatus("error");
+      const message = restoreError instanceof Error ? restoreError.message : "変更履歴の復元に失敗しました";
+      alert(message);
+    } finally {
+      setRestoringRevisionId(null);
+    }
+  };
+
+  const handleTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextTitle = event.target.value;
+    setTitle(nextTitle);
+    setSaveStatus("dirty");
+
+    const websocket = websocketRef.current;
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    mutate({
-      title,
-      content: editor.getJSON(),
-      version,
-    });
+    websocket.send(
+      JSON.stringify({
+        type: "title.update",
+        title: nextTitle,
+      }),
+    );
   };
 
   const uploadImage = async (file: File) => {
@@ -434,6 +620,12 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     fileInputRef.current?.click();
   };
 
+  const flushAfterImageChange = () => {
+    window.setTimeout(() => {
+      requestFlush();
+    }, 0);
+  };
+
   const handleInsertImage = async () => {
     if (!editor) {
       return;
@@ -447,7 +639,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
     editor.chain().focus().setImage({ src: trimmedUrl, alt: "挿入画像" }).run();
     setImageUrl("");
-    await saveCurrentContent();
+    flushAfterImageChange();
   };
 
   const insertUploadedImage = async (file: File) => {
@@ -465,7 +657,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     try {
       const { url } = await uploadImage(file);
       editor.chain().focus().setImage({ src: url, alt: file.name || "アップロード画像" }).run();
-      await saveCurrentContent();
+      flushAfterImageChange();
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
       alert(message);
@@ -481,7 +673,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
 
     for (const file of files) {
-      // Serialize uploads to avoid version races during autosave.
       // eslint-disable-next-line no-await-in-loop
       await insertUploadedImage(file);
     }
@@ -528,7 +719,36 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     }
   };
 
-  if (!editor) return null;
+  if (!editor || !session) {
+    return (
+      <div className="container">
+        <div className="loadingState">共同編集セッションを接続しています...</div>
+      </div>
+    );
+  }
+
+  const selectedRevision =
+    revisions.find((revision) => revision.id === selectedRevisionId) ?? revisions[0] ?? null;
+  const selectedRevisionIndex = selectedRevision
+    ? revisions.findIndex((revision) => revision.id === selectedRevision.id)
+    : -1;
+  const previousRevision =
+    selectedRevisionIndex >= 0 && selectedRevisionIndex < revisions.length - 1
+      ? revisions[selectedRevisionIndex + 1]
+      : null;
+  const titleDiff = selectedRevision
+    ? buildDiffSegments(previousRevision?.title ?? "", selectedRevision.title)
+    : [];
+  const bodyDiff = selectedRevision
+    ? buildDiffSegments(
+        extractTextContent(previousRevision?.content),
+        extractTextContent(selectedRevision.content),
+      )
+    : [];
+  const visibleBodyDiff = bodyDiff.slice(0, 8);
+  const revisionSummaries = Object.fromEntries(
+    revisions.map((revision) => [revision.id, buildRevisionDiffSummary(revisions, revision.id)]),
+  );
 
   const toggleMark = (mark: MarkType) => {
     const chain = editor.chain().focus();
@@ -549,7 +769,7 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
       buttons: MARK_BUTTONS.map((button) => ({
         key: button.key,
         label: button.label,
-        isActive: markState[button.key],
+        isActive: markState?.[button.key] ?? false,
         onClick: () => toggleMark(button.key),
       })),
     },
@@ -609,90 +829,194 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   return (
     <div className="container">
       <header className="header">
-        <h1 className="title">プレスリリースエディター</h1>
-        <button onClick={handleSave} className="saveButton" disabled={isPending}>
-          {isPending ? "保存中..." : "保存"}
+        <div className="titleBlock">
+          <h1 className="title">プレスリリースエディター</h1>
+          <div className="metaRow">
+            <span className={`saveStatus saveStatus-${saveStatus}`} aria-live="polite">
+              {saveStatus === "saving" && "保存中..."}
+              {saveStatus === "saved" && `保存済み v${version}`}
+              {saveStatus === "dirty" && "共同編集中"}
+              {saveStatus === "error" && "接続または保存に失敗しました"}
+            </span>
+            <span>{`編集中 ${remoteUsers.length + 1}人`}</span>
+          </div>
+          <div className="presenceList" aria-label="接続中の編集者">
+            <span className="presenceChip is-self" style={{ "--presence-color": identity.color } as CSSProperties}>
+              {identity.name}
+            </span>
+            {remoteUsers.map((user) => (
+              <span
+                key={user.userId}
+                className="presenceChip"
+                style={{ "--presence-color": user.color } as CSSProperties}
+              >
+                {user.name}
+              </span>
+            ))}
+          </div>
+        </div>
+        <button onClick={requestFlush} className="saveButton" disabled={saveStatus === "saving"}>
+          {saveStatus === "saving" ? "保存中..." : "保存"}
         </button>
       </header>
 
       <main className="main">
-        <div className="editorWrapper">
-          <div className="titleInputWrapper">
-            <input
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="タイトルを入力してください"
-              className="titleInput"
-            />
-          </div>
-
-          <div className="toolbar" aria-label="エディターツールバー">
-            {toolbarGroups.map((group) => (
-              <div key={group.label} className="toolbarGroup">
-                <span className="toolbarGroupLabel">{group.label}</span>
-                <div className="toolbarGroupButtons">
-                  {group.buttons.map((button) => (
-                    <ToolbarButton
-                      key={button.key}
-                      label={button.label}
-                      isActive={button.isActive}
-                      onClick={button.onClick}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="imageForm">
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(event) => setImageUrl(event.target.value)}
-              placeholder="画像URLを入力してください (https://...)"
-              className="imageInput"
-            />
-            <button
-              type="button"
-              onClick={() => void handleInsertImage()}
-              className="imageButton"
-              disabled={!editor || isUploadingImage}
-            >
-              画像を挿入
-            </button>
-            <button
-              type="button"
-              onClick={handlePickImage}
-              className="imageButton imageButtonSecondary"
-              disabled={!editor || isUploadingImage}
-            >
-              画像ファイルを選択
-            </button>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*"
-            className="hiddenFileInput"
-            onChange={(event) => void handleImageSelected(event)}
-          />
-
-          <div
-            className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={(event) => void handleDrop(event)}
-          >
-            <div className="dropZoneHint">
-              画像をここにドラッグ&ドロップして追加できます
-              {isUploadingImage ? "（アップロード中...）" : ""}
+        <div className="workspace">
+          <div className="editorWrapper">
+            <div className="titleInputWrapper">
+              <input
+                type="text"
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="タイトルを入力してください"
+                className="titleInput"
+              />
             </div>
-            <EditorContent editor={editor} />
+
+            <div className="toolbar" aria-label="エディターツールバー">
+              {toolbarGroups.map((group) => (
+                <div key={group.label} className="toolbarGroup">
+                  <span className="toolbarGroupLabel">{group.label}</span>
+                  <div className="toolbarGroupButtons">
+                    {group.buttons.map((button) => (
+                      <ToolbarButton
+                        key={button.key}
+                        label={button.label}
+                        isActive={button.isActive}
+                        onClick={button.onClick}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="imageForm">
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(event) => setImageUrl(event.target.value)}
+                placeholder="画像URLを入力してください (https://...)"
+                className="imageInput"
+              />
+              <button
+                type="button"
+                onClick={() => void handleInsertImage()}
+                className="imageButton"
+                disabled={!editor || isUploadingImage}
+              >
+                画像を挿入
+              </button>
+              <button
+                type="button"
+                onClick={handlePickImage}
+                className="imageButton imageButtonSecondary"
+                disabled={!editor || isUploadingImage}
+              >
+                画像ファイルを選択
+              </button>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hiddenFileInput"
+              onChange={(event) => void handleImageSelected(event)}
+            />
+
+            <div
+              className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={(event) => void handleDrop(event)}
+            >
+              <div className="dropZoneHint">
+                画像をここにドラッグ&ドロップして追加できます
+                {isUploadingImage ? "（アップロード中...）" : ""}
+              </div>
+              <EditorContent editor={editor} />
+            </div>
           </div>
+
+          <aside className="historyPanel" aria-label="変更履歴">
+            <div className="historyPanelHeader">
+              <h2 className="historyTitle">変更履歴</h2>
+              <span className="historyCount">{revisions.length}件</span>
+            </div>
+
+            <div className="historyList">
+              {revisions.map((revision) => (
+                <button
+                  key={revision.id}
+                  type="button"
+                  className={`historyItem${revision.id === selectedRevision?.id ? " is-active" : ""}`}
+                  onClick={() => setSelectedRevisionId(revision.id)}
+                >
+                  <span className="historyItemVersion">v{revision.version}</span>
+                  <span className="historyItemDate">{revision.created_at}</span>
+                  <span className="historyItemMeta">
+                    +{revisionSummaries[revision.id]?.added ?? 0}
+                    {" / "}
+                    -{revisionSummaries[revision.id]?.removed ?? 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {selectedRevision && (
+              <section className="historyPreview">
+                <div className="historyPreviewMeta">
+                  <span>version {selectedRevision.version}</span>
+                  <span>{selectedRevision.created_at}</span>
+                </div>
+                <h3 className="historyPreviewTitle">
+                  {previousRevision ? `v${previousRevision.version} -> v${selectedRevision.version}` : "初回保存"}
+                </h3>
+                <button
+                  type="button"
+                  className="restoreButton"
+                  onClick={() => void restoreRevision(selectedRevision.id)}
+                  disabled={restoringRevisionId === selectedRevision.id}
+                >
+                  {restoringRevisionId === selectedRevision.id ? "復元中..." : "復元"}
+                </button>
+                {titleDiff.length > 0 && (
+                  <div className="diffGroup">
+                    <span className="diffLabel">タイトル</span>
+                    <div className="diffTokens">
+                      {titleDiff.map((segment, index) => (
+                        <span key={`${segment.type}-${index}`} className={`diffToken is-${segment.type}`}>
+                          {segment.type === "added" ? "+ " : "- "}
+                          {segment.value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="diffGroup">
+                  <span className="diffLabel">本文差分</span>
+                  <div className="diffTokens">
+                    {visibleBodyDiff.length > 0 ? (
+                      visibleBodyDiff.map((segment, index) => (
+                        <span key={`${segment.type}-${index}`} className={`diffToken is-${segment.type}`}>
+                          {segment.type === "added" ? "+ " : "- "}
+                          {segment.value}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="diffEmpty">差分なし</span>
+                    )}
+                  </div>
+                </div>
+                {bodyDiff.length > visibleBodyDiff.length && (
+                  <span className="historyMore">さらに {bodyDiff.length - visibleBodyDiff.length} 件</span>
+                )}
+              </section>
+            )}
+          </aside>
         </div>
       </main>
     </div>
