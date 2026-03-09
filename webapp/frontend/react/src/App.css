@@ -4,6 +4,16 @@
   padding: 16px;
 }
 
+.statusScreen,
+.errorState {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -12,9 +22,22 @@
   margin-bottom: 16px;
 }
 
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .title {
   margin: 0;
   font-size: 20px;
+}
+
+.metaRow {
+  display: flex;
+  gap: 12px;
+  color: #556274;
+  font-size: 13px;
 }
 
 .saveButton {
@@ -108,7 +131,6 @@
   box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
 }
 
-<<<<<<< HEAD
 .imageForm {
   display: flex;
   gap: 0.5rem;
@@ -149,9 +171,43 @@
   cursor: not-allowed;
 }
 
-/* Tiptapエディターのスタイル */
-=======
->>>>>>> origin/main
+.imageButtonSecondary {
+  background: #fff;
+  color: #007bff;
+}
+
+.imageButtonSecondary:hover:not(:disabled) {
+  background: #eef5ff;
+  border-color: #0056b3;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.dropZone {
+  border: 2px dashed transparent;
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dropZone.is-dragging {
+  border-color: #007bff;
+  background: rgba(0, 123, 255, 0.06);
+}
+
+.dropZone.is-uploading {
+  opacity: 0.85;
+}
+
+.dropZoneHint {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+
 .tiptap {
   min-height: 240px;
   padding: 12px;
@@ -197,4 +253,5 @@
   height: auto;
   display: block;
   margin: 1rem 0;
+  border-radius: 6px;
 }
