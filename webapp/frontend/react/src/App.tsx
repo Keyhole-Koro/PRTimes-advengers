@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { JSONContent } from "@tiptap/core";
+import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import type { ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
@@ -180,8 +182,9 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
   const [identity] = useState(createRealtimeIdentity);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [StarterKit, Underline, Image],
     content,
   });
 
@@ -383,6 +386,43 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     });
   };
 
+  const uploadImage = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${BASE_URL}/uploads/images`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("画像のアップロードに失敗しました");
+    }
+
+    return (await response.json()) as { url: string };
+  };
+
+  const handlePickImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editor) {
+      return;
+    }
+
+    try {
+      const { url } = await uploadImage(file);
+      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
+      alert(message);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   if (!editor) return null;
 
   const toggleMark = (mark: MarkType) => {
@@ -448,6 +488,17 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         },
       ],
     },
+    {
+      label: "画像",
+      buttons: [
+        {
+          key: "image-upload",
+          label: "画像を追加",
+          isActive: false,
+          onClick: handlePickImage,
+        },
+      ],
+    },
   ];
 
   return (
@@ -488,6 +539,14 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               </div>
             ))}
           </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            className="hiddenFileInput"
+            onChange={handleImageSelected}
+          />
 
           <EditorContent editor={editor} />
         </div>

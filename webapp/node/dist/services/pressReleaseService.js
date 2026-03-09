@@ -1,4 +1,4 @@
-import { ensureDatabaseSchema } from '../db/migrate.js';
+import { ensureDatabaseSchema } from '../db/schemaSetup.js';
 import { pressReleaseRepository } from '../repositories/pressReleaseRepository.js';
 import { formatTimestamp } from '../utils/formatTimestamp.js';
 export class PressReleaseNotFoundError extends Error {
