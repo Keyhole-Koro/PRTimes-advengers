@@ -115,34 +115,30 @@ function Page({ title: initialTitle, content }: PressRelease) {
   const editor = useEditor({
     extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
     content,
-    onUpdate({ editor }) { 
-      setBodyCharCount(() => editor.getText({ blockSeparator: "\n" }).length);
-      // setBodyCharCount((prev) => prev + 1);
-      console.log('body char count:', editor.getText({ blockSeparator: "\n" }).length);
-    }
+   
   });
   const titleCharCount = countCharacters(title);
 
-  // useEffect(() => {
-  //   if (!editor) return;
+  useEffect(() => {
+    if (!editor) return;
 
-  //   const syncBodyCharCount = () => {
-  //     console.log(editor.getText({ blockSeparator: "\n" }));
-  //     console.log(countCharacters(editor.getText({ blockSeparator: "\n" })));
-  //     setBodyCharCount(countCharacters(editor.getText({ blockSeparator: "\n" })));
-  //   };
+    const syncBodyCharCount = () => {
+      console.log(editor.getText({ blockSeparator: "\n" }));
+      console.log(countCharacters(editor.getText({ blockSeparator: "\n" })));
+      setBodyCharCount(countCharacters(editor.getText({ blockSeparator: "\n" })));
+    };
 
-  //   syncBodyCharCount();
-  //   editor.on("transaction", syncBodyCharCount);
-  //   editor.on("update", syncBodyCharCount);
-  //   editor.on("selectionUpdate", syncBodyCharCount);
+    syncBodyCharCount();
+    editor.on("transaction", syncBodyCharCount);
+    editor.on("update", syncBodyCharCount);
+    editor.on("selectionUpdate", syncBodyCharCount);
 
-  //   return () => {
-  //     editor.off("transaction", syncBodyCharCount);
-  //     editor.off("update", syncBodyCharCount);
-  //     editor.off("selectionUpdate", syncBodyCharCount);
-  //   };
-  // }, [editor]);
+    return () => {
+      editor.off("transaction", syncBodyCharCount);
+      editor.off("update", syncBodyCharCount);
+      editor.off("selectionUpdate", syncBodyCharCount);
+    };
+  }, [editor]);
 
   const editorState = useEditorState({
     editor,
