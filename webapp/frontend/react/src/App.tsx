@@ -1,24 +1,3 @@
-<<<<<<< HEAD
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { JSONContent } from "@tiptap/core";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import Image from "@tiptap/extension-image";
-import { useState } from "react";
-import "./App.css";
-
-const queryKey = ["fetch-press-release"];
-
-const DEFAULT_LOCAL_API_URL = "http://localhost:8080";
-const APP_ENV = String((import.meta.env as any).APP_ENV ?? "local").toLowerCase();
-const API_BASE_URL = String(
-  (import.meta.env as any).VITE_API_BASE_URL ??
-    (import.meta.env as any).APP_API_BASE_URL ??
-    ""
-);
-const BASE_URL = APP_ENV === "local" ? DEFAULT_LOCAL_API_URL : (API_BASE_URL || "");
-=======
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { JSONContent } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
@@ -31,7 +10,6 @@ import "./App.css";
 const queryKey = ["fetch-press-release"];
 const BASE_URL = "http://localhost:8080";
 const WS_BASE_URL = "ws://localhost:8080";
->>>>>>> 1d485025041f661ea1fd36a998e32d2d44b024e9
 const PRESS_RELEASE_ID = 1;
 const PRESENCE_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c"];
 
@@ -215,9 +193,6 @@ export function App() {
 
 function Page({ title: initialTitle, content, version: initialVersion }: PressRelease) {
   const [title, setTitle] = useState(() => initialTitle);
-<<<<<<< HEAD
-  const [imageUrl, setImageUrl] = useState("");
-=======
   const [version, setVersion] = useState(() => initialVersion);
   const [identity] = useState(createRealtimeIdentity);
   const [imageUrl, setImageUrl] = useState("");
@@ -225,7 +200,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepthRef = useRef(0);
->>>>>>> 1d485025041f661ea1fd36a998e32d2d44b024e9
 
   const editor = useEditor({
     extensions: [StarterKit, Underline, Image],
@@ -428,10 +402,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     });
   };
 
-<<<<<<< HEAD
-  const handleInsertImage = () => {
-    if (!editor) return;
-=======
   const handleSave = () => {
     if (!editor) {
       return;
@@ -468,7 +438,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     if (!editor) {
       return;
     }
->>>>>>> 1d485025041f661ea1fd36a998e32d2d44b024e9
 
     const trimmedUrl = imageUrl.trim();
     if (!trimmedUrl) {
@@ -702,9 +671,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             </button>
           </div>
 
-<<<<<<< HEAD
-          <EditorContent editor={editor} />
-=======
           <input
             ref={fileInputRef}
             type="file"
@@ -727,7 +693,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             </div>
             <EditorContent editor={editor} />
           </div>
->>>>>>> 1d485025041f661ea1fd36a998e32d2d44b024e9
         </div>
       </main>
     </div>
