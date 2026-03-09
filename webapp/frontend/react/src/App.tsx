@@ -1,30 +1,54 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { JSONContent } from "@tiptap/core";
-import Heading from "@tiptap/extension-heading";
+import BulletList from "@tiptap/extension-bullet-list";
 import Document from "@tiptap/extension-document";
+import Heading from "@tiptap/extension-heading";
+import Image from "@tiptap/extension-image";
+import ListItem from "@tiptap/extension-list-item";
+import OrderedList from "@tiptap/extension-ordered-list";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
-import BulletList from "@tiptap/extension-bullet-list";
-import OrderedList from "@tiptap/extension-ordered-list";
-import ListItem from "@tiptap/extension-list-item";
-import Image from "@tiptap/extension-image";
-import { useRef, useState } from "react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { ChangeEvent } from "react";
+import { useRef, useState } from "react";
 import "./App.css";
 
 const queryKey = ["fetch-press-release"];
 const BASE_URL = "http://localhost:8080";
+const PRESS_RELEASE_ID = 1;
+
+type PressReleaseResponse = {
+  title: string;
+  content: string;
+};
+
+type PressRelease = {
+  title: string;
+  content: JSONContent;
+};
+
+const EMPTY_CONTENT: JSONContent = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
+function parseContent(rawContent: string): JSONContent {
+  try {
+    return JSON.parse(rawContent) as JSONContent;
+  } catch {
+    return EMPTY_CONTENT;
+  }
+}
 
 function usePressReleaseQuery() {
-  return useQuery({
+  return useQuery<PressReleaseResponse>({
     queryKey,
     queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/1`);
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`);
       if (!response.ok) {
         throw new Error(`HTTPエラー: ${response.status}`);
       }
-      return response.json();
+      return (await response.json()) as PressReleaseResponse;
     },
   });
 }
@@ -34,16 +58,16 @@ function useSavePressReleaseMutation() {
 
   return useMutation({
     mutationFn: async (data: { title: string; content: string }) => {
-      const response = await fetch(`${BASE_URL}/press-releases/1`, {
+      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+
       if (!response.ok) {
         throw new Error("保存に失敗しました");
       }
+
       return response.json();
     },
     onSuccess: () => {
@@ -75,34 +99,33 @@ export function App() {
     );
   }
 
-  let parsedContent: JSONContent;
-  try {
-    parsedContent = JSON.parse(data.content) as JSONContent;
-  } catch {
-    parsedContent = { type: "doc", content: [{ type: "paragraph" }] };
-  }
-
-  return <Page title={data.title} content={parsedContent} />;
+  return <Page title={data.title} content={parseContent(data.content)} />;
 }
 
-type PressRelease = {
-  title: string;
-  content: JSONContent;
-};
-
 function Page({ title: initialTitle, content }: PressRelease) {
-  const [title, setTitle] = useState(() => initialTitle);
+  const [title, setTitle] = useState(initialTitle);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     extensions: [Document, Heading, Paragraph, Text, BulletList, OrderedList, ListItem, Image],
     content,
   });
 
+  const editorState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      bulletList: currentEditor?.isActive("bulletList") ?? false,
+      orderedList: currentEditor?.isActive("orderedList") ?? false,
+    }),
+  });
+
   const { isPending, mutate } = useSavePressReleaseMutation();
 
-  const handleSave = () => {
-    if (!editor) return;
+  if (!editor) {
+    return null;
+  }
 
+  const handleSave = () => {
     mutate({
       title,
       content: JSON.stringify(editor.getJSON()),
@@ -122,7 +145,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
       throw new Error("画像のアップロードに失敗しました");
     }
 
-    return response.json() as Promise<{ url: string }>;
+    return (await response.json()) as { url: string };
   };
 
   const handlePickImage = () => {
@@ -131,7 +154,9 @@ function Page({ title: initialTitle, content }: PressRelease) {
 
   const handleImageSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !editor) return;
+    if (!file) {
+      return;
+    }
 
     try {
       const { url } = await uploadImage(file);
@@ -141,8 +166,8 @@ function Page({ title: initialTitle, content }: PressRelease) {
         title,
         content: JSON.stringify(editor.getJSON()),
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "画像アップロードに失敗しました";
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : "画像アップロードに失敗しました";
       alert(message);
     } finally {
       event.target.value = "";
@@ -151,7 +176,6 @@ function Page({ title: initialTitle, content }: PressRelease) {
 
   return (
     <div className="container">
-      {/* ヘッダー */}
       <header className="header">
         <h1 className="title">プレスリリースエディター</h1>
         <button onClick={handleSave} className="saveButton" disabled={isPending}>
@@ -159,46 +183,42 @@ function Page({ title: initialTitle, content }: PressRelease) {
         </button>
       </header>
 
-      {/* メインコンテンツ */}
       <main className="main">
         <div className="editorWrapper">
           <div className="titleInputWrapper">
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(event) => setTitle(event.target.value)}
               placeholder="タイトルを入力してください"
               className="titleInput"
             />
           </div>
-          <div className="toolbar">
+
+          <div className="toolbar" aria-label="エディターツールバー">
             <button
               type="button"
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
               className="toolbarButton"
-              data-active={editor?.isActive("bulletList") ?? false}
-              disabled={!editor}
+              data-active={editorState.bulletList}
             >
               箇条書き
             </button>
             <button
               type="button"
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
               className="toolbarButton"
-              data-active={editor?.isActive("orderedList") ?? false}
-              disabled={!editor}
+              data-active={editorState.orderedList}
             >
               番号付きリスト
             </button>
-            <button
-              type="button"
-              onClick={handlePickImage}
-              className="toolbarButton"
-              disabled={!editor}
-            >
+            <button type="button" onClick={handlePickImage} className="toolbarButton">
               画像を追加
             </button>
           </div>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -206,6 +226,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
             className="hiddenFileInput"
             onChange={handleImageSelected}
           />
+
           <EditorContent editor={editor} />
         </div>
       </main>
