@@ -16,6 +16,8 @@ import "./App.css";
 const queryKey = ["fetch-press-release"];
 const BASE_URL = "http://localhost:8080";
 const PRESS_RELEASE_ID = 1;
+const MAX_TITLE_CHARS = 100;
+const MAX_BODY_CHARS = 500;
 
 type PressReleaseResponse = {
   title: string;
@@ -29,7 +31,6 @@ type PressRelease = {
 
 function countCharacters(value: string): number {
   return Array.from(value).length;
-  console.log("bbbb");
 }
 
 const EMPTY_CONTENT: JSONContent = {
@@ -110,6 +111,7 @@ export function App() {
 function Page({ title: initialTitle, content }: PressRelease) {
   const [title, setTitle] = useState(initialTitle);
   const [bodyCharCount, setBodyCharCount] = useState(() => 0);
+  const [saveErrorMessage, setSaveErrorMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -123,9 +125,12 @@ function Page({ title: initialTitle, content }: PressRelease) {
     if (!editor) return;
 
     const syncBodyCharCount = () => {
-      console.log(editor.getText({ blockSeparator: "\n" }));
-      console.log(countCharacters(editor.getText({ blockSeparator: "\n" })));
-      setBodyCharCount(countCharacters(editor.getText({ blockSeparator: "\n" })));
+      const nextBodyCharCount = countCharacters(editor.getText({ blockSeparator: "\n" }));
+      setBodyCharCount(nextBodyCharCount);
+
+      if (titleCharCount <= MAX_TITLE_CHARS && nextBodyCharCount <= MAX_BODY_CHARS) {
+        setSaveErrorMessage("");
+      }
     };
 
     syncBodyCharCount();
@@ -155,6 +160,17 @@ function Page({ title: initialTitle, content }: PressRelease) {
   }
 
   const handleSave = () => {
+    if (titleCharCount > MAX_TITLE_CHARS) {
+      setSaveErrorMessage(`タイトルは${MAX_TITLE_CHARS}文字以内で入力してください。`);
+      return;
+    }
+
+    if (bodyCharCount > MAX_BODY_CHARS) {
+      setSaveErrorMessage(`本文は${MAX_BODY_CHARS}文字以内で入力してください。`);
+      return;
+    }
+
+    setSaveErrorMessage("");
     mutate({
       title,
       content: JSON.stringify(editor.getJSON()),
@@ -206,6 +222,10 @@ function Page({ title: initialTitle, content }: PressRelease) {
   const handleTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextTitle = event.target.value;
     setTitle(nextTitle);
+
+    if (countCharacters(nextTitle) <= MAX_TITLE_CHARS && bodyCharCount <= MAX_BODY_CHARS) {
+      setSaveErrorMessage("");
+    }
   };
 
   return (
@@ -216,6 +236,7 @@ function Page({ title: initialTitle, content }: PressRelease) {
           {isPending ? "保存中..." : "保存"}
         </button>
       </header>
+      {saveErrorMessage && <p className="saveErrorMessage">{saveErrorMessage}</p>}
 
       <main className="main">
         <div className="editorWrapper">
@@ -227,7 +248,9 @@ function Page({ title: initialTitle, content }: PressRelease) {
               placeholder="タイトルを入力してください"
               className="titleInput"
             />
-            <div className="charCount">タイトル文字数: {titleCharCount}</div>
+            <div className="charCount">
+              タイトル文字数: {titleCharCount}/{MAX_TITLE_CHARS}
+            </div>
           </div>
 
           <div className="toolbar" aria-label="エディターツールバー">
@@ -263,7 +286,9 @@ function Page({ title: initialTitle, content }: PressRelease) {
           />
 
           <EditorContent editor={editor} />
-          <div className="charCount">本文文字数: {bodyCharCount}</div>
+          <div className="charCount">
+            本文文字数: {bodyCharCount}/{MAX_BODY_CHARS}
+          </div>
         </div>
       </main>
     </div>
