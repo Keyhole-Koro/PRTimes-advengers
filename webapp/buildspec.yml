@@ -1,12 +1,22 @@
 version: 0.2
 
 phases:
+  install:
+    commands:
+      - cd webapp/frontend/react
+      - npm install
   build:
     commands:
-      - echo "Preparing files for CodeDeploy..."
+      - cd webapp/frontend/react
+      - npm run build
 
 artifacts:
-  # ▼ ここが最重要！ webapp フォルダの中身をZipのルートにします ▼
-  base-directory: webapp
-  files:
-    - '**/*'
+  secondary-artifacts:
+    FrontendArtifact:
+      base-directory: webapp/frontend/react/dist  # Viteならdist、CRAならbuild
+      files:
+        - '**/*'
+    BackendArtifact:
+      base-directory: webapp
+      files:
+        - '**/*'
