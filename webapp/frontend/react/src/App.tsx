@@ -1,9 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { JSONContent } from "@tiptap/core";
-import { Extension } from "@tiptap/core";
+import { useQueryClient } from "@tanstack/react-query";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
-import { collab, receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
+import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -12,329 +10,40 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { CommentHighlight } from "./editor/commentHighlight";
 import { LinkCard } from "./editor/linkCard";
-import { RemotePresence, setRemotePresence, type PresenceUser } from "./editor/remotePresence";
-
-const queryKey = ["fetch-press-release"];
-const BASE_URL = "http://localhost:8080";
-const WS_BASE_URL = "ws://localhost:8080";
-const PRESS_RELEASE_ID = 1;
-const revisionsQueryKey = ["fetch-press-release-revisions", PRESS_RELEASE_ID];
-const PRESENCE_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c"];
-
-type PressReleaseResponse = {
-  id: number;
-  title: string;
-  content: JSONContent;
-  version: number;
-};
-
-type PressRelease = {
-  title: string;
-  content: JSONContent;
-  version: number;
-};
-
-type FileWithRelativePath = File & {
-  webkitRelativePath?: string;
-};
-
-type PressReleaseRevisionResponse = {
-  id: number;
-  press_release_id: number;
-  version: number;
-  title: string;
-  content: JSONContent;
-  created_at: string;
-};
-
-type LinkPreviewResponse = {
-  url: string;
-  title: string;
-  description: string;
-  image: string | null;
-};
-
-type PressReleaseTemplateResponse = {
-  id: number;
-  name: string;
-  title: string;
-  content: JSONContent;
-  created_at: string;
-  updated_at: string;
-};
-
-type MarkType = "bold" | "italic" | "underline";
-
-type CommentThreadResponse = {
-  id: number;
-  press_release_id: number;
-  anchor_from: number;
-  anchor_to: number;
-  quote: string;
-  is_resolved: boolean;
-  created_by: string;
-  created_at: string;
-  resolved_at: string | null;
-  messages: CommentMessageResponse[];
-};
-
-type CommentMessageResponse = {
-  id: number;
-  thread_id: number;
-  body: string;
-  created_by: string;
-  created_at: string;
-};
-
-type SidebarTab = "history" | "comments";
-
-type ToolbarButtonConfig = {
-  key: string;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-};
-
-type ToolbarGroupConfig = {
-  label: string;
-  buttons: ToolbarButtonConfig[];
-};
-
-type SaveStatus = "saved" | "dirty" | "saving" | "error";
-
-type SessionSnapshot = {
-  title: string;
-  content: JSONContent;
-  version: number;
-};
-
-type SessionState = {
-  clientId: string;
-  snapshot: SessionSnapshot;
-  revision: number;
-};
-
-type DiffSegment = {
-  type: "added" | "removed";
-  value: string;
-};
-
-type RealtimeMessage =
-  | {
-      type: "session.ready";
-      clientId: string;
-      snapshot: SessionSnapshot;
-      revision: number;
-      presence: PresenceUser[];
-    }
-  | {
-      type: "document.steps";
-      sourceClientId: string;
-      steps: unknown[];
-      clientIds: string[];
-      revision: number;
-    }
-  | {
-      type: "title.sync";
-      title: string;
-    }
-  | {
-      type: "document.saved";
-      title: string;
-      content: JSONContent;
-      version: number;
-    }
-  | {
-      type: "document.resync";
-      snapshot: SessionSnapshot;
-      revision: number;
-    }
-  | {
-      type: "presence.snapshot";
-      users: PresenceUser[];
-    };
-
-const MARK_BUTTONS: Array<{ key: MarkType; label: string }> = [
-  { key: "bold", label: "太字" },
-  { key: "italic", label: "斜体" },
-  { key: "underline", label: "下線" },
-];
-
-const EMPTY_CONTENT: JSONContent = {
-  type: "doc",
-  content: [{ type: "paragraph" }],
-};
-
-const MOCK_TEMPLATES: PressReleaseTemplateResponse[] = [
-  {
-    id: 1,
-    name: "採用告知",
-    title: "2026年度 新卒採用の募集開始に関するお知らせ",
-    content: {
-      type: "doc",
-      content: [
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "概要" }],
-        },
-        {
-          type: "paragraph",
-          content: [
-            { type: "text", text: "株式会社○○は、" },
-            { type: "text", marks: [{ type: "bold" }], text: "2026年度新卒採用" },
-            { type: "text", text: "の募集を開始しました。" },
-          ],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "募集職種" }],
-        },
-        {
-          type: "bulletList",
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ソフトウェアエンジニア" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "プロダクトデザイナー" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ビジネス職（営業・企画）" }] }] },
-          ],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "選考フロー" }],
-        },
-        {
-          type: "orderedList",
-          attrs: { start: 1 },
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "エントリー" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "書類選考" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "面接（複数回）" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "内定" }] }] },
-          ],
-        },
-        {
-          type: "paragraph",
-          content: [{ type: "text", marks: [{ type: "underline" }], text: "詳細は採用サイトをご確認ください。" }],
-        },
-      ],
-    },
-    created_at: "2026-03-09 09:00",
-    updated_at: "2026-03-09 09:00",
-  },
-  {
-    id: 2,
-    name: "サービスリリース",
-    title: "新サービス「○○」提供開始のお知らせ",
-    content: {
-      type: "doc",
-      content: [
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "サービス概要" }],
-        },
-        {
-          type: "paragraph",
-          content: [
-            { type: "text", text: "株式会社○○は、本日より新サービス「○○」の提供を開始しました。" },
-          ],
-        },
-        {
-          type: "paragraph",
-          content: [
-            { type: "text", text: "本サービスは、" },
-            { type: "text", marks: [{ type: "italic" }], text: "情報整理・共有・進行管理" },
-            { type: "text", text: "を一つの画面で行えることを特徴としています。" },
-          ],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "主な特長" }],
-        },
-        {
-          type: "bulletList",
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "操作しやすいダッシュボード" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "チーム横断での情報共有" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "分析レポートの自動生成" }] }] },
-          ],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "提供開始までの流れ" }],
-        },
-        {
-          type: "orderedList",
-          attrs: { start: 1 },
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "先行導入企業による検証" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "正式版の機能拡充" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "一般提供開始" }] }] },
-          ],
-        },
-      ],
-    },
-    created_at: "2026-03-08 15:30",
-    updated_at: "2026-03-08 15:30",
-  },
-  {
-    id: 3,
-    name: "イベント開催",
-    title: "イベント「○○ 2026」開催決定のお知らせ",
-    content: {
-      type: "doc",
-      content: [
-        {
-          type: "heading",
-          attrs: { level: 1 },
-          content: [{ type: "text", text: "イベント開催概要" }],
-        },
-        {
-          type: "paragraph",
-          content: [{ type: "text", text: "株式会社○○は、2026年5月にイベント「○○ 2026」を開催します。" }],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "開催目的" }],
-        },
-        {
-          type: "bulletList",
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "業界関係者との接点創出" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "新しい取り組みの発信" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "来場者との双方向コミュニケーション" }] }] },
-          ],
-        },
-        {
-          type: "heading",
-          attrs: { level: 2 },
-          content: [{ type: "text", text: "当日のプログラム" }],
-        },
-        {
-          type: "orderedList",
-          attrs: { start: 1 },
-          content: [
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "オープニングセッション" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "基調講演" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "パネルディスカッション" }] }] },
-            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "ネットワーキング" }] }] },
-          ],
-        },
-        {
-          type: "paragraph",
-          content: [{ type: "text", text: "開催概要、参加方法、登壇情報は特設ページで順次公開予定です。" }],
-        },
-      ],
-    },
-    created_at: "2026-03-07 12:00",
-    updated_at: "2026-03-07 12:00",
-  },
-];
+import type { PresenceUser } from "./editor/remotePresence";
+import { RemotePresence, setRemotePresence } from "./editor/remotePresence";
+import { CommentsSidebar } from "./features/pressReleaseEditor/components/CommentsSidebar";
+import { HistorySidebar } from "./features/pressReleaseEditor/components/HistorySidebar";
+import { ToolbarButton } from "./features/pressReleaseEditor/components/ToolbarButton";
+import {
+  BASE_URL,
+  EMPTY_CONTENT,
+  MARK_BUTTONS,
+  PRESS_RELEASE_ID,
+  QUERY_KEY,
+  REVISIONS_QUERY_KEY,
+  WS_BASE_URL,
+} from "./features/pressReleaseEditor/constants";
+import { usePressReleaseQuery, usePressReleaseRevisionsQuery } from "./features/pressReleaseEditor/hooks/usePressReleaseQueries";
+import { MOCK_TEMPLATES } from "./features/pressReleaseEditor/mockTemplates";
+import type {
+  CommentThreadResponse,
+  FileWithRelativePath,
+  LinkPreviewResponse,
+  MarkType,
+  PressRelease,
+  PressReleaseTemplateResponse,
+  RealtimeMessage,
+  SaveStatus,
+  SessionState,
+  SidebarTab,
+  ToolbarGroupConfig,
+} from "./features/pressReleaseEditor/types";
+import { buildRevisionDiffSummary } from "./features/pressReleaseEditor/utils/diff";
+import {
+  createCollaborationExtension,
+  createRealtimeIdentity,
+} from "./features/pressReleaseEditor/utils/realtime";
 
 function isImageFile(file: FileWithRelativePath): boolean {
   if (file.type.startsWith("image/")) {
@@ -352,159 +61,6 @@ function normalizePathKey(path: string): string {
     .replace(/^\.\//, "")
     .replace(/^\/+/, "")
     .toLowerCase();
-}
-
-function createRealtimeIdentity() {
-  const userId = crypto.randomUUID();
-  const suffix = userId.slice(0, 4);
-  return {
-    userId,
-    name: `Tab ${suffix}`,
-    color: PRESENCE_COLORS[Math.floor(Math.random() * PRESENCE_COLORS.length)],
-  };
-}
-
-function createCollaborationExtension(version: number, clientId: string) {
-  return Extension.create({
-    name: "collaborationBridge",
-    addProseMirrorPlugins() {
-      return [collab({ version, clientID: clientId })];
-    },
-  });
-}
-
-function usePressReleaseQuery() {
-  return useQuery<PressReleaseResponse>({
-    queryKey,
-    queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`);
-      if (!response.ok) {
-        throw new Error(`HTTPエラー: ${response.status}`);
-      }
-      return (await response.json()) as PressReleaseResponse;
-    },
-  });
-}
-
-function usePressReleaseRevisionsQuery() {
-  return useQuery<PressReleaseRevisionResponse[]>({
-    queryKey: revisionsQueryKey,
-    queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions`);
-      if (!response.ok) {
-        throw new Error(`HTTPエラー: ${response.status}`);
-      }
-      return (await response.json()) as PressReleaseRevisionResponse[];
-    },
-  });
-}
-
-function extractTextContent(content: JSONContent | undefined): string {
-  if (!content) {
-    return "";
-  }
-
-  const chunks: string[] = [];
-  const visit = (node: JSONContent) => {
-    if (typeof node.text === "string") {
-      chunks.push(node.text);
-    }
-
-    node.content?.forEach(visit);
-  };
-
-  visit(content);
-  return chunks.join(" ").replace(/\s+/g, " ").trim();
-}
-
-function tokenizeDiffText(text: string): string[] {
-  return text
-    .split(/(?<=[。！？\n])|(\s+)/)
-    .map((token) => token?.trim())
-    .filter((token): token is string => Boolean(token));
-}
-
-function buildDiffSegments(previousText: string, nextText: string): DiffSegment[] {
-  const previousTokens = tokenizeDiffText(previousText);
-  const nextTokens = tokenizeDiffText(nextText);
-  const dp = Array.from({ length: previousTokens.length + 1 }, () =>
-    Array<number>(nextTokens.length + 1).fill(0),
-  );
-
-  for (let i = previousTokens.length - 1; i >= 0; i -= 1) {
-    for (let j = nextTokens.length - 1; j >= 0; j -= 1) {
-      dp[i][j] =
-        previousTokens[i] === nextTokens[j]
-          ? dp[i + 1][j + 1] + 1
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-
-  const segments: DiffSegment[] = [];
-  let i = 0;
-  let j = 0;
-
-  const pushSegment = (type: DiffSegment["type"], value: string) => {
-    const normalized = value.trim();
-    if (!normalized) {
-      return;
-    }
-
-    const last = segments.at(-1);
-    if (last?.type === type) {
-      last.value = `${last.value} ${normalized}`.trim();
-      return;
-    }
-
-    segments.push({ type, value: normalized });
-  };
-
-  while (i < previousTokens.length && j < nextTokens.length) {
-    if (previousTokens[i] === nextTokens[j]) {
-      i += 1;
-      j += 1;
-      continue;
-    }
-
-    if (dp[i + 1][j] >= dp[i][j + 1]) {
-      pushSegment("removed", previousTokens[i]);
-      i += 1;
-      continue;
-    }
-
-    pushSegment("added", nextTokens[j]);
-    j += 1;
-  }
-
-  while (i < previousTokens.length) {
-    pushSegment("removed", previousTokens[i]);
-    i += 1;
-  }
-
-  while (j < nextTokens.length) {
-    pushSegment("added", nextTokens[j]);
-    j += 1;
-  }
-
-  return segments;
-}
-
-function buildRevisionDiffSummary(revisions: PressReleaseRevisionResponse[], revisionId: number) {
-  const index = revisions.findIndex((revision) => revision.id === revisionId);
-  const revision = index >= 0 ? revisions[index] : null;
-  const previousRevision = index >= 0 && index < revisions.length - 1 ? revisions[index + 1] : null;
-
-  const bodyDiff = revision
-    ? buildDiffSegments(
-        extractTextContent(previousRevision?.content),
-        extractTextContent(revision.content),
-      )
-    : [];
-
-  return {
-    added: bodyDiff.filter((segment) => segment.type === "added").length,
-    removed: bodyDiff.filter((segment) => segment.type === "removed").length,
-  };
 }
 
 export function App() {
@@ -686,8 +242,8 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         setTitle(message.title);
         setVersion(message.version);
         setSaveStatus("saved");
-        void queryClient.invalidateQueries({ queryKey });
-        void queryClient.invalidateQueries({ queryKey: revisionsQueryKey });
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
         return;
       }
 
@@ -833,8 +389,8 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         throw new Error("変更履歴の復元に失敗しました");
       }
 
-      await queryClient.invalidateQueries({ queryKey });
-      await queryClient.invalidateQueries({ queryKey: revisionsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
       setSaveStatus("saved");
     } catch (restoreError) {
       setSaveStatus("error");
@@ -1349,16 +905,6 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     selectedRevisionIndex >= 0 && selectedRevisionIndex < revisions.length - 1
       ? revisions[selectedRevisionIndex + 1]
       : null;
-  const titleDiff = selectedRevision
-    ? buildDiffSegments(previousRevision?.title ?? "", selectedRevision.title)
-    : [];
-  const bodyDiff = selectedRevision
-    ? buildDiffSegments(
-        extractTextContent(previousRevision?.content),
-        extractTextContent(selectedRevision.content),
-      )
-    : [];
-  const visibleBodyDiff = bodyDiff.slice(0, 8);
   const revisionSummaries = Object.fromEntries(
     revisions.map((revision) => [revision.id, buildRevisionDiffSummary(revisions, revision.id)]),
   );
@@ -1616,285 +1162,57 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
             </div>
 
             {sidebarTab === "comments" && (
-              <div className="commentPanel">
-                {isCreatingComment && (
-                  <div className="commentCreateForm">
-                    <p className="commentQuotePreview">
-                      「{editor.state.doc.textBetween(
-                        editor.state.selection.from,
-                        editor.state.selection.to,
-                        " ",
-                      )}」
-                    </p>
-                    <textarea
-                      value={newCommentBody}
-                      onChange={(e) => setNewCommentBody(e.target.value)}
-                      placeholder="コメントを入力..."
-                      className="commentInput"
-                      rows={3}
-                    />
-                    <div className="commentCreateActions">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingComment(false);
-                          setNewCommentBody("");
-                        }}
-                        className="commentCancelButton"
-                      >
-                        キャンセル
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleCreateComment()}
-                        className="commentSubmitButton"
-                        disabled={!newCommentBody.trim()}
-                      >
-                        送信
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <label className="commentResolvedToggle">
-                  <input
-                    type="checkbox"
-                    checked={showResolvedComments}
-                    onChange={(e) => setShowResolvedComments(e.target.checked)}
-                  />
-                  解決済みを表示
-                </label>
-
-                <div className="commentThreadList">
-                  {commentThreads.map((thread) => (
-                    <div
-                      key={thread.id}
-                      className={`commentThread${thread.id === activeThreadId ? " is-active" : ""}${thread.is_resolved ? " is-resolved" : ""}`}
-                      onClick={() => setActiveThreadId(activeThreadId === thread.id ? null : thread.id)}
-                      onKeyDown={() => {}}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <div className="commentThreadHeader">
-                        <span className="commentThreadQuote">「{thread.quote}」</span>
-                        <span className="commentThreadMeta">
-                          {thread.created_by} · {thread.created_at}
-                        </span>
-                      </div>
-
-                      <div className="commentMessages">
-                        {thread.messages.map((msg) => (
-                          <div key={msg.id} className="commentMessage">
-                            <div className="commentMessageHead">
-                              <span className="commentMessageAuthor">{msg.created_by}</span>
-                              <span className="commentMessageTime">{msg.created_at}</span>
-                            </div>
-                            <span className="commentMessageBody">{msg.body}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {activeThreadId === thread.id && (
-                        <div
-                          className="commentThreadActions"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          role="group"
-                        >
-                          <div className="commentReplyForm">
-                            <textarea
-                              value={replyBodies[thread.id] ?? ""}
-                              onChange={(e) =>
-                                setReplyBodies((prev) => ({
-                                  ...prev,
-                                  [thread.id]: e.target.value,
-                                }))
-                              }
-                              placeholder="返信を入力..."
-                              className="commentReplyInput"
-                              rows={2}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void handleAddReply(thread.id)}
-                              className="commentReplyButton"
-                              disabled={!replyBodies[thread.id]?.trim()}
-                            >
-                              返信
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void (thread.is_resolved
-                                ? handleUnresolveThread(thread.id)
-                                : handleResolveThread(thread.id))
-                            }
-                            className={`commentResolveButton${thread.is_resolved ? " is-resolved" : ""}`}
-                          >
-                            {thread.is_resolved ? "再開" : "解決"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {commentThreads.length === 0 && (
-                    <p className="commentEmpty">コメントはまだありません</p>
-                  )}
-                </div>
-              </div>
+              <CommentsSidebar
+                editor={editor}
+                isCreatingComment={isCreatingComment}
+                newCommentBody={newCommentBody}
+                setNewCommentBody={setNewCommentBody}
+                cancelCreateComment={() => {
+                  setIsCreatingComment(false);
+                  setNewCommentBody("");
+                }}
+                submitCreateComment={handleCreateComment}
+                showResolvedComments={showResolvedComments}
+                setShowResolvedComments={setShowResolvedComments}
+                commentThreads={commentThreads}
+                activeThreadId={activeThreadId}
+                setActiveThreadId={setActiveThreadId}
+                replyBodies={replyBodies}
+                setReplyBody={(threadId, value) =>
+                  setReplyBodies((current) => ({
+                    ...current,
+                    [threadId]: value,
+                  }))
+                }
+                addReply={handleAddReply}
+                toggleResolveThread={(thread) =>
+                  thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
+                }
+              />
             )}
 
             {sidebarTab === "history" && (
-              <>
-                <section className="templatePanel">
-                  <div className="historyPanelHeader">
-                    <h2 className="historyTitle">テンプレート</h2>
-                    <span className="historyCount">{templates.length}件</span>
-                  </div>
-                  <div className="templateSaveRow">
-                    <input
-                      type="text"
-                      value={templateName}
-                      onChange={(event) => setTemplateName(event.target.value)}
-                      placeholder="テンプレート名"
-                      className="templateInput"
-                    />
-                    <button
-                      type="button"
-                      className="templateButton"
-                      onClick={() => void saveCurrentAsTemplate()}
-                      disabled={isSavingTemplate}
-                    >
-                      {isSavingTemplate ? "保存中..." : "保存"}
-                    </button>
-                  </div>
-                  <div className="templateList">
-                    {templates.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        className="templateItem"
-                        onClick={() => void applyTemplate(template.id)}
-                        disabled={applyingTemplateId === template.id}
-                      >
-                        <span className="templateName">{template.name}</span>
-                        <span className="templateMeta">{template.updated_at}</span>
-                        <span className="templateTitle">{template.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <div className="historyPanelHeader">
-                  <h2 className="historyTitle">変更履歴</h2>
-                  <span className="historyCount">{revisions.length}件</span>
-                </div>
-
-                <div className="historyList">
-                  {revisions.map((revision) => (
-                    <button
-                      key={revision.id}
-                      type="button"
-                      className={`historyItem${revision.id === selectedRevision?.id ? " is-active" : ""}`}
-                      onClick={() => setSelectedRevisionId(revision.id)}
-                    >
-                      <span className="historyItemVersion">v{revision.version}</span>
-                      <span className="historyItemDate">{revision.created_at}</span>
-                      <span className="historyItemMeta">
-                        +{revisionSummaries[revision.id]?.added ?? 0}
-                        {" / "}
-                        -{revisionSummaries[revision.id]?.removed ?? 0}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {selectedRevision && (
-                  <section className="historyPreview">
-                    <div className="historyPreviewMeta">
-                      <span>version {selectedRevision.version}</span>
-                      <span>{selectedRevision.created_at}</span>
-                    </div>
-                    <h3 className="historyPreviewTitle">
-                      {previousRevision
-                        ? `v${previousRevision.version} -> v${selectedRevision.version}`
-                        : "初回保存"}
-                    </h3>
-                    <button
-                      type="button"
-                      className="restoreButton"
-                      onClick={() => void restoreRevision(selectedRevision.id)}
-                      disabled={restoringRevisionId === selectedRevision.id}
-                    >
-                      {restoringRevisionId === selectedRevision.id ? "復元中..." : "復元"}
-                    </button>
-                    {titleDiff.length > 0 && (
-                      <div className="diffGroup">
-                        <span className="diffLabel">タイトル</span>
-                        <div className="diffTokens">
-                          {titleDiff.map((segment, index) => (
-                            <span
-                              key={`${segment.type}-${index}`}
-                              className={`diffToken is-${segment.type}`}
-                            >
-                              {segment.type === "added" ? "+ " : "- "}
-                              {segment.value}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="diffGroup">
-                      <span className="diffLabel">本文差分</span>
-                      <div className="diffTokens">
-                        {visibleBodyDiff.length > 0 ? (
-                          visibleBodyDiff.map((segment, index) => (
-                            <span
-                              key={`${segment.type}-${index}`}
-                              className={`diffToken is-${segment.type}`}
-                            >
-                              {segment.type === "added" ? "+ " : "- "}
-                              {segment.value}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="diffEmpty">差分なし</span>
-                        )}
-                      </div>
-                    </div>
-                    {bodyDiff.length > visibleBodyDiff.length && (
-                      <span className="historyMore">
-                        さらに {bodyDiff.length - visibleBodyDiff.length} 件
-                      </span>
-                    )}
-                  </section>
-                )}
-              </>
+              <HistorySidebar
+                revisions={revisions}
+                selectedRevision={selectedRevision}
+                previousRevision={previousRevision}
+                selectedRevisionId={selectedRevisionId}
+                setSelectedRevisionId={setSelectedRevisionId}
+                revisionSummaries={revisionSummaries}
+                restoringRevisionId={restoringRevisionId}
+                restoreRevision={restoreRevision}
+                templates={templates}
+                templateName={templateName}
+                setTemplateName={setTemplateName}
+                saveCurrentAsTemplate={saveCurrentAsTemplate}
+                isSavingTemplate={isSavingTemplate}
+                applyingTemplateId={applyingTemplateId}
+                applyTemplate={applyTemplate}
+              />
             )}
           </aside>
         </div>
       </main>
     </div>
-  );
-}
-
-type ToolbarButtonProps = {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-};
-
-function ToolbarButton({ label, isActive, onClick }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onClick}
-      className={`toolbarButton${isActive ? " is-active" : ""}`}
-      aria-pressed={isActive}
-    >
-      {label}
-    </button>
   );
 }

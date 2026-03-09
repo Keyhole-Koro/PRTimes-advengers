@@ -1,4 +1,3 @@
-import { ensureDatabaseSchema } from '../db/schemaSetup.js'
 import { pressReleaseRepository } from '../repositories/pressReleaseRepository.js'
 import type {
   PressReleaseRecord,
@@ -19,9 +18,14 @@ export class PressReleaseVersionConflictError extends Error {
 }
 
 export class PressReleaseService {
-  async getPressRelease(id: number): Promise<PressReleaseResponse> {
-    await ensureDatabaseSchema()
+  private onSaved: ((pressRelease: PressReleaseResponse) => void) | null = null
 
+  /** Register a callback that fires after a press release is saved */
+  onPressReleaseSaved(callback: (pressRelease: PressReleaseResponse) => void): void {
+    this.onSaved = callback
+  }
+
+  async getPressRelease(id: number): Promise<PressReleaseResponse> {
     const pressRelease = await pressReleaseRepository.findById(id)
     if (!pressRelease) {
       throw new PressReleaseNotFoundError()
@@ -31,8 +35,6 @@ export class PressReleaseService {
   }
 
   async updatePressRelease(id: number, input: UpdatePressReleaseInput): Promise<PressReleaseResponse> {
-    await ensureDatabaseSchema()
-
     const result = await pressReleaseRepository.update(id, input)
     if (result.status === 'not_found') {
       throw new PressReleaseNotFoundError()
@@ -42,12 +44,12 @@ export class PressReleaseService {
       throw new PressReleaseVersionConflictError(result.pressRelease.version)
     }
 
-    return toResponse(result.pressRelease)
+    const response = toResponse(result.pressRelease)
+    this.onSaved?.(response)
+    return response
   }
 
   async getPressReleaseRevisions(id: number): Promise<PressReleaseRevisionResponse[]> {
-    await ensureDatabaseSchema()
-
     const pressRelease = await pressReleaseRepository.findById(id)
     if (!pressRelease) {
       throw new PressReleaseNotFoundError()
@@ -58,8 +60,6 @@ export class PressReleaseService {
   }
 
   async restorePressReleaseRevision(id: number, revisionId: number): Promise<PressReleaseResponse> {
-    await ensureDatabaseSchema()
-
     const pressRelease = await pressReleaseRepository.findById(id)
     if (!pressRelease) {
       throw new PressReleaseNotFoundError()

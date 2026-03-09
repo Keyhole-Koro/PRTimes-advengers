@@ -5,6 +5,7 @@ import {
   PressReleaseTemplateService,
   pressReleaseTemplateService,
 } from '../services/pressReleaseTemplateService.js'
+import { invalidIdResponse, invalidJsonResponse, parseIdParam, parseJsonBody } from '../utils/requestHelpers.js'
 
 export function createPressReleaseTemplateRoutes(
   service: PressReleaseTemplateService = pressReleaseTemplateService
@@ -21,13 +22,13 @@ export function createPressReleaseTemplateRoutes(
   })
 
   templateRoutes.get('/press-release-templates/:id', async (c) => {
-    const idParam = c.req.param('id')
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
 
     try {
-      return c.json(await service.getTemplate(parseInt(idParam, 10)))
+      return c.json(await service.getTemplate(id))
     } catch (error) {
       if (error instanceof PressReleaseTemplateNotFoundError) {
         return c.json({ code: 'NOT_FOUND', message: 'Template not found' }, 404)
@@ -39,11 +40,9 @@ export function createPressReleaseTemplateRoutes(
   })
 
   templateRoutes.post('/press-release-templates', async (c) => {
-    let data: unknown
-    try {
-      data = await c.req.json()
-    } catch {
-      return c.json({ code: 'INVALID_JSON', message: 'Invalid JSON' }, 400)
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
     }
 
     const parsed = PressReleaseTemplateInputSchema.safeParse(data)

@@ -1,4 +1,3 @@
-import { ensureDatabaseSchema } from '../db/schemaSetup.js'
 import { commentRepository } from '../repositories/commentRepository.js'
 import type {
   CommentThreadRecord,
@@ -47,8 +46,6 @@ export class CommentService {
     pressReleaseId: number,
     includeResolved: boolean,
   ): Promise<CommentThreadResponse[]> {
-    await ensureDatabaseSchema()
-
     const threads = await commentRepository.findThreadsByPressReleaseId(
       pressReleaseId,
       includeResolved,
@@ -68,8 +65,6 @@ export class CommentService {
     pressReleaseId: number,
     input: CreateCommentThreadInput,
   ): Promise<CommentThreadResponse> {
-    await ensureDatabaseSchema()
-
     const { thread, message } = await commentRepository.createThread(
       pressReleaseId,
       input,
@@ -82,8 +77,6 @@ export class CommentService {
     threadId: number,
     input: CreateCommentReplyInput,
   ): Promise<CommentMessageResponse> {
-    await ensureDatabaseSchema()
-
     const message = await commentRepository.addReply(threadId, input)
     if (!message) {
       throw new CommentThreadNotFoundError()
@@ -93,8 +86,6 @@ export class CommentService {
   }
 
   async resolveThread(threadId: number): Promise<CommentThreadResponse> {
-    await ensureDatabaseSchema()
-
     const thread = await commentRepository.resolveThread(threadId)
     if (!thread) {
       throw new CommentThreadNotFoundError()
@@ -105,8 +96,6 @@ export class CommentService {
   }
 
   async unresolveThread(threadId: number): Promise<CommentThreadResponse> {
-    await ensureDatabaseSchema()
-
     const thread = await commentRepository.unresolveThread(threadId)
     if (!thread) {
       throw new CommentThreadNotFoundError()

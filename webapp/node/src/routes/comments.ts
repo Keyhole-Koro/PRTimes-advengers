@@ -1,22 +1,22 @@
 import { Hono } from 'hono'
 import { CreateCommentThreadSchema, CreateCommentReplySchema } from '../schemas/comment.js'
 import { CommentService, CommentThreadNotFoundError, commentService } from '../services/commentService.js'
+import { invalidIdResponse, invalidJsonResponse, parseIdParam, parseJsonBody } from '../utils/requestHelpers.js'
 
 export function createCommentRoutes(service: CommentService = commentService): Hono {
   const routes = new Hono()
 
   // GET /press-releases/:id/comments?includeResolved=true
   routes.get('/press-releases/:id/comments', async (c) => {
-    const idParam = c.req.param('id')
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
 
-    const pressReleaseId = parseInt(idParam, 10)
     const includeResolved = c.req.query('includeResolved') === 'true'
 
     try {
-      const comments = await service.getComments(pressReleaseId, includeResolved)
+      const comments = await service.getComments(id, includeResolved)
       return c.json(comments)
     } catch (error) {
       console.error('Database error:', error)
@@ -26,18 +26,14 @@ export function createCommentRoutes(service: CommentService = commentService): H
 
   // POST /press-releases/:id/comments — create new thread
   routes.post('/press-releases/:id/comments', async (c) => {
-    const idParam = c.req.param('id')
-    if (!/^\d+$/.test(idParam) || parseInt(idParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid ID' }, 400)
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
     }
 
-    const pressReleaseId = parseInt(idParam, 10)
-
-    let data: unknown
-    try {
-      data = await c.req.json()
-    } catch {
-      return c.json({ code: 'INVALID_JSON', message: 'Invalid JSON' }, 400)
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
     }
 
     const parsed = CreateCommentThreadSchema.safeParse(data)
@@ -46,7 +42,7 @@ export function createCommentRoutes(service: CommentService = commentService): H
     }
 
     try {
-      const thread = await service.createThread(pressReleaseId, parsed.data)
+      const thread = await service.createThread(id, parsed.data)
       return c.json(thread, 201)
     } catch (error) {
       console.error('Database error:', error)
@@ -56,18 +52,14 @@ export function createCommentRoutes(service: CommentService = commentService): H
 
   // POST /comments/:threadId/replies — add reply
   routes.post('/comments/:threadId/replies', async (c) => {
-    const threadIdParam = c.req.param('threadId')
-    if (!/^\d+$/.test(threadIdParam) || parseInt(threadIdParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid thread ID' }, 400)
+    const threadId = parseIdParam(c, 'threadId')
+    if (threadId === null) {
+      return invalidIdResponse(c, 'thread ID')
     }
 
-    const threadId = parseInt(threadIdParam, 10)
-
-    let data: unknown
-    try {
-      data = await c.req.json()
-    } catch {
-      return c.json({ code: 'INVALID_JSON', message: 'Invalid JSON' }, 400)
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
     }
 
     const parsed = CreateCommentReplySchema.safeParse(data)
@@ -89,12 +81,10 @@ export function createCommentRoutes(service: CommentService = commentService): H
 
   // PATCH /comments/:threadId/resolve
   routes.patch('/comments/:threadId/resolve', async (c) => {
-    const threadIdParam = c.req.param('threadId')
-    if (!/^\d+$/.test(threadIdParam) || parseInt(threadIdParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid thread ID' }, 400)
+    const threadId = parseIdParam(c, 'threadId')
+    if (threadId === null) {
+      return invalidIdResponse(c, 'thread ID')
     }
-
-    const threadId = parseInt(threadIdParam, 10)
 
     try {
       const thread = await service.resolveThread(threadId)
@@ -110,12 +100,10 @@ export function createCommentRoutes(service: CommentService = commentService): H
 
   // PATCH /comments/:threadId/unresolve
   routes.patch('/comments/:threadId/unresolve', async (c) => {
-    const threadIdParam = c.req.param('threadId')
-    if (!/^\d+$/.test(threadIdParam) || parseInt(threadIdParam, 10) <= 0) {
-      return c.json({ code: 'INVALID_ID', message: 'Invalid thread ID' }, 400)
+    const threadId = parseIdParam(c, 'threadId')
+    if (threadId === null) {
+      return invalidIdResponse(c, 'thread ID')
     }
-
-    const threadId = parseInt(threadIdParam, 10)
 
     try {
       const thread = await service.unresolveThread(threadId)
