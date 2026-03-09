@@ -6,5 +6,7 @@ phases:
       - echo "Preparing files for CodeDeploy..."
 
 artifacts:
+  # ▼ ここが最重要！ webapp フォルダの中身をZipのルートにします ▼
+  base-directory: webapp
   files:
     - '**/*'
