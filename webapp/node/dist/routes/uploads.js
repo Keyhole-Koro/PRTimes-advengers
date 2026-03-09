@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const UPLOAD_DIR = join(process.cwd(), 'uploads');
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.png', '.gif']);
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif']);
 export const uploadRoutes = new Hono();
 uploadRoutes.post('/uploads/images', async (c) => {
     const formData = await c.req.formData();
@@ -12,14 +13,17 @@ uploadRoutes.post('/uploads/images', async (c) => {
     if (!(file instanceof File)) {
         return c.json({ code: 'INVALID_FILE', message: 'Image file is required' }, 400);
     }
+    const extension = extname(file.name).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+        return c.json({ code: 'UNSUPPORTED_EXTENSION', message: 'Only .jpg/.png/.gif are supported' }, 400);
+    }
     if (!ALLOWED_TYPES.has(file.type)) {
-        return c.json({ code: 'UNSUPPORTED_TYPE', message: 'Only jpeg/png/gif/webp are supported' }, 400);
+        return c.json({ code: 'UNSUPPORTED_TYPE', message: 'Only image/jpeg, image/png, image/gif are supported' }, 400);
     }
     if (file.size > MAX_FILE_SIZE) {
-        return c.json({ code: 'FILE_TOO_LARGE', message: 'File size must be 10MB or less' }, 400);
+        return c.json({ code: 'FILE_TOO_LARGE', message: 'File size must be 5MB or less' }, 400);
     }
-    const extension = file.type.split('/')[1];
-    const fileName = `${Date.now()}-${randomUUID()}.${extension}`;
+    const fileName = `${Date.now()}-${randomUUID()}${extension}`;
     const filePath = join(UPLOAD_DIR, fileName);
     try {
         await mkdir(UPLOAD_DIR, { recursive: true });

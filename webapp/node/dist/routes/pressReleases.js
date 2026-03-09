@@ -36,6 +36,7 @@ export function createPressReleaseRoutes(service = pressReleaseService) {
         }
         const parsed = PressReleaseInputSchema.safeParse(data);
         if (!parsed.success) {
+            console.error('Validation error:', JSON.stringify(parsed.error.format(), null, 2));
             return c.json({ code: 'MISSING_REQUIRED_FIELDS', message: 'Title and content are required' }, 400);
         }
         try {

@@ -357,6 +357,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
         clientIdRef.current = message.clientId;
         remoteUpdateRef.current = true;
         suppressNextTitleSyncRef.current = true;
+        
+        // Cancel any pending auto-save
+        if (autoSaveTimerRef.current) {
+          window.clearTimeout(autoSaveTimerRef.current);
+          autoSaveTimerRef.current = null;
+        }
+        
         setTitle(message.snapshot.title);
         setVersion(message.snapshot.version);
         editor.commands.setContent(message.snapshot.content, { emitUpdate: false });
@@ -374,6 +381,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
 
         remoteUpdateRef.current = true;
         suppressNextTitleSyncRef.current = true;
+        
+        // Cancel any pending auto-save
+        if (autoSaveTimerRef.current) {
+          window.clearTimeout(autoSaveTimerRef.current);
+          autoSaveTimerRef.current = null;
+        }
+        
         setTitle(message.title);
         setVersion(message.version);
         editor.commands.setContent(message.content, { emitUpdate: false });
@@ -385,6 +399,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
       if (message.type === "document.saved") {
         remoteUpdateRef.current = true;
         suppressNextTitleSyncRef.current = true;
+        
+        // Cancel any pending auto-save to prevent version conflict
+        if (autoSaveTimerRef.current) {
+          window.clearTimeout(autoSaveTimerRef.current);
+          autoSaveTimerRef.current = null;
+        }
+        
         setTitle(message.title);
         setVersion(message.version);
         editor.commands.setContent(message.content, { emitUpdate: false });
