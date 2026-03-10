@@ -3,7 +3,7 @@ import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
 import { type Editor, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import "../../App.css";
@@ -158,7 +158,9 @@ export function PressReleaseEditorPage({
 }: PressRelease) {
   const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
   const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
+  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${PRESS_RELEASE_ID}`;
   const queryClient = useQueryClient();
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [identity] = useState(createRealtimeIdentity);
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
@@ -174,6 +176,15 @@ export function PressReleaseEditorPage({
 
     const raw = window.localStorage.getItem(sidebarTabStorageKey);
     return raw === "comments" || raw === "history" || raw === "ai" ? raw : "history";
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 320;
+    }
+
+    const raw = window.localStorage.getItem(sidebarWidthStorageKey);
+    const value = Number.parseInt(raw ?? "", 10);
+    return Number.isFinite(value) ? Math.min(480, Math.max(280, value)) : 320;
   });
   const [pendingAiSuggestions, setPendingAiSuggestions] = useState<PendingAiSuggestion[]>(() => {
     if (typeof window === "undefined") {
@@ -347,6 +358,14 @@ export function PressReleaseEditorPage({
 
     window.localStorage.setItem(sidebarTabStorageKey, sidebarTab);
   }, [sidebarTab, sidebarTabStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(sidebarWidthStorageKey, String(sidebarWidth));
+  }, [sidebarWidth, sidebarWidthStorageKey]);
 
   useEffect(() => {
     if (!editor) {
@@ -619,6 +638,36 @@ export function PressReleaseEditorPage({
     sendTitleUpdate(nextTitle);
   };
 
+  const handleSidebarResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const workspace = workspaceRef.current;
+    if (!workspace) {
+      return;
+    }
+
+    event.preventDefault();
+    const bounds = workspace.getBoundingClientRect();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+    const minWidth = 280;
+    const maxWidth = Math.min(520, Math.max(minWidth, bounds.width - 420));
+    document.body.classList.add("is-resizing-panels");
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+      setSidebarWidth(nextWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.classList.remove("is-resizing-panels");
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
   const {
     activeThreadId,
     commentThreads,
@@ -680,6 +729,31 @@ export function PressReleaseEditorPage({
   };
 
   const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, title });
+
+  const handleJumpToSuggestion = (messageId: string) => {
+    const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id.startsWith(`${messageId}:`));
+    if (!suggestion) {
+      return;
+    }
+
+    setActiveAiSuggestionId(suggestion.id);
+
+    const scrollToSuggestion = () => {
+      const element = document.querySelector<HTMLElement>(`.aiSuggestionWidget[data-suggestion-id="${suggestion.id}"]`);
+      if (!element) {
+        return;
+      }
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollToSuggestion);
+    });
+  };
 
   const handleStartComment = () => {
     if (!editor) {
@@ -842,7 +916,11 @@ export function PressReleaseEditorPage({
   return (
     <div className="container">
       <main className="main">
-        <div className="workspace">
+        <div
+          ref={workspaceRef}
+          className="workspace"
+          style={{ gridTemplateColumns: `minmax(0, 1fr) 12px ${sidebarWidth}px` }}
+        >
           <EditorWorkspace
             editor={editor}
             fileInputRef={fileInputRef}
@@ -858,6 +936,14 @@ export function PressReleaseEditorPage({
             onTitleChange={handleTitleChange}
             title={title}
             toolbarGroups={toolbarGroups}
+          />
+
+          <div
+            className="paneResizeHandle paneResizeHandle-sidebar"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="右サイドバーの幅を調整"
+            onPointerDown={handleSidebarResizeStart}
           />
 
           <div className="sidebarColumn">
@@ -905,7 +991,7 @@ export function PressReleaseEditorPage({
               toggleResolveThread={(thread) =>
                 thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
               }
-              aiSidebarProps={aiAssistant}
+              aiSidebarProps={{ ...aiAssistant, handleJumpToSuggestion }}
             />
           </div>
         </div>
