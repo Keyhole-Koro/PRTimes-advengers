@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
@@ -24,20 +23,28 @@ import {
   REVISIONS_QUERY_KEY,
   WS_BASE_URL,
 } from "./constants";
+import {
+  createAiSuggestionDecorations,
+  setActiveAiSuggestion,
+  setAiSuggestions,
+} from "./extensions/aiSuggestionDecorations";
 import { useAssetActions } from "./hooks/useAssetActions";
+import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
-import { MOCK_TEMPLATES } from "./mockTemplates";
+import { useAiAssistant } from "./hooks/useAiAssistant";
 import type {
+  AgentDocumentEditResult,
   MarkType,
+  PendingAiSuggestion,
   PressRelease,
-  PressReleaseTemplateResponse,
   RealtimeMessage,
   SaveStatus,
   SessionState,
   SidebarTab,
   ToolbarGroupConfig,
 } from "./types";
+import { applyAgentDocumentEdit } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./utils/realtime";
 
 export function PressReleaseEditorPage({
@@ -45,6 +52,8 @@ export function PressReleaseEditorPage({
   content,
   version: initialVersion,
 }: PressRelease) {
+  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
+  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
   const queryClient = useQueryClient();
   const [identity] = useState(createRealtimeIdentity);
   const [title, setTitle] = useState(() => initialTitle);
@@ -54,17 +63,64 @@ export function PressReleaseEditorPage({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [editorResetToken, setEditorResetToken] = useState(0);
   const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
-  const [templateName, setTemplateName] = useState("");
-  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [applyingTemplateId, setApplyingTemplateId] = useState<number | null>(null);
-  const [templates, setTemplates] = useState<PressReleaseTemplateResponse[]>(MOCK_TEMPLATES);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("history");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>(() => {
+    if (typeof window === "undefined") {
+      return "history";
+    }
+
+    const raw = window.localStorage.getItem(sidebarTabStorageKey);
+    return raw === "comments" || raw === "history" || raw === "ai" ? raw : "history";
+  });
+  const [pendingAiSuggestions, setPendingAiSuggestions] = useState<PendingAiSuggestion[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+
+    try {
+      const raw = window.localStorage.getItem(aiSuggestionStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? (parsed as PendingAiSuggestion[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeAiSuggestionId, setActiveAiSuggestionId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const isApplyingRemoteRef = useRef(false);
   const lastSentBatchRef = useRef<string | null>(null);
+  const pendingAiSuggestionsRef = useRef<PendingAiSuggestion[]>([]);
+  const requestFlushRef = useRef<() => void>(() => {});
+  const [aiSuggestionExtension] = useState(() =>
+    createAiSuggestionDecorations({
+      onAcceptSuggestion: (suggestionId) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (!suggestion || !editorRef.current) {
+          return;
+        }
+
+        const nextContent = applyAgentDocumentEdit(editorRef.current.getJSON(), suggestion.result);
+        editorRef.current.commands.setContent(nextContent);
+        setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+        setActiveAiSuggestionId(null);
+        setSaveStatus("dirty");
+        requestFlushRef.current();
+      },
+      onActivateSuggestion: (suggestionId) => {
+        setActiveAiSuggestionId(suggestionId);
+      },
+      onDiscardSuggestion: (suggestionId) => {
+        setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+        setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
+      },
+    }),
+  );
 
   const editor = useEditor(
     {
@@ -74,13 +130,14 @@ export function PressReleaseEditorPage({
         ? [
             StarterKit,
             Underline,
-            Image,
+            RemovableImage,
+            aiSuggestionExtension,
             LinkCard,
             RemotePresence,
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, Image, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, Underline, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -89,6 +146,42 @@ export function PressReleaseEditorPage({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  useEffect(() => {
+    pendingAiSuggestionsRef.current = pendingAiSuggestions;
+  }, [pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(aiSuggestionStorageKey, JSON.stringify(pendingAiSuggestions));
+  }, [aiSuggestionStorageKey, pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(sidebarTabStorageKey, sidebarTab);
+  }, [sidebarTab, sidebarTabStorageKey]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    setAiSuggestions(editor, pendingAiSuggestions);
+  }, [editor, pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    setActiveAiSuggestion(editor, activeAiSuggestionId);
+  }, [activeAiSuggestionId, editor]);
 
   const sendPendingSteps = (currentEditor: Editor) => {
     const websocket = websocketRef.current;
@@ -297,6 +390,8 @@ export function PressReleaseEditorPage({
     websocket.send(JSON.stringify({ type: "document.flush" }));
   };
 
+  requestFlushRef.current = requestFlush;
+
   const sendTitleUpdate = (nextTitle: string) => {
     const websocket = websocketRef.current;
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
@@ -343,65 +438,6 @@ export function PressReleaseEditorPage({
     sendTitleUpdate(nextTitle);
   };
 
-  const saveCurrentAsTemplate = async () => {
-    if (!editor) {
-      return;
-    }
-
-    const trimmedName = templateName.trim();
-    if (!trimmedName) {
-      alert("テンプレート名を入力してください");
-      return;
-    }
-
-    setIsSavingTemplate(true);
-    try {
-      const timestamp = new Date().toLocaleString("ja-JP");
-      setTemplates((current) => [
-        {
-          content: editor.getJSON(),
-          created_at: timestamp,
-          id: Date.now(),
-          name: trimmedName,
-          title,
-          updated_at: timestamp,
-        },
-        ...current,
-      ]);
-      setTemplateName("");
-    } catch (templateError) {
-      const message = templateError instanceof Error ? templateError.message : "テンプレートの保存に失敗しました";
-      alert(message);
-    } finally {
-      setIsSavingTemplate(false);
-    }
-  };
-
-  const applyTemplate = async (templateId: number) => {
-    if (!editor) {
-      return;
-    }
-
-    setApplyingTemplateId(templateId);
-    try {
-      const template = templates.find((item) => item.id === templateId);
-      if (!template) {
-        throw new Error("テンプレートが見つかりません");
-      }
-
-      setTitle(template.title);
-      sendTitleUpdate(template.title);
-      editor.commands.setContent(template.content);
-      setSaveStatus("dirty");
-      requestFlush();
-    } catch (templateError) {
-      const message = templateError instanceof Error ? templateError.message : "テンプレートの適用に失敗しました";
-      alert(message);
-    } finally {
-      setApplyingTemplateId(null);
-    }
-  };
-
   const {
     activeThreadId,
     commentThreads,
@@ -431,19 +467,13 @@ export function PressReleaseEditorPage({
 
   const {
     fileActions: { handleImageSelected, handleImportHtml, handlePickHtml, handlePickImage },
-    imageUrl,
     isDraggingImage,
-    isFetchingLinkPreview,
     isUploadingImage,
-    linkUrl,
-    setImageUrl,
-    setLinkUrl,
     uploadActions: {
       handleDragEnter,
       handleDragLeave,
       handleDragOver,
       handleDrop,
-      handleInsertImage,
       handleInsertLinkCard,
     },
   } = useAssetActions({
@@ -455,6 +485,13 @@ export function PressReleaseEditorPage({
     setTitle,
     title,
   });
+
+  const handleCreateAiSuggestion = (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => {
+    setPendingAiSuggestions((current) => [...current, { id: suggestionId, prompt, result }]);
+    setActiveAiSuggestionId(suggestionId);
+  };
+
+  const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, title });
 
   const handleStartComment = () => {
     if (!editor) {
@@ -520,6 +557,7 @@ export function PressReleaseEditorPage({
         isActive: markState?.[button.key] ?? false,
         key: button.key,
         label: button.label,
+        tooltip: button.tooltip,
         onClick: () => toggleMark(button.key),
       })),
       label: "書式",
@@ -536,12 +574,14 @@ export function PressReleaseEditorPage({
           isActive: editor.isActive("heading", { level: 1 }),
           key: "heading-1",
           label: "H1",
+          tooltip: "見出し1",
           onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
         },
         {
           isActive: editor.isActive("heading", { level: 2 }),
           key: "heading-2",
           label: "H2",
+          tooltip: "見出し2",
           onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
         },
       ],
@@ -574,9 +614,15 @@ export function PressReleaseEditorPage({
         },
         {
           isActive: false,
-          key: "html-import",
-          label: "HTMLをインポート",
-          onClick: handlePickHtml,
+          key: "insert-link-card",
+          label: "リンクを追加",
+          onClick: () => {
+            const url = window.prompt("リンクURLを入力してください (https://...)");
+            if (!url) {
+              return;
+            }
+            void handleInsertLinkCard(url);
+          },
         },
       ],
       label: "画像",
@@ -592,19 +638,21 @@ export function PressReleaseEditorPage({
       ],
       label: "コメント",
     },
+    {
+      buttons: [
+        {
+          isActive: false,
+          key: "html-import",
+          label: "HTMLをインポート",
+          onClick: handlePickHtml,
+        },
+      ],
+      label: "リンク",
+    },
   ];
 
   return (
     <div className="container">
-      <EditorHeader
-        identityColor={identity.color}
-        identityName={identity.name}
-        remoteUsers={remoteUsers}
-        requestFlush={requestFlush}
-        saveStatus={saveStatus}
-        version={version}
-      />
-
       <main className="main">
         <div className="workspace">
           <EditorWorkspace
@@ -616,66 +664,62 @@ export function PressReleaseEditorPage({
             handleDrop={handleDrop}
             handleImageSelected={handleImageSelected}
             handleImportHtml={handleImportHtml}
-            handleInsertImage={handleInsertImage}
-            handleInsertLinkCard={handleInsertLinkCard}
-            handlePickImage={handlePickImage}
             htmlInputRef={htmlInputRef}
-            imageUrl={imageUrl}
             isDraggingImage={isDraggingImage}
-            isFetchingLinkPreview={isFetchingLinkPreview}
             isUploadingImage={isUploadingImage}
-            linkUrl={linkUrl}
             onTitleChange={handleTitleChange}
-            setImageUrl={setImageUrl}
-            setLinkUrl={setLinkUrl}
             title={title}
             toolbarGroups={toolbarGroups}
           />
 
-          <EditorSidebar
-            activeThreadId={activeThreadId}
-            addReply={handleAddReply}
-            applyTemplate={applyTemplate}
-            applyingTemplateId={applyingTemplateId}
-            cancelCreateComment={() => {
-              setIsCreatingComment(false);
-              setNewCommentBody("");
-            }}
-            commentThreads={commentThreads}
-            editor={editor}
-            isCreatingComment={isCreatingComment}
-            isSavingTemplate={isSavingTemplate}
-            newCommentBody={newCommentBody}
-            previousRevision={previousRevision}
-            replyBodies={replyBodies}
-            restoreRevision={restoreRevision}
-            restoringRevisionId={restoringRevisionId}
-            revisionSummaries={revisionSummaries}
-            revisions={revisions}
-            saveCurrentAsTemplate={saveCurrentAsTemplate}
-            selectedRevision={selectedRevision}
-            selectedRevisionId={selectedRevisionId}
-            setActiveThreadId={setActiveThreadId}
-            setNewCommentBody={setNewCommentBody}
-            setReplyBody={(threadId, value) =>
-              setReplyBodies((current) => ({
-                ...current,
-                [threadId]: value,
-              }))
-            }
-            setSelectedRevisionId={setSelectedRevisionId}
-            setShowResolvedComments={setShowResolvedComments}
-            setSidebarTab={setSidebarTab}
-            setTemplateName={setTemplateName}
-            showResolvedComments={showResolvedComments}
-            sidebarTab={sidebarTab}
-            submitCreateComment={handleCreateComment}
-            templateName={templateName}
-            templates={templates}
-            toggleResolveThread={(thread) =>
-              thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
-            }
-          />
+          <div className="sidebarColumn">
+            <EditorHeader
+              identityColor={identity.color}
+              identityName={identity.name}
+              remoteUsers={remoteUsers}
+              saveStatus={saveStatus}
+              version={version}
+            />
+
+            <EditorSidebar
+              activeThreadId={activeThreadId}
+              addReply={handleAddReply}
+              cancelCreateComment={() => {
+                setIsCreatingComment(false);
+                setNewCommentBody("");
+              }}
+              commentThreads={commentThreads}
+              editor={editor}
+              isCreatingComment={isCreatingComment}
+              newCommentBody={newCommentBody}
+              previousRevision={previousRevision}
+              replyBodies={replyBodies}
+              restoreRevision={restoreRevision}
+              restoringRevisionId={restoringRevisionId}
+              revisionSummaries={revisionSummaries}
+              revisions={revisions}
+              selectedRevision={selectedRevision}
+              selectedRevisionId={selectedRevisionId}
+              setActiveThreadId={setActiveThreadId}
+              setNewCommentBody={setNewCommentBody}
+              setReplyBody={(threadId, value) =>
+                setReplyBodies((current) => ({
+                  ...current,
+                  [threadId]: value,
+                }))
+              }
+              setSelectedRevisionId={setSelectedRevisionId}
+              setShowResolvedComments={setShowResolvedComments}
+              setSidebarTab={setSidebarTab}
+              showResolvedComments={showResolvedComments}
+              sidebarTab={sidebarTab}
+              submitCreateComment={handleCreateComment}
+              toggleResolveThread={(thread) =>
+                thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
+              }
+              aiSidebarProps={aiAssistant}
+            />
+          </div>
         </div>
       </main>
     </div>

@@ -3,9 +3,9 @@ import type { Editor } from "@tiptap/react";
 import type {
   CommentThreadResponse,
   PressReleaseRevisionResponse,
-  PressReleaseTemplateResponse,
   SidebarTab,
 } from "../types";
+import { AiSidebar, type AiSidebarProps } from "./AiSidebar";
 import { CommentsSidebar } from "./CommentsSidebar";
 import { HistorySidebar } from "./HistorySidebar";
 
@@ -17,13 +17,10 @@ type RevisionSummary = {
 type EditorSidebarProps = {
   activeThreadId: number | null;
   addReply: (threadId: number) => void | Promise<void>;
-  applyTemplate: (templateId: number) => void | Promise<void>;
-  applyingTemplateId: number | null;
   cancelCreateComment: () => void;
   commentThreads: CommentThreadResponse[];
   editor: Editor;
   isCreatingComment: boolean;
-  isSavingTemplate: boolean;
   newCommentBody: string;
   previousRevision: PressReleaseRevisionResponse | null;
   replyBodies: Record<number, string>;
@@ -31,7 +28,6 @@ type EditorSidebarProps = {
   restoringRevisionId: number | null;
   revisionSummaries: Record<number, RevisionSummary>;
   revisions: PressReleaseRevisionResponse[];
-  saveCurrentAsTemplate: () => void | Promise<void>;
   selectedRevision: PressReleaseRevisionResponse | null;
   selectedRevisionId: number | null;
   setActiveThreadId: (threadId: number | null) => void;
@@ -40,25 +36,20 @@ type EditorSidebarProps = {
   setSelectedRevisionId: (revisionId: number) => void;
   setShowResolvedComments: (checked: boolean) => void;
   setSidebarTab: (tab: SidebarTab) => void;
-  setTemplateName: (value: string) => void;
   showResolvedComments: boolean;
   sidebarTab: SidebarTab;
   submitCreateComment: () => void | Promise<void>;
-  templateName: string;
-  templates: PressReleaseTemplateResponse[];
   toggleResolveThread: (thread: CommentThreadResponse) => void | Promise<void>;
+  aiSidebarProps: AiSidebarProps;
 };
 
 export function EditorSidebar({
   activeThreadId,
   addReply,
-  applyTemplate,
-  applyingTemplateId,
   cancelCreateComment,
   commentThreads,
   editor,
   isCreatingComment,
-  isSavingTemplate,
   newCommentBody,
   previousRevision,
   replyBodies,
@@ -66,7 +57,6 @@ export function EditorSidebar({
   restoringRevisionId,
   revisionSummaries,
   revisions,
-  saveCurrentAsTemplate,
   selectedRevision,
   selectedRevisionId,
   setActiveThreadId,
@@ -75,16 +65,14 @@ export function EditorSidebar({
   setSelectedRevisionId,
   setShowResolvedComments,
   setSidebarTab,
-  setTemplateName,
   showResolvedComments,
   sidebarTab,
   submitCreateComment,
-  templateName,
-  templates,
   toggleResolveThread,
+  aiSidebarProps,
 }: EditorSidebarProps) {
   return (
-    <aside className="sidebarPanel" aria-label="サイドパネル">
+    <aside className={`sidebarPanel${sidebarTab === "ai" ? " is-ai-tab" : ""}`} aria-label="サイドパネル">
       <div className="sidebarTabs">
         <button
           type="button"
@@ -99,6 +87,13 @@ export function EditorSidebar({
           onClick={() => setSidebarTab("history")}
         >
           履歴
+        </button>
+        <button
+          type="button"
+          className={`sidebarTab${sidebarTab === "ai" ? " is-active" : ""}`}
+          onClick={() => setSidebarTab("ai")}
+        >
+          AI
         </button>
       </div>
 
@@ -132,15 +127,10 @@ export function EditorSidebar({
           revisionSummaries={revisionSummaries}
           restoringRevisionId={restoringRevisionId}
           restoreRevision={restoreRevision}
-          templates={templates}
-          templateName={templateName}
-          setTemplateName={setTemplateName}
-          saveCurrentAsTemplate={saveCurrentAsTemplate}
-          isSavingTemplate={isSavingTemplate}
-          applyingTemplateId={applyingTemplateId}
-          applyTemplate={applyTemplate}
         />
       )}
+
+      {sidebarTab === "ai" && <AiSidebar {...aiSidebarProps} />}
     </aside>
   );
 }

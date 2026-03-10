@@ -16,6 +16,7 @@ export function EditorToolbar({ toolbarGroups }: EditorToolbarProps) {
               <ToolbarButton
                 key={button.key}
                 label={button.label}
+                tooltip={button.tooltip}
                 isActive={button.isActive}
                 onClick={button.onClick}
               />

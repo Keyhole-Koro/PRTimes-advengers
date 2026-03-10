@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { PressReleaseInputSchema } from '../schemas/pressRelease.js'
+import { PressReleaseAiEditRequestSchema, PressReleaseInputSchema } from '../schemas/pressRelease.js'
 import {
   PressReleaseNotFoundError,
   PressReleaseRevisionNotFoundError,
@@ -7,9 +7,13 @@ import {
   PressReleaseVersionConflictError,
   pressReleaseService,
 } from '../services/pressReleaseService.js'
+import { AiEditService, AiEditServiceError, aiEditService } from '../services/aiEditService.js'
 import { invalidIdResponse, invalidJsonResponse, parseIdParam, parseJsonBody } from '../utils/requestHelpers.js'
 
-export function createPressReleaseRoutes(service: PressReleaseService = pressReleaseService): Hono {
+export function createPressReleaseRoutes(
+  service: PressReleaseService = pressReleaseService,
+  editService: AiEditService = aiEditService,
+): Hono {
   const pressReleaseRoutes = new Hono()
 
   pressReleaseRoutes.get('/press-releases/:id', async (c) => {
@@ -88,6 +92,42 @@ export function createPressReleaseRoutes(service: PressReleaseService = pressRel
       }
 
       console.error('Database error:', error)
+      return c.json({ code: 'INTERNAL_ERROR', message: 'Internal server error' }, 500)
+    }
+  })
+
+  pressReleaseRoutes.post('/press-releases/:id/ai-edit', async (c) => {
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
+    }
+
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
+    }
+
+    const parsed = PressReleaseAiEditRequestSchema.safeParse(data)
+    if (!parsed.success) {
+      return c.json(
+        { code: 'MISSING_REQUIRED_FIELDS', message: 'Prompt, title and content are required' },
+        400,
+      )
+    }
+
+    try {
+      await service.getPressRelease(id)
+      return c.json(await editService.requestDocumentEdit(parsed.data))
+    } catch (error) {
+      if (error instanceof PressReleaseNotFoundError) {
+        return c.json({ code: 'NOT_FOUND', message: 'Press release not found' }, 404)
+      }
+
+      if (error instanceof AiEditServiceError) {
+        return c.json({ code: error.code, message: error.message }, error.statusCode)
+      }
+
+      console.error('AI edit error:', error)
       return c.json({ code: 'INTERNAL_ERROR', message: 'Internal server error' }, 500)
     }
   })

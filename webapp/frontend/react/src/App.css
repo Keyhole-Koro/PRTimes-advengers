@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  padding: 20px 24px 24px;
+  padding: 4px 24px 24px;
   box-sizing: border-box;
 }
 
@@ -24,16 +24,18 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 2px;
   width: 100%;
 }
 
 .titleBlock {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .title {
@@ -44,6 +46,7 @@
 .metaRow {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
   color: #556274;
   font-size: 13px;
@@ -52,8 +55,9 @@
 .presenceList {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .presenceChip {
@@ -100,13 +104,9 @@
   color: #b42318;
 }
 
-.saveButton {
-  padding: 8px 12px;
-}
-
 .main {
   display: flex;
-  min-height: calc(100vh - 124px);
+  min-height: calc(100vh - 24px);
 }
 
 .workspace {
@@ -116,6 +116,13 @@
   align-items: stretch;
   width: 100%;
   min-height: 100%;
+}
+
+.sidebarColumn {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
 }
 
 .editorWrapper {
@@ -366,48 +373,50 @@
   width: 100%;
   padding: 10px 12px;
   font-size: 18px;
+  box-sizing: border-box;
 }
 
 .toolbar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: stretch;
   overflow-x: auto;
-  padding: 10px;
+  padding: 10px 12px;
   margin-bottom: 12px;
-  border: 1px solid #dbe5f0;
+  border: 1px solid #dde4ef;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f9fbff 0%, #f1f6fb 100%);
+  background: #f8fafc;
 }
 
 .toolbarGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: 0;
   min-width: max-content;
 }
 
 .toolbarGroupLabel {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: #5b6b7f;
+  display: none;
 }
 
 .toolbarGroupButtons {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #e9eef5;
 }
 
 .toolbarButton {
-  padding: 6px 10px;
-  border: 1px solid #d0d0d0;
-  border-radius: 999px;
-  background: #fff;
-  color: #111;
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
   cursor: pointer;
   font: inherit;
-  font-weight: 500;
+  font-weight: 700;
   font-style: normal;
   text-decoration: none;
   white-space: nowrap;
@@ -419,32 +428,144 @@
 }
 
 .toolbarButton:hover {
-  border-color: #7aa2d6;
-  color: #12385f;
+  background: #dbe4ee;
+  border-color: #d0dbe8;
+  color: #0f172a;
 }
 
 .toolbarButton:focus-visible {
-  outline: 2px solid #6b7280;
+  outline: 2px solid #7aa2d6;
   outline-offset: 1px;
 }
 
 .toolbarButton.is-active {
-  background: #12385f;
+  background: #2563eb;
   color: #fff;
-  border-color: #12385f;
-  box-shadow: 0 8px 18px rgba(18, 56, 95, 0.18);
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
 }
 
 .imageForm {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin: 0;
 }
 
 .linkCardForm {
   display: flex;
   gap: 0.5rem;
+  margin: 0;
+}
+
+.linkAssistLayout {
+  display: grid;
+  gap: 10px;
   margin-bottom: 1rem;
+}
+
+.linkInputStack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin-left: 16px;
+  max-width: calc(100% - 16px);
+}
+
+.linkChecklistHoverArea {
+  position: relative;
+  width: fit-content;
+  margin: 0;
+}
+
+.linkChecklistRow {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  margin: 0;
+}
+
+.linkChecklistHoverButton {
+  padding: 2px 8px;
+  border: 1px dashed #9db0c5;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #12385f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkChecklistMock {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 310px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.linkChecklistHoverArea:hover .linkChecklistMock,
+.linkChecklistHoverArea:focus-within .linkChecklistMock {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.linkChecklistMockTitle {
+  margin: 0;
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.linkChecklistMockList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.linkChecklistMockItem {
+  margin: 0;
+}
+
+.linkChecklistMockLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.linkChecklistMockLabel input {
+  margin-top: 2px;
+}
+
+.linkChecklistMockInline {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .imageInput {
@@ -516,6 +637,143 @@
   margin-bottom: 0.5rem;
   font-size: 0.85rem;
   color: #4a5568;
+}
+
+.editorMetaPanel {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.editorMetaPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editorMetaPanelTitle {
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.editorMetaRestoreButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.metaRestoreButton {
+  padding: 5px 8px;
+  border: 1px solid #d0dbe8;
+  border-radius: 8px;
+  background: #fff;
+  color: #12385f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editorMetaCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editorMetaCard {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.editorMetaCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.editorMetaCardTitle {
+  margin: 0;
+  color: #12385f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.metaDismissButton {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d0dbe8;
+  border-radius: 999px;
+  background: #fff;
+  color: #5b6b7f;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editorMetaChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editorMetaChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #edf3fb;
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editorMetaCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metaDecisionButton {
+  padding: 6px 10px;
+  border: 1px solid #12385f;
+  border-radius: 8px;
+  background: #12385f;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.metaDecisionButton.is-decided {
+  border-color: #0f766e;
+  background: #0f766e;
+}
+
+.metaDecisionStatus {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metaDecisionStatus.is-decided {
+  color: #0f766e;
 }
 
 .linkCard {
@@ -680,6 +938,20 @@
   background: #f8fbff;
   align-content: start;
   min-width: 0;
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+.sidebarPanel.is-ai-tab {
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  margin-bottom: 2px;
 }
 
 .sidebarTabs {
@@ -965,6 +1237,230 @@
   font-size: 13px;
 }
 
+.editorImageNode {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 16px 0;
+}
+
+.editorImageNode img {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.editorImageNode.is-selected img {
+  outline: 2px solid #12385f;
+  outline-offset: 2px;
+}
+
+.editorImageDeleteButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.editorImageDeleteButton:hover {
+  background: rgba(185, 28, 28, 0.9);
+}
+
+.aiSuggestionWidget {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px dashed #93c5fd;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+}
+
+.aiSuggestionWidget.is-active {
+  border-style: solid;
+  border-color: #2563eb;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+.aiSuggestionTrigger,
+.aiSuggestionAccept,
+.aiSuggestionDiscard {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aiSuggestionTrigger {
+  border: 1px solid #93c5fd;
+  background: #fff;
+  color: #1d4ed8;
+}
+
+.aiSuggestionPanel {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.aiSuggestionTitle {
+  margin: 0;
+}
+
+.aiSuggestionTitle {
+  color: #12385f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.aiSuggestionPrompt {
+  margin: 0;
+  color: #5b6b7f;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.aiSuggestionDiffList {
+  display: grid;
+  gap: 6px;
+}
+
+.aiSuggestionDiffCard {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #dbeafe;
+}
+
+.aiSuggestionDiffHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.aiSuggestionDiffType {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.aiSuggestionDiffType-add {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.aiSuggestionDiffType-remove {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.aiSuggestionDiffType-modify {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.aiSuggestionDiffTarget {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.aiSuggestionDiffBlock {
+  display: grid;
+  gap: 4px;
+}
+
+.aiSuggestionDiffBlock + .aiSuggestionDiffBlock {
+  margin-top: 8px;
+}
+
+.aiSuggestionDiffBlockLabel {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.aiSuggestionDiffBlockBody,
+.aiSuggestionDiffInline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: #1f2937;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.aiSuggestionDiffEmpty {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.aiSuggestionDiffToken {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.aiSuggestionDiffToken-added {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.aiSuggestionDiffToken-removed {
+  background: #fee2e2;
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+
+.aiSuggestionDiffReason {
+  margin: 8px 0 0;
+  color: #5b6b7f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.aiSuggestionActions {
+  display: flex;
+  gap: 8px;
+}
+
+.aiSuggestionAccept {
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #fff;
+}
+
+.aiSuggestionDiscard {
+  border: 1px solid #d0dbe8;
+  background: #fff;
+  color: #5b6b7f;
+}
+
 @media (max-width: 960px) {
   .container {
     padding: 16px;
@@ -983,6 +1479,13 @@
     grid-template-columns: 1fr;
   }
 
+  .sidebarPanel {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .historyList {
     max-height: none;
   }
@@ -994,6 +1497,27 @@
   .imageForm,
   .linkCardForm {
     flex-direction: column;
+  }
+
+  .linkInputStack {
+    margin-left: 0;
+    max-width: 100%;
+  }
+
+  .linkChecklistRow {
+    grid-template-columns: 1fr;
+  }
+
+  .linkChecklistMock {
+    width: 100%;
+  }
+
+  .linkChecklistMockInline {
+    width: 100%;
+  }
+
+  .editorMetaCards {
+    grid-template-columns: 1fr;
   }
 
   .linkCardBody {

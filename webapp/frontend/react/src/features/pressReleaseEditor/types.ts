@@ -67,11 +67,12 @@ export type CommentMessageResponse = {
   created_at: string;
 };
 
-export type SidebarTab = "history" | "comments";
+export type SidebarTab = "history" | "comments" | "ai";
 
 export type ToolbarButtonConfig = {
   key: string;
   label: string;
+  tooltip?: string;
   isActive: boolean;
   onClick: () => void;
 };
@@ -98,6 +99,46 @@ export type SessionState = {
 export type DiffSegment = {
   type: "added" | "removed";
   value: string;
+};
+
+export type AgentDocumentBlock = {
+  id: string;
+  type: "heading" | "paragraph" | "bullet_list" | "ordered_list" | "blockquote";
+  text: string;
+  attrs?: Record<string, unknown>;
+};
+
+export type AgentDocumentEditOperation =
+  | {
+      op: "add";
+      after_block_id: string | null;
+      block: AgentDocumentBlock;
+      reason?: string;
+    }
+  | {
+      op: "remove";
+      block_id: string;
+      removed_block?: AgentDocumentBlock;
+      reason?: string;
+    }
+  | {
+      op: "modify";
+      block_id: string;
+      before?: AgentDocumentBlock;
+      after: AgentDocumentBlock;
+      reason?: string;
+    };
+
+export type AgentDocumentEditResult = {
+  summary: string;
+  operations: AgentDocumentEditOperation[];
+  notes?: string[];
+};
+
+export type PendingAiSuggestion = {
+  id: string;
+  prompt: string;
+  result: AgentDocumentEditResult;
 };
 
 export type RealtimeMessage =
@@ -134,4 +175,3 @@ export type RealtimeMessage =
       type: "presence.snapshot";
       users: PresenceUser[];
     };
-

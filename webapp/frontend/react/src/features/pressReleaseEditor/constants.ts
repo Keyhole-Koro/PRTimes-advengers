@@ -11,14 +11,13 @@ export const PRESS_RELEASE_ID = 1;
 export const REVISIONS_QUERY_KEY = ["fetch-press-release-revisions", PRESS_RELEASE_ID];
 export const PRESENCE_COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c"];
 
-export const MARK_BUTTONS: Array<{ key: MarkType; label: string }> = [
-  { key: "bold", label: "太字" },
-  { key: "italic", label: "斜体" },
-  { key: "underline", label: "下線" },
+export const MARK_BUTTONS: Array<{ key: MarkType; label: string; tooltip: string }> = [
+  { key: "bold", label: "B", tooltip: "太字" },
+  { key: "italic", label: "/", tooltip: "斜体" },
+  { key: "underline", label: "U", tooltip: "下線" },
 ];
 
 export const EMPTY_CONTENT: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
-

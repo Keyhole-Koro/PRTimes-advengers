@@ -32,31 +32,29 @@ services:
       DB_USER: press_release
       DB_PASSWORD: press_release
       DB_NAME: press_release_db
+      AGENT_BASE_URL: http://agent:5000
     command: sh -c "npm install && npm run dev"
     depends_on:
       postgresql:
         condition: service_healthy
+      agent:
+        condition: service_started
 
-  flask_app:
-    build: ./python
-    container_name: press-release-flask
+  agent:
+    build: ./agent
+    container_name: press-release-agent
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
-      - ./python:/app
+      - ./agent:/app
     environment:
-      FLASK_APP: app.py # 実際のFlaskのエントリーポイントファイル名に合わせて変更してください
+      PORT: 5000
+      FLASK_APP: app.py
       FLASK_ENV: development
-      DB_HOST: postgresql
-      DB_PORT: 5432
-      DB_USER: press_release
-      DB_PASSWORD: press_release
-      DB_NAME: press_release_db
-    # requirements.txtをインストール後、0.0.0.0で起動し外部からのアクセスを許可します
-    command: sh -c "pip install -r requirements.txt && flask run --host=0.0.0.0 --port=5000"
-    depends_on:
-      postgresql:
-        condition: service_healthy
+      AGENT_MODEL: ${AGENT_MODEL:-gemini-2.5-flash}
+      AGENT_APP_NAME: press-release-agent
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    command: sh -c "pip install -r requirements.txt && python main.py"
 
 volumes:
   postgres_data:
