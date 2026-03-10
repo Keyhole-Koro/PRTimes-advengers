@@ -51,9 +51,7 @@ async function openAiPanel(page: Page) {
 async function createAiSuggestion(page: Page, prompt: string) {
   await page.getByPlaceholder("AIに質問してみましょう").fill(prompt);
   await page.getByRole("button", { name: "送信" }).click();
-  await expect(
-    page.getByText("提案を文書内に追加しました。該当箇所をクリックして差分を確認し、適用または破棄してください。"),
-  ).toBeVisible();
+  await expect(page.locator(".aiMessage-assistant").last()).toContainText("提案を文書内に追加しました。");
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(1);
 }
 
@@ -66,9 +64,8 @@ test("AI edits are embedded into the document", async ({ page }) => {
 
   const prompt = "2つ目の段落の末尾に「AI_E2E_APPEND_TOKEN」を追加してください。";
   await createAiSuggestion(page, prompt);
-  await page.getByRole("button", { name: "AI提案を確認" }).click();
-  await expect(page.getByRole("button", { name: "適用" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "破棄" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "まとめて反映" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "まとめて見送る" })).toBeVisible();
   await expect(page.locator(".aiSuggestionDiffCard")).toHaveCount(1);
   await expect(page.getByText("After")).toBeVisible();
   await expect(page.locator(".aiSuggestionDiffToken-added")).toContainText("AI_E2E_APPEND_TOKEN");
@@ -79,9 +76,8 @@ test("AI proposals can be applied to the editor", async ({ page }) => {
 
   const prompt = "2つ目の段落の末尾に「AI_E2E_APPLY_TOKEN」を追加してください。";
   await createAiSuggestion(page, prompt);
-  await page.getByRole("button", { name: "AI提案を確認" }).click();
-  await expect(page.getByRole("button", { name: "適用" })).toBeVisible();
-  await page.getByRole("button", { name: "適用" }).click();
+  await expect(page.getByRole("button", { name: "まとめて反映" })).toBeVisible();
+  await page.getByRole("button", { name: "まとめて反映" }).click();
 
   await expect(page.locator(".ProseMirror")).toContainText("AI_E2E_APPLY_TOKEN");
 });
@@ -91,8 +87,8 @@ test("AI proposals can be discarded from the document", async ({ page }) => {
 
   const prompt = "2つ目の段落の末尾に「AI_E2E_DISCARD_TOKEN」を追加してください。";
   await createAiSuggestion(page, prompt);
-  await page.getByRole("button", { name: "AI提案を確認" }).click();
-  await page.getByRole("button", { name: "破棄" }).click();
+  await expect(page.getByRole("button", { name: "まとめて見送る" })).toBeVisible();
+  await page.getByRole("button", { name: "まとめて見送る" }).click();
 
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(0);
   await expect(page.locator(".ProseMirror")).not.toContainText("AI_E2E_DISCARD_TOKEN");
@@ -105,19 +101,26 @@ test("AI suggestions persist after reload", async ({ page }) => {
   await createAiSuggestion(page, prompt);
 
   await page.reload();
+  await expect(page.getByRole("heading", { name: "AIアシスタント" })).toBeVisible();
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: /AI提案を確認: .*AI_E2E_RELOAD_TOKEN/ })).toBeVisible();
+  await expect(page.locator(".aiSuggestionTrigger")).toBeVisible();
+  await page.locator(".aiSuggestionTrigger").click();
+  await expect(page.locator(".aiSuggestionPrompt").first()).toContainText("AI_E2E_RELOAD_TOKEN");
 });
 
 test("AI conversation history remains in the thread for follow-up prompts", async ({ page }) => {
   await openAiPanel(page);
 
   await createAiSuggestion(page, "2つ目の段落の末尾に「AI_E2E_THREAD_FIRST」を追加してください。");
-  await expect(page.getByText("2つ目の段落の末尾に「AI_E2E_THREAD_FIRST」を追加してください。")).toBeVisible();
+  await expect(page.locator(".aiMessage-user .aiMessageBody").last()).toHaveText(
+    "2つ目の段落の末尾に「AI_E2E_THREAD_FIRST」を追加してください。",
+  );
 
   await page.getByPlaceholder("AIに質問してみましょう").fill("さっきの提案を踏まえて、同じ段落の先頭に「AI_E2E_THREAD_SECOND」も追加してください。");
   await page.getByRole("button", { name: "送信" }).click();
 
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(2);
-  await expect(page.getByText("さっきの提案を踏まえて、同じ段落の先頭に「AI_E2E_THREAD_SECOND」も追加してください。")).toBeVisible();
+  await expect(page.locator(".aiMessage-user .aiMessageBody").last()).toHaveText(
+    "さっきの提案を踏まえて、同じ段落の先頭に「AI_E2E_THREAD_SECOND」も追加してください。",
+  );
 });

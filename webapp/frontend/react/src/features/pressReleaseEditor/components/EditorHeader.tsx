@@ -1,44 +1,38 @@
-import type { CSSProperties } from "react";
-
-import type { PresenceUser } from "../../../editor/remotePresence";
 import type { SaveStatus } from "../types";
 
 type EditorHeaderProps = {
-  identityColor: string;
-  identityName: string;
-  remoteUsers: PresenceUser[];
+  remoteUserCount: number;
   saveStatus: SaveStatus;
   version: number;
 };
 
 export function EditorHeader({
-  identityColor,
-  identityName,
-  remoteUsers,
+  remoteUserCount,
   saveStatus,
   version,
 }: EditorHeaderProps) {
+  const activeEditors = remoteUserCount + 1;
+  const saveStatusText =
+    saveStatus === "saving"
+      ? "保存中..."
+      : saveStatus === "saved"
+        ? "保存済み"
+        : saveStatus === "dirty"
+          ? "未保存の変更あり"
+          : "接続または保存に失敗しました";
+
   return (
     <header className="header">
       <div className="titleBlock">
         <div className="metaRow">
-          <span className={`saveStatus saveStatus-${saveStatus}`} aria-live="polite">
-            {saveStatus === "saving" && "保存中..."}
-            {saveStatus === "saved" && `保存済み v${version}`}
-            {saveStatus === "dirty" && "共同編集中"}
-            {saveStatus === "error" && "接続または保存に失敗しました"}
-          </span>
-          <span>{`編集中 ${remoteUsers.length + 1}人`}</span>
-        </div>
-        <div className="presenceList" aria-label="接続中の編集者">
-          <span className="presenceChip is-self" style={{ "--presence-color": identityColor } as CSSProperties}>
-            {identityName}
-          </span>
-          {remoteUsers.map((user) => (
-            <span key={user.userId} className="presenceChip" style={{ "--presence-color": user.color } as CSSProperties}>
-              {user.name}
-            </span>
-          ))}
+          <div className={`statusCard saveStatus saveStatus-${saveStatus}`} aria-live="polite">
+            <span className="statusLabel">保存状態</span>
+            <span className="statusValue">{saveStatusText}</span>
+            <div className="statusMetaRow">
+              <span className="statusMeta">{`編集中 ${activeEditors}人`}</span>
+              <span className="statusMeta">{`v${version}`}</span>
+            </div>
+          </div>
         </div>
       </div>
     </header>

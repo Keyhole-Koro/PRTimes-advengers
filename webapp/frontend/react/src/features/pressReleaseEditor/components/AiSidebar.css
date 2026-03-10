@@ -16,14 +16,28 @@
 }
 
 .aiPanelTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 15px;
   color: #12385f;
 }
 
+.aiIcon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.aiIcon-title {
+  width: 16px;
+  height: 16px;
+}
+
 .aiPanelDescription {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
   line-height: 1.4;
 }
@@ -57,6 +71,9 @@
 }
 
 .aiHistoryToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   justify-self: start;
   padding: 6px 10px;
   border: 1px solid #d0dbe8;
@@ -64,19 +81,22 @@
   background: #fff;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .aiNewChatButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 10px;
   border: 1px solid #d0dbe8;
   border-radius: 8px;
   background: #fff;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -118,13 +138,13 @@
 }
 
 .aiThreadTitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #12385f;
 }
 
 .aiThreadPreview {
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
@@ -132,7 +152,7 @@
 }
 
 .aiThreadTime {
-  font-size: 10px;
+  font-size: 11px;
   color: #9ca3af;
 }
 
@@ -144,6 +164,9 @@
 }
 
 .aiThreadMenuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
   border: none;
@@ -170,13 +193,16 @@
 }
 
 .aiThreadMenuItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
@@ -207,7 +233,7 @@
 
 .aiActiveThreadTitle {
   min-width: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
   font-weight: 700;
   white-space: nowrap;
@@ -234,7 +260,7 @@
   padding: 16px;
   text-align: center;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .aiMessage {
@@ -262,16 +288,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 11px;
   opacity: 0.85;
 }
 
 .aiMessageRole {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
 }
 
 .aiMessageTime {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .aiMessageBody {
@@ -291,21 +320,45 @@
 }
 
 .aiMessageAttachmentItem {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   line-height: 1.4;
   opacity: 0.9;
 }
 
 .aiMessageHint {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: #1d4ed8;
 }
 
+.aiMessageHintButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.aiMessageHintButton:hover {
+  background: #dbeafe;
+}
+
 .aiTyping {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
 }
 
@@ -343,8 +396,11 @@
 }
 
 .aiComposerAttachmentLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #374151;
   white-space: nowrap;
   overflow: hidden;
@@ -352,6 +408,9 @@
 }
 
 .aiComposerAttachmentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 22px;
   height: 22px;
@@ -365,7 +424,7 @@
 
 .aiComposerError {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #b91c1c;
 }
 
@@ -401,6 +460,9 @@
 }
 
 .aiComposerIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   border: 1px solid #d0dbe8;
@@ -428,6 +490,9 @@
 }
 
 .aiAttachMenuItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 8px;
   border: none;
   border-radius: 8px;
@@ -435,7 +500,7 @@
   color: #12385f;
   text-align: left;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -444,11 +509,14 @@
 }
 
 .aiComposerLinkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: transparent;
   color: #5b6b7f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 4px 6px;
 }
@@ -459,6 +527,9 @@
 }
 
 .aiComposerSendButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
   border: 1px solid #12385f;

@@ -2,21 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["summary", "operations"],
+  "required": ["summary", "suggestions"],
   "properties": {
     "summary": {
       "type": "string",
       "minLength": 1
     },
-    "operations": {
+    "suggestions": {
       "type": "array",
-      "items": {
-        "oneOf": [
-          { "$ref": "#/$defs/addOperation" },
-          { "$ref": "#/$defs/removeOperation" },
-          { "$ref": "#/$defs/modifyOperation" }
-        ]
-      }
+      "items": { "$ref": "#/$defs/suggestion" }
     },
     "notes": {
       "type": "array",
@@ -72,6 +66,31 @@
         "before": { "$ref": "#/$defs/documentBlock" },
         "after": { "$ref": "#/$defs/documentBlock" },
         "reason": { "type": "string" }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "summary", "operations"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "category": {
+          "type": "string",
+          "enum": ["title", "lede", "structure", "readability", "keyword", "tag", "risk", "body"]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string" },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/addOperation" },
+              { "$ref": "#/$defs/removeOperation" },
+              { "$ref": "#/$defs/modifyOperation" }
+            ]
+          }
+        }
       }
     }
   }

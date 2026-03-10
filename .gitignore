@@ -46,6 +46,7 @@ yarn-error.log*
 *.tmp
 *.temp
 *.tsbuildinfo
+*.zip
 
 # Frontend / runtime caches
 **/.vite/

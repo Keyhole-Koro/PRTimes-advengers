@@ -64,6 +64,13 @@ export type RequestAiEditInput = {
   prompt: string
   title: string
   content: PressReleaseContent
+  conversation_history?: ConversationHistoryEntry[]
+}
+
+export type ConversationHistoryEntry = {
+  role: 'user' | 'assistant'
+  text: string
+  created_at: string
 }
 
 export type AgentDocumentBlock = {
@@ -94,9 +101,27 @@ export type AgentDocumentEditOperation =
       reason?: string
     }
 
+export type AgentDocumentSuggestionCategory =
+  | 'title'
+  | 'lede'
+  | 'structure'
+  | 'readability'
+  | 'keyword'
+  | 'tag'
+  | 'risk'
+  | 'body'
+
+export type AgentDocumentEditSuggestion = {
+  id: string
+  category: AgentDocumentSuggestionCategory
+  summary: string
+  reason?: string
+  operations: AgentDocumentEditOperation[]
+}
+
 export type AgentDocumentEditResult = {
   summary: string
-  operations: AgentDocumentEditOperation[]
+  suggestions: AgentDocumentEditSuggestion[]
   notes?: string[]
 }
 

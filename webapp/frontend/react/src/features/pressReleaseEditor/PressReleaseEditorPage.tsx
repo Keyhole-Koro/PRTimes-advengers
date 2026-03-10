@@ -1,10 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import Underline from "@tiptap/extension-underline";
 import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
 import { type Editor, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import "../../App.css";
@@ -35,6 +34,9 @@ import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import { useAiAssistant } from "./hooks/useAiAssistant";
 import type {
   AgentDocumentEditResult,
+  AgentDocumentEditOperation,
+  AgentDocumentEditSuggestion,
+  AgentDocumentSuggestionCategory,
   MarkType,
   PendingAiSuggestion,
   PressRelease,
@@ -44,8 +46,110 @@ import type {
   SidebarTab,
   ToolbarGroupConfig,
 } from "./types";
-import { applyAgentDocumentEdit } from "./utils/applyAgentDocumentEdit";
+import { applyAgentDocumentSuggestion } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./utils/realtime";
+
+function isValidSuggestionCategory(value: unknown): value is AgentDocumentSuggestionCategory {
+  return (
+    value === "title" ||
+    value === "lede" ||
+    value === "structure" ||
+    value === "readability" ||
+    value === "keyword" ||
+    value === "tag" ||
+    value === "risk" ||
+    value === "body"
+  );
+}
+
+function isValidPendingAiSuggestion(value: unknown): value is PendingAiSuggestion {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Partial<PendingAiSuggestion>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.prompt === "string" &&
+    typeof record.responseSummary === "string" &&
+    typeof record.suggestion === "object" &&
+    record.suggestion !== null &&
+    typeof record.suggestion.id === "string" &&
+    isValidSuggestionCategory(record.suggestion.category) &&
+    typeof record.suggestion.summary === "string" &&
+    Array.isArray(record.suggestion.operations)
+  );
+}
+
+function normalizeLegacySuggestion(value: unknown): PendingAiSuggestion | null {
+  if (isValidPendingAiSuggestion(value)) {
+    return value;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const legacy = value as {
+    id?: unknown;
+    prompt?: unknown;
+    result?: {
+      summary?: unknown;
+      operations?: unknown[];
+    };
+  };
+
+  if (
+    typeof legacy.id !== "string" ||
+    typeof legacy.prompt !== "string" ||
+    typeof legacy.result?.summary !== "string" ||
+    !Array.isArray(legacy.result?.operations)
+  ) {
+    return null;
+  }
+
+  const suggestion: AgentDocumentEditSuggestion = {
+    id: `${legacy.id}-legacy`,
+    category: "body",
+    summary: legacy.result.summary,
+    operations: legacy.result.operations as AgentDocumentEditSuggestion["operations"],
+  };
+
+  return {
+    id: legacy.id,
+    prompt: legacy.prompt,
+    responseSummary: legacy.result.summary,
+    suggestion,
+  };
+}
+
+function withOperationText(operation: AgentDocumentEditOperation, nextText?: string): AgentDocumentEditOperation {
+  if (typeof nextText !== "string") {
+    return operation;
+  }
+
+  if (operation.op === "add") {
+    return {
+      ...operation,
+      block: {
+        ...operation.block,
+        text: nextText,
+      },
+    };
+  }
+
+  if (operation.op === "modify") {
+    return {
+      ...operation,
+      after: {
+        ...operation.after,
+        text: nextText,
+      },
+    };
+  }
+
+  return operation;
+}
 
 export function PressReleaseEditorPage({
   title: initialTitle,
@@ -54,7 +158,9 @@ export function PressReleaseEditorPage({
 }: PressRelease) {
   const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
   const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
+  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${PRESS_RELEASE_ID}`;
   const queryClient = useQueryClient();
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [identity] = useState(createRealtimeIdentity);
   const [title, setTitle] = useState(() => initialTitle);
   const [version, setVersion] = useState(() => initialVersion);
@@ -71,6 +177,15 @@ export function PressReleaseEditorPage({
     const raw = window.localStorage.getItem(sidebarTabStorageKey);
     return raw === "comments" || raw === "history" || raw === "ai" ? raw : "history";
   });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 320;
+    }
+
+    const raw = window.localStorage.getItem(sidebarWidthStorageKey);
+    const value = Number.parseInt(raw ?? "", 10);
+    return Number.isFinite(value) ? Math.min(480, Math.max(280, value)) : 320;
+  });
   const [pendingAiSuggestions, setPendingAiSuggestions] = useState<PendingAiSuggestion[]>(() => {
     if (typeof window === "undefined") {
       return [];
@@ -83,7 +198,11 @@ export function PressReleaseEditorPage({
       }
 
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as PendingAiSuggestion[]) : [];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed.map(normalizeLegacySuggestion).filter((value): value is PendingAiSuggestion => value !== null);
     } catch {
       return [];
     }
@@ -105,10 +224,57 @@ export function PressReleaseEditorPage({
           return;
         }
 
-        const nextContent = applyAgentDocumentEdit(editorRef.current.getJSON(), suggestion.result);
+        const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), suggestion.suggestion);
         editorRef.current.commands.setContent(nextContent);
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId(null);
+        setSaveStatus("dirty");
+        requestFlushRef.current();
+      },
+      onAcceptSuggestionOperation: (suggestionId, operationIndex, nextText) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (!suggestion || !editorRef.current) {
+          return;
+        }
+
+        const operation = suggestion.suggestion.operations[operationIndex];
+        if (!operation) {
+          return;
+        }
+
+        const editedOperation = withOperationText(operation, nextText);
+        const partialSuggestion: AgentDocumentEditSuggestion = {
+          ...suggestion.suggestion,
+          operations: [editedOperation],
+        };
+
+        const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), partialSuggestion);
+        editorRef.current.commands.setContent(nextContent);
+        let hasRemainingOperations = false;
+        setPendingAiSuggestions((current) =>
+          current
+            .map((entry) => {
+              if (entry.id !== suggestionId) {
+                return entry;
+              }
+
+              const remainingOperations = entry.suggestion.operations.filter((_, index) => index !== operationIndex);
+              hasRemainingOperations = remainingOperations.length > 0;
+              if (remainingOperations.length === 0) {
+                return null;
+              }
+
+              return {
+                ...entry,
+                suggestion: {
+                  ...entry.suggestion,
+                  operations: remainingOperations,
+                },
+              };
+            })
+            .filter((entry): entry is PendingAiSuggestion => entry !== null),
+        );
+        setActiveAiSuggestionId((current) => (current === suggestionId && !hasRemainingOperations ? null : current));
         setSaveStatus("dirty");
         requestFlushRef.current();
       },
@@ -118,6 +284,33 @@ export function PressReleaseEditorPage({
       onDiscardSuggestion: (suggestionId) => {
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
+      },
+      onDiscardSuggestionOperation: (suggestionId, operationIndex) => {
+        let hasRemainingOperations = false;
+        setPendingAiSuggestions((current) =>
+          current
+            .map((entry) => {
+              if (entry.id !== suggestionId) {
+                return entry;
+              }
+
+              const remainingOperations = entry.suggestion.operations.filter((_, index) => index !== operationIndex);
+              hasRemainingOperations = remainingOperations.length > 0;
+              if (remainingOperations.length === 0) {
+                return null;
+              }
+
+              return {
+                ...entry,
+                suggestion: {
+                  ...entry.suggestion,
+                  operations: remainingOperations,
+                },
+              };
+            })
+            .filter((entry): entry is PendingAiSuggestion => entry !== null),
+        );
+        setActiveAiSuggestionId((current) => (current === suggestionId && !hasRemainingOperations ? null : current));
       },
     }),
   );
@@ -129,7 +322,6 @@ export function PressReleaseEditorPage({
       extensions: session
         ? [
             StarterKit,
-            Underline,
             RemovableImage,
             aiSuggestionExtension,
             LinkCard,
@@ -137,7 +329,7 @@ export function PressReleaseEditorPage({
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -166,6 +358,14 @@ export function PressReleaseEditorPage({
 
     window.localStorage.setItem(sidebarTabStorageKey, sidebarTab);
   }, [sidebarTab, sidebarTabStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(sidebarWidthStorageKey, String(sidebarWidth));
+  }, [sidebarWidth, sidebarWidthStorageKey]);
 
   useEffect(() => {
     if (!editor) {
@@ -438,6 +638,36 @@ export function PressReleaseEditorPage({
     sendTitleUpdate(nextTitle);
   };
 
+  const handleSidebarResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const workspace = workspaceRef.current;
+    if (!workspace) {
+      return;
+    }
+
+    event.preventDefault();
+    const bounds = workspace.getBoundingClientRect();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+    const minWidth = 280;
+    const maxWidth = Math.min(520, Math.max(minWidth, bounds.width - 420));
+    document.body.classList.add("is-resizing-panels");
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+      setSidebarWidth(nextWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.classList.remove("is-resizing-panels");
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
   const {
     activeThreadId,
     commentThreads,
@@ -487,11 +717,43 @@ export function PressReleaseEditorPage({
   });
 
   const handleCreateAiSuggestion = (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => {
-    setPendingAiSuggestions((current) => [...current, { id: suggestionId, prompt, result }]);
-    setActiveAiSuggestionId(suggestionId);
+    const suggestions = result.suggestions.map((suggestion) => ({
+      id: `${suggestionId}:${suggestion.id}`,
+      prompt,
+      responseSummary: result.summary,
+      suggestion,
+    }));
+
+    setPendingAiSuggestions((current) => [...current, ...suggestions]);
+    setActiveAiSuggestionId(suggestions[0]?.id ?? null);
   };
 
   const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, title });
+
+  const handleJumpToSuggestion = (messageId: string) => {
+    const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id.startsWith(`${messageId}:`));
+    if (!suggestion) {
+      return;
+    }
+
+    setActiveAiSuggestionId(suggestion.id);
+
+    const scrollToSuggestion = () => {
+      const element = document.querySelector<HTMLElement>(`.aiSuggestionWidget[data-suggestion-id="${suggestion.id}"]`);
+      if (!element) {
+        return;
+      }
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollToSuggestion);
+    });
+  };
 
   const handleStartComment = () => {
     if (!editor) {
@@ -654,7 +916,11 @@ export function PressReleaseEditorPage({
   return (
     <div className="container">
       <main className="main">
-        <div className="workspace">
+        <div
+          ref={workspaceRef}
+          className="workspace"
+          style={{ gridTemplateColumns: `minmax(0, 1fr) 12px ${sidebarWidth}px` }}
+        >
           <EditorWorkspace
             editor={editor}
             fileInputRef={fileInputRef}
@@ -672,11 +938,17 @@ export function PressReleaseEditorPage({
             toolbarGroups={toolbarGroups}
           />
 
+          <div
+            className="paneResizeHandle paneResizeHandle-sidebar"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="右サイドバーの幅を調整"
+            onPointerDown={handleSidebarResizeStart}
+          />
+
           <div className="sidebarColumn">
             <EditorHeader
-              identityColor={identity.color}
-              identityName={identity.name}
-              remoteUsers={remoteUsers}
+              remoteUserCount={remoteUsers.length}
               saveStatus={saveStatus}
               version={version}
             />
@@ -717,7 +989,7 @@ export function PressReleaseEditorPage({
               toggleResolveThread={(thread) =>
                 thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
               }
-              aiSidebarProps={aiAssistant}
+              aiSidebarProps={{ ...aiAssistant, handleJumpToSuggestion }}
             />
           </div>
         </div>

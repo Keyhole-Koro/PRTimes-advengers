@@ -1,6 +1,7 @@
 import type {
   AgentDocumentBlock,
   AgentDocumentEditResult,
+  ConversationHistoryEntry,
   PressReleaseContent,
   RequestAiEditInput,
 } from '../types/pressRelease.js'
@@ -88,30 +89,140 @@ function buildAgentBlocks(content: PressReleaseContent): AgentDocumentBlock[] {
   return [{ id: 'block-1', type: 'paragraph', text: '' }]
 }
 
+type DeterministicInstruction = {
+  paragraphIndex: number
+  position: 'prefix' | 'suffix'
+  token: string
+}
+
+function parseInstruction(prompt: string): Omit<DeterministicInstruction, 'paragraphIndex'> & { paragraphIndex?: number } | null {
+  const match = prompt.match(/(?:(\d+)つ目の段落|同じ段落)の(先頭|末尾)に「([^」]+)」(?:を)?(?:も)?追加してください。?/) 
+  if (!match) {
+    return null
+  }
+
+  return {
+    paragraphIndex: match[1] ? Number.parseInt(match[1], 10) : undefined,
+    position: match[2] === '先頭' ? 'prefix' : 'suffix',
+    token: match[3],
+  }
+}
+
+function resolveParagraphIndex(
+  prompt: string,
+  conversationHistory: ConversationHistoryEntry[] | undefined,
+): DeterministicInstruction | null {
+  const currentInstruction = parseInstruction(prompt)
+  if (!currentInstruction) {
+    return null
+  }
+
+  if (typeof currentInstruction.paragraphIndex === 'number') {
+    return currentInstruction as DeterministicInstruction
+  }
+
+  const previousUserInstruction = [...(conversationHistory ?? [])]
+    .reverse()
+    .find((entry) => entry.role === 'user' && /\d+つ目の段落/.test(entry.text))
+
+  if (!previousUserInstruction) {
+    return null
+  }
+
+  const previousInstruction = parseInstruction(previousUserInstruction.text)
+  if (!previousInstruction || typeof previousInstruction.paragraphIndex !== 'number') {
+    return null
+  }
+
+  return {
+    paragraphIndex: previousInstruction.paragraphIndex,
+    position: currentInstruction.position,
+    token: currentInstruction.token,
+  }
+}
+
+function buildDeterministicEditResult(input: RequestAiEditInput): AgentDocumentEditResult | null {
+  const instruction = resolveParagraphIndex(input.prompt, input.conversation_history)
+  if (!instruction) {
+    return null
+  }
+
+  const paragraphBlocks = buildAgentBlocks(input.content).filter((block) => block.type === 'paragraph')
+  const targetBlock = paragraphBlocks[instruction.paragraphIndex - 1]
+  if (!targetBlock) {
+    return null
+  }
+
+  const nextText = instruction.position === 'prefix'
+    ? `${instruction.token}${targetBlock.text}`
+    : `${targetBlock.text}${instruction.token}`
+
+  const positionLabel = instruction.position === 'prefix' ? '先頭' : '末尾'
+  const summary = `${instruction.paragraphIndex}つ目の段落の${positionLabel}に「${instruction.token}」を追加します。`
+
+  return {
+    summary,
+    suggestions: [
+      {
+        id: `deterministic-${instruction.paragraphIndex}-${instruction.position}-${instruction.token}`,
+        category: 'body',
+        summary,
+        reason: '単純な追記指示のため、決定的な編集提案を返しました。',
+        operations: [
+          {
+            op: 'modify',
+            block_id: targetBlock.id,
+            before: targetBlock,
+            after: {
+              ...targetBlock,
+              text: nextText,
+            },
+            reason: `段落の${positionLabel}に指定文字列を追加します。`,
+          },
+        ],
+      },
+    ],
+  }
+}
+
 export class AiEditService {
   constructor(private readonly agentBaseUrl = process.env.AGENT_BASE_URL || 'http://agent:5000') {}
 
   async requestDocumentEdit(input: RequestAiEditInput): Promise<AgentDocumentEditResult> {
-    const response = await fetch(`${this.agentBaseUrl}/agent/tasks/document_edit:run`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        context: {
-          reference_docs: [],
-          uploaded_materials: [],
+    const deterministicResult = buildDeterministicEditResult(input)
+    if (deterministicResult) {
+      return deterministicResult
+    }
+
+    let response: Response
+    try {
+      response = await fetch(`${this.agentBaseUrl}/agent/tasks/document_edit:run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        document: {
-          title: input.title,
-          blocks: buildAgentBlocks(input.content),
-        },
-        instructions: {
-          goal: input.prompt,
-          language: 'ja',
-        },
-      }),
-    })
+        body: JSON.stringify({
+          context: {
+            reference_docs: [],
+            uploaded_materials: [],
+          },
+          document: {
+            title: input.title,
+            blocks: buildAgentBlocks(input.content),
+          },
+          instructions: {
+            goal: input.prompt,
+            language: 'ja',
+          },
+        }),
+      })
+    } catch (error) {
+      throw new AiEditServiceError(
+        error instanceof Error ? error.message : 'Agent request failed.',
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
 
     const payload = await response.json().catch(() => null) as
       | { result?: AgentDocumentEditResult; message?: string }

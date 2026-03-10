@@ -1,6 +1,7 @@
 import { EditorContent, type Editor } from "@tiptap/react";
-import type { ChangeEvent, DragEvent, RefObject } from "react";
-import { useState } from "react";
+import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, Check, Plus, Tag, Trash2 } from "lucide-react";
 
 import type { ToolbarGroupConfig } from "../types";
 import { EditorToolbar } from "./EditorToolbar";
@@ -22,6 +23,19 @@ type EditorWorkspaceProps = {
   toolbarGroups: ToolbarGroupConfig[];
 };
 
+function normalizeMetaValue(value: string, withHash = false): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!withHash) {
+    return trimmed;
+  }
+
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
+
 export function EditorWorkspace({
   editor,
   fileInputRef,
@@ -38,12 +52,74 @@ export function EditorWorkspace({
   title,
   toolbarGroups,
 }: EditorWorkspaceProps) {
-  const [isKeywordPanelVisible, setIsKeywordPanelVisible] = useState(true);
-  const [isTagPanelVisible, setIsTagPanelVisible] = useState(true);
-  const [isKeywordDecided, setIsKeywordDecided] = useState(false);
-  const [isTagDecided, setIsTagDecided] = useState(false);
-  const mockKeywords = ["生成AI", "広報戦略", "業務効率化"];
-  const mockTags = ["#PR", "#AI", "#ドラフト"];
+  const metaWidthStorageKey = "press-release-editor-meta-width";
+  const contentLayoutRef = useRef<HTMLDivElement | null>(null);
+  const [metaPanelWidth, setMetaPanelWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 260;
+    }
+    const raw = window.localStorage.getItem(metaWidthStorageKey);
+    const value = Number.parseInt(raw ?? "", 10);
+    return Number.isFinite(value) ? Math.min(360, Math.max(220, value)) : 260;
+  });
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>(["#PR"]);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>(["#AI", "#ドラフト"]);
+
+  const addTag = () => {
+    const nextTag = normalizeMetaValue(tagInput, true);
+    if (!nextTag || tags.includes(nextTag)) {
+      return;
+    }
+    setTags((current) => [...current, nextTag]);
+    setTagInput("");
+  };
+
+  const applySuggestedTag = (tag: string) => {
+    setTags((current) => (current.includes(tag) ? current : [...current, tag]));
+    setSuggestedTags((current) => current.filter((item) => item !== tag));
+  };
+
+  const discardSuggestedTag = (tag: string) => {
+    setSuggestedTags((current) => current.filter((item) => item !== tag));
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(metaWidthStorageKey, String(metaPanelWidth));
+  }, [metaPanelWidth]);
+
+  const handleMetaResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const layout = contentLayoutRef.current;
+    if (!layout) {
+      return;
+    }
+
+    event.preventDefault();
+    const bounds = layout.getBoundingClientRect();
+    const startX = event.clientX;
+    const startWidth = metaPanelWidth;
+    const minWidth = 220;
+    const maxWidth = Math.min(420, Math.max(minWidth, bounds.width - 320));
+    document.body.classList.add("is-resizing-panels");
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+      setMetaPanelWidth(nextWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.classList.remove("is-resizing-panels");
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
 
   return (
     <div className="editorWrapper">
@@ -77,108 +153,112 @@ export function EditorWorkspace({
       />
 
       <div
-        className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={(event) => void handleDrop(event)}
+        ref={contentLayoutRef}
+        className="editorContentLayout"
+        style={{ gridTemplateColumns: `${metaPanelWidth}px 12px minmax(0, 1fr)` }}
       >
-        <div className="dropZoneHint">
-          画像をここにドラッグ&ドロップして追加できます
-          {isUploadingImage ? "（アップロード中...）" : ""}
-        </div>
-        <EditorContent editor={editor} />
-      </div>
-
-      <section className="editorMetaPanel" aria-label="AI連携用モック情報">
-        <div className="editorMetaPanelHeader">
-          <span className="editorMetaPanelTitle">AI連携モック</span>
-          <div className="editorMetaRestoreButtons">
-            {!isKeywordPanelVisible && (
-              <button type="button" className="metaRestoreButton" onClick={() => setIsKeywordPanelVisible(true)}>
-                キーワードを復元
-              </button>
-            )}
-            {!isTagPanelVisible && (
-              <button type="button" className="metaRestoreButton" onClick={() => setIsTagPanelVisible(true)}>
-                タグを復元
-              </button>
-            )}
+        <section className="editorMetaPanel" aria-label="タグ">
+          <div className="editorMetaPanelHeader">
+            <span className="editorMetaPanelTitle">タグ</span>
           </div>
-        </div>
+          <p className="editorMetaPanelDescription">タグを設定すると、検索されやすくなり、記事の意図も伝わりやすくなります。</p>
 
-        <div className="editorMetaCards">
-          {isKeywordPanelVisible && (
-            <article className="editorMetaCard">
-              <header className="editorMetaCardHeader">
-                <h3 className="editorMetaCardTitle">キーワード</h3>
-                <button
-                  type="button"
-                  className="metaDismissButton"
-                  onClick={() => setIsKeywordPanelVisible(false)}
-                  aria-label="キーワード枠を閉じる"
-                >
-                  ×
+          <div className="editorMetaCards">
+              <div className="editorMetaContent">
+              <div className="editorMetaInputRow">
+                <input
+                  type="text"
+                  className="editorMetaInput"
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  placeholder="タグを追加"
+                />
+                <button type="button" className="metaAppendButton" onClick={addTag}>
+                  追加
                 </button>
-              </header>
-              <div className="editorMetaChipList">
-                {mockKeywords.map((keyword) => (
-                  <span key={keyword} className="editorMetaChip">
-                    {keyword}
-                  </span>
-                ))}
               </div>
-              <div className="editorMetaCardFooter">
-                <button
-                  type="button"
-                  className={`metaDecisionButton${isKeywordDecided ? " is-decided" : ""}`}
-                  onClick={() => setIsKeywordDecided((current) => !current)}
-                >
-                  {isKeywordDecided ? "キーワード決定を解除" : "キーワードを決定"}
-                </button>
-                <span className={`metaDecisionStatus${isKeywordDecided ? " is-decided" : ""}`}>
-                  {isKeywordDecided ? "決定済み" : "未決定"}
-                </span>
+              <div className="editorMetaSection">
+                <span className="editorMetaSectionLabel">現在のタグ</span>
+                <div className="editorMetaChipList">
+                  {tags.map((tag) => (
+                    <span key={tag} className="editorMetaChip">
+                      <Check className="editorMetaChipIcon" aria-hidden="true" />
+                      {tag}
+                      <button
+                        type="button"
+                        className="editorMetaChipRemove"
+                        onClick={() => setTags((current) => current.filter((item) => item !== tag))}
+                        aria-label={`${tag} を削除`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
-            </article>
-          )}
+              <div className="editorMetaSection">
+                <span className="editorMetaSectionLabel">AIの提案</span>
+                <div className="editorMetaSuggestionList">
+                  {suggestedTags.length === 0 && (
+                    <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
+                  )}
+                  {suggestedTags.map((tag) => (
+                    <div key={tag} className="editorMetaSuggestionItem">
+                      <div className="editorMetaSuggestionBody">
+                        <div className="editorMetaSuggestionSummary">
+                          <span className="editorMetaSuggestionBadge">
+                            <Bot className="editorMetaChipIcon" aria-hidden="true" />
+                            AI提案
+                          </span>
+                          <strong className="editorMetaSuggestionValue">
+                            <Tag className="editorMetaChipIcon" aria-hidden="true" />
+                            {tag}
+                          </strong>
+                        </div>
+                        <p className="editorMetaSuggestionDescription">反映すると追加されます</p>
+                      </div>
+                      <div className="editorMetaSuggestionActions">
+                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>
+                          <Plus className="editorMetaActionIcon" aria-hidden="true" />
+                          追加する
+                        </button>
+                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag)}>
+                          <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
+                          見送る
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              </div>
+          </div>
+        </section>
 
-          {isTagPanelVisible && (
-            <article className="editorMetaCard">
-              <header className="editorMetaCardHeader">
-                <h3 className="editorMetaCardTitle">タグ</h3>
-                <button
-                  type="button"
-                  className="metaDismissButton"
-                  onClick={() => setIsTagPanelVisible(false)}
-                  aria-label="タグ枠を閉じる"
-                >
-                  ×
-                </button>
-              </header>
-              <div className="editorMetaChipList">
-                {mockTags.map((tag) => (
-                  <span key={tag} className="editorMetaChip">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <div className="editorMetaCardFooter">
-                <button
-                  type="button"
-                  className={`metaDecisionButton${isTagDecided ? " is-decided" : ""}`}
-                  onClick={() => setIsTagDecided((current) => !current)}
-                >
-                  {isTagDecided ? "タグ決定を解除" : "タグを決定"}
-                </button>
-                <span className={`metaDecisionStatus${isTagDecided ? " is-decided" : ""}`}>
-                  {isTagDecided ? "決定済み" : "未決定"}
-                </span>
-              </div>
-            </article>
-          )}
+        <div
+          className="paneResizeHandle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="メタデータ列の幅を調整"
+          onPointerDown={handleMetaResizeStart}
+        />
+
+        <div
+          className={`dropZone${isDraggingImage ? " is-dragging" : ""}${isUploadingImage ? " is-uploading" : ""}`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={(event) => void handleDrop(event)}
+        >
+          <EditorContent editor={editor} />
         </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 
-import type { AgentDocumentBlock, AgentDocumentEditResult } from "../types";
+import type { AgentDocumentBlock, AgentDocumentEditOperation, AgentDocumentEditSuggestion } from "../types";
 
 type IndexedNode = {
   id: string | null;
@@ -119,10 +119,10 @@ function findIndexByBlockId(nodes: IndexedNode[], blockId: string): number {
   return nodes.findIndex((entry) => entry.id === blockId);
 }
 
-export function applyAgentDocumentEdit(document: JSONContent, result: AgentDocumentEditResult): JSONContent {
+function applyOperations(document: JSONContent, operations: AgentDocumentEditOperation[]): JSONContent {
   const indexedNodes = buildIndexedNodes(document);
 
-  for (const operation of result.operations) {
+  for (const operation of operations) {
     if (operation.op === "add") {
       const targetIndex = operation.after_block_id === null ? 0 : findIndexByBlockId(indexedNodes, operation.after_block_id) + 1;
       indexedNodes.splice(targetIndex < 0 ? indexedNodes.length : targetIndex, 0, {
@@ -153,4 +153,12 @@ export function applyAgentDocumentEdit(document: JSONContent, result: AgentDocum
     type: "doc",
     content: indexedNodes.map((entry) => entry.node),
   };
+}
+
+export function applyAgentDocumentOperation(document: JSONContent, operation: AgentDocumentEditOperation): JSONContent {
+  return applyOperations(document, [operation]);
+}
+
+export function applyAgentDocumentSuggestion(document: JSONContent, suggestion: AgentDocumentEditSuggestion): JSONContent {
+  return applyOperations(document, suggestion.operations);
 }
