@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
-import { pressReleaseService } from '../services/pressReleaseService.js'
-import type { PressReleaseResponse } from '../types/pressRelease.js'
+import { pressReleaseService } from '../../services/pressReleaseService.js'
+import type { PressReleaseResponse } from '../../types/pressRelease.js'
 import type {
   ClientRealtimeMessage,
   PresencePayload,
@@ -342,9 +342,11 @@ export class CollaborationHub {
   }
 
   private send(socket: WebSocket, message: ServerRealtimeMessage): void {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message))
+    if (socket.readyState !== WebSocket.OPEN) {
+      return
     }
+
+    socket.send(JSON.stringify(message))
   }
 }
 

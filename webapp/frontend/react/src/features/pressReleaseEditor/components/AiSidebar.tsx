@@ -52,6 +52,7 @@ export type AiSidebarProps = {
   activeAiThread: AiChatThread | null;
   activeAiThreadId: string;
   aiAttachmentError: string | null;
+  aiMessagesContainerRef: RefObject<HTMLDivElement | null>;
   aiMessagesEndRef: RefObject<HTMLDivElement | null>;
   aiPrompt: string;
   aiThreadMenuOpenId: string | null;
@@ -91,6 +92,7 @@ export function AiSidebar({
   activeAiThread,
   activeAiThreadId,
   aiAttachmentError,
+  aiMessagesContainerRef,
   aiMessagesEndRef,
   aiPrompt,
   aiThreadMenuOpenId,
@@ -241,7 +243,7 @@ export function AiSidebar({
               </button>
               <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
             </div>
-            <div className="aiChatList" aria-live="polite">
+            <div ref={aiMessagesContainerRef} className="aiChatList" aria-live="polite">
               {activeAiMessages.length === 0 && (
                 <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
               )}

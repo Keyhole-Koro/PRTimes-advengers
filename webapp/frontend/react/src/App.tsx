@@ -1,5 +1,5 @@
 import { EMPTY_CONTENT } from "./features/pressReleaseEditor/constants";
-import { PressReleaseEditorPage } from "./features/pressReleaseEditor/PressReleaseEditorPage";
+import { PressReleaseEditorScreen } from "./features/pressReleaseEditor/presentation/PressReleaseEditorScreen";
 import { usePressReleaseQuery } from "./features/pressReleaseEditor/hooks/usePressReleaseQueries";
 
 export function App() {
@@ -32,7 +32,7 @@ export function App() {
   }
 
   return (
-    <PressReleaseEditorPage
+    <PressReleaseEditorScreen
       title={data.title}
       content={data.content ?? EMPTY_CONTENT}
       version={data.version}
