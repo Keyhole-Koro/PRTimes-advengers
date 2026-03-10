@@ -1,6 +1,6 @@
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-
+import { v4 as uuidv4 } from 'uuid'
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {
@@ -47,7 +47,7 @@ const AI_ALLOWED_FILE_MIME_TYPES = new Set([
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     title,
     updatedAt: new Date().toISOString(),
     messages: [],
@@ -56,7 +56,7 @@ function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
 
 function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessage {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     role,
     text,
     createdAt: new Date().toISOString(),
@@ -292,7 +292,7 @@ export function useAiAssistant() {
         }
 
         next.push({
-          id: globalThis.crypto.randomUUID(),
+          id: uuidv4(),
           file,
           kind,
           name: file.name || (kind === "image" ? "pasted-image.png" : "untitled"),
