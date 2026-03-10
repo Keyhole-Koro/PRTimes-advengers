@@ -1,6 +1,9 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 const initialTitle = "年収550万円以上で即内定！技術×ビジネス思考を磨く27・28卒向けハッカソン受付開始";
+const firstParagraphText =
+  "プレスリリース配信サービス「PR TIMES」等を運営する株式会社PR TIMES（東京都港区、代表取締役：山口拓己、東証プライム、名証プレミア：3922）は、2026年3月9日（月）、10日（火）、11日（水）の3日間、2027・28年卒業予定のエンジニア志望学生(*1)を対象とした「PR TIMES HACKATHON 2026 Spring」をPR TIMES本社（赤坂インターシティ）で開催します。";
+const secondParagraphText = "一次募集締切は2026年2月1日（日） 23:59まで、下記フォームより本日からエントリー受付を開始いたします。";
 const initialContent = {
   type: "doc",
   content: [
@@ -9,7 +12,7 @@ const initialContent = {
       content: [
         {
           type: "text",
-          text: "プレスリリース配信サービス「PR TIMES」等を運営する株式会社PR TIMES（東京都港区、代表取締役：山口拓己、東証プライム、名証プレミア：3922）は、2026年3月9日（月）、10日（火）、11日（水）の3日間、2027・28年卒業予定のエンジニア志望学生(*1)を対象とした「PR TIMES HACKATHON 2026 Spring」をPR TIMES本社（赤坂インターシティ）で開催します。",
+          text: firstParagraphText,
         },
       ],
     },
@@ -18,7 +21,7 @@ const initialContent = {
       content: [
         {
           type: "text",
-          text: "一次募集締切は2026年2月1日（日） 23:59まで、下記フォームより本日からエントリー受付を開始いたします。",
+          text: secondParagraphText,
         },
       ],
     },
@@ -55,6 +58,10 @@ async function createAiSuggestion(page: Page, prompt: string) {
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(1);
 }
 
+function editorParagraph(page: Page, index: number) {
+  return page.locator(".ProseMirror > p").nth(index);
+}
+
 test.beforeEach(async ({ request }) => {
   await resetPressRelease(request);
 });
@@ -67,6 +74,7 @@ test("AI edits are embedded into the document", async ({ page }) => {
   await expect(page.getByRole("button", { name: "まとめて反映" })).toBeVisible();
   await expect(page.getByRole("button", { name: "まとめて見送る" })).toBeVisible();
   await expect(page.locator(".aiSuggestionDiffCard")).toHaveCount(1);
+  await expect(page.locator(".aiSuggestionDiffBlockBody")).toContainText(secondParagraphText);
   await expect(page.getByText("After")).toBeVisible();
   await expect(page.locator(".aiSuggestionDiffToken-added")).toContainText("AI_E2E_APPEND_TOKEN");
 });
@@ -79,7 +87,8 @@ test("AI proposals can be applied to the editor", async ({ page }) => {
   await expect(page.getByRole("button", { name: "まとめて反映" })).toBeVisible();
   await page.getByRole("button", { name: "まとめて反映" }).click();
 
-  await expect(page.locator(".ProseMirror")).toContainText("AI_E2E_APPLY_TOKEN");
+  await expect(editorParagraph(page, 0)).toHaveText(firstParagraphText);
+  await expect(editorParagraph(page, 1)).toHaveText(`${secondParagraphText}AI_E2E_APPLY_TOKEN`);
 });
 
 test("AI proposals can be discarded from the document", async ({ page }) => {
@@ -91,7 +100,8 @@ test("AI proposals can be discarded from the document", async ({ page }) => {
   await page.getByRole("button", { name: "まとめて見送る" }).click();
 
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(0);
-  await expect(page.locator(".ProseMirror")).not.toContainText("AI_E2E_DISCARD_TOKEN");
+  await expect(editorParagraph(page, 0)).toHaveText(firstParagraphText);
+  await expect(editorParagraph(page, 1)).toHaveText(secondParagraphText);
 });
 
 test("AI suggestions persist after reload", async ({ page }) => {
@@ -123,4 +133,8 @@ test("AI conversation history remains in the thread for follow-up prompts", asyn
   await expect(page.locator(".aiMessage-user .aiMessageBody").last()).toHaveText(
     "さっきの提案を踏まえて、同じ段落の先頭に「AI_E2E_THREAD_SECOND」も追加してください。",
   );
+  await expect(page.getByRole("button", { name: "まとめて反映" })).toBeVisible();
+  await page.getByRole("button", { name: "まとめて反映" }).click();
+  await expect(editorParagraph(page, 0)).toHaveText(firstParagraphText);
+  await expect(editorParagraph(page, 1)).toHaveText(`AI_E2E_THREAD_SECOND${secondParagraphText}`);
 });

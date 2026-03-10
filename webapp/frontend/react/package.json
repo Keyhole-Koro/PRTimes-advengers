@@ -10,7 +10,8 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:ai-agent": "playwright test tests/e2e/ai-agent.spec.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
