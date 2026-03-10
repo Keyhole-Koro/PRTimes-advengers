@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import uuidv4 from 'uuid/v4'
+import { randomUUID } from 'node:crypto'
 import { extname, join, resolve } from 'node:path'
 
 const UPLOAD_DIR = resolve(process.cwd(), 'uploads')
@@ -39,7 +39,7 @@ export class UploadService {
 
     const originalExt = extname(file.name).toLowerCase()
     const ext = EXT_TO_MIME[originalExt] ? originalExt : (MIME_TO_EXT[file.type] ?? '.bin')
-    const filename = `${Date.now()}-${uuidv4()}${ext}`
+    const filename = `${Date.now()}-${randomUUID()}${ext}`
     const filePath = join(UPLOAD_DIR, filename)
 
     try {
