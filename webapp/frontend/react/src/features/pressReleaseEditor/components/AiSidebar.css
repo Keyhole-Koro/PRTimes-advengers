@@ -1,10 +1,13 @@
 .aiPanel {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   padding: 10px;
   border: 1px solid #d0dbe8;
   border-radius: 10px;
   background: #fff;
+  min-height: 0;
+  height: 100%;
 }
 
 .aiPanelHeader {
@@ -29,7 +32,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  min-height: 420px;
+  min-height: 0;
+  height: 100%;
 }
 
 .aiLayout.is-thread-open {
@@ -40,6 +44,7 @@
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 8px;
+  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -79,7 +84,8 @@
 .aiThreadList {
   display: grid;
   gap: 6px;
-  max-height: 560px;
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
   align-content: start;
   padding-right: 2px;
@@ -185,8 +191,9 @@
 
 .aiChatArea {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
+  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -212,12 +219,14 @@
 .aiChatList {
   display: grid;
   gap: 8px;
-  max-height: 370px;
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px;
   border: 1px solid #d0dbe8;
   border-radius: 8px;
   background: #f8fbff;
+  align-content: start;
 }
 
 .aiEmpty {
@@ -273,6 +282,27 @@
   line-height: 1.5;
 }
 
+.aiMessageAttachmentList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.aiMessageAttachmentItem {
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.aiMessageHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #1d4ed8;
+}
+
 .aiTyping {
   margin: 0;
   font-size: 12px;
@@ -286,6 +316,57 @@
   border: 1px solid #d0dbe8;
   border-radius: 14px;
   background: #fff;
+  position: relative;
+}
+
+.aiHiddenInput {
+  display: none;
+}
+
+.aiComposerAttachmentList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.aiComposerAttachmentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #d0dbe8;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.aiComposerAttachmentLabel {
+  min-width: 0;
+  font-size: 11px;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aiComposerAttachmentRemove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #d0dbe8;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b7280;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.aiComposerError {
+  margin: 0;
+  font-size: 11px;
+  color: #b91c1c;
 }
 
 .aiComposerInput {
@@ -316,6 +397,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  position: relative;
 }
 
 .aiComposerIconButton {
@@ -328,6 +410,37 @@
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+}
+
+.aiAttachMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  display: grid;
+  gap: 4px;
+  width: 140px;
+  padding: 6px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+
+.aiAttachMenuItem {
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #12385f;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.aiAttachMenuItem:hover {
+  background: #f3f6fa;
 }
 
 .aiComposerLinkButton {

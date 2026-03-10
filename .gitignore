@@ -49,6 +49,7 @@ yarn-error.log*
 
 # Frontend / runtime caches
 **/.vite/
+**/dist/
 
 # Local uploads
 webapp/node/uploads/
