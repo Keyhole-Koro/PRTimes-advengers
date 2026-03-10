@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import uuidv4 from 'uuid/v4';
 import { extname, join, resolve } from 'node:path';
 export const uploadRoutes = new Hono();
 const UPLOAD_DIR = resolve(process.cwd(), 'uploads');
@@ -43,7 +43,7 @@ uploadRoutes.post('/uploads/images', async (c) => {
     }
     const originalExt = extname(uploaded.name).toLowerCase();
     const ext = EXT_TO_MIME[originalExt] ? originalExt : (MIME_TO_EXT[uploaded.type] ?? '.bin');
-    const filename = `${Date.now()}-${randomUUID()}${ext}`;
+    const filename = `${Date.now()}-${uuidv4()}${ext}`;
     const filePath = join(UPLOAD_DIR, filename);
     try {
         await mkdir(UPLOAD_DIR, { recursive: true });
