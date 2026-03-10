@@ -1,8 +1,8 @@
 import type { Editor } from "@tiptap/react";
-import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { diffChars } from "diff";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { normalizeDocumentEditResult, requestDocumentEdit } from "../infrastructure/aiApi";
 import type { AgentDocumentEditResult } from "../types";
 export type AiAttachmentKind = "image" | "file";
@@ -416,7 +416,9 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
   const aiScrollStorageKey = `press-release-editor-ai-scroll:${pressReleaseId}`;
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAttachmentError, setAiAttachmentError] = useState<string | null>(null);
+  const [aiResponseError, setAiResponseError] = useState<string | null>(null);
   const [isAiAttachMenuOpen, setIsAiAttachMenuOpen] = useState(false);
+  const [isAiDraggingFile, setIsAiDraggingFile] = useState(false);
   const [composerAttachments, setComposerAttachments] = useState<AiComposerAttachment[]>([]);
   const [aiThreads, setAiThreads] = useState<AiChatThread[]>(() => {
     if (typeof window === "undefined") {
@@ -656,6 +658,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
       }),
     );
     setAiAttachmentError(null);
+    setAiResponseError(null);
   };
 
   const addComposerFiles = (files: File[], mode: "image" | "file" | "paste-image") => {
@@ -718,6 +721,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     });
 
     setAiAttachmentError(nextError);
+    setAiResponseError(null);
     setIsAiAttachMenuOpen(false);
   };
 
@@ -777,6 +781,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     setAiPrompt("");
     clearComposerAttachments();
     setAiAttachmentError(null);
+    setAiResponseError(null);
     setIsAiAttachMenuOpen(false);
     setRespondingAiThreadId(threadId);
 
@@ -792,16 +797,15 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
         aiEditMemory,
       });
       const assistantMessage = {
-        ...createAiMessage(
-          "assistant",
-          documentEditResult.assistant_message,
-        ),
+        ...createAiMessage("assistant", documentEditResult.assistant_message),
         documentEditResult,
       };
       updateThreadMessages(threadId, assistantMessage);
       onCreateDocumentSuggestion(assistantMessage.id, effectivePrompt, documentEditResult);
+      setAiResponseError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI編集の取得に失敗しました";
+      setAiResponseError(message);
       updateThreadMessages(threadId, createAiMessage("assistant", message));
     } finally {
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
@@ -898,6 +902,24 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     addComposerFiles(imageFiles, "paste-image");
   };
 
+  const handleAiDropOver = (event: DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    if (!isAiDraggingFile) {
+      setIsAiDraggingFile(true);
+    }
+  };
+
+  const handleAiDropLeave = () => {
+    setIsAiDraggingFile(false);
+  };
+
+  const handleAiDropFiles = (event: DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    setIsAiDraggingFile(false);
+    const files = Array.from(event.dataTransfer.files ?? []);
+    addComposerFiles(files, "file");
+  };
+
   const handleAiImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
     addComposerFiles(files, "image");
@@ -920,6 +942,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     setAiPrompt("");
     clearComposerAttachments();
     setAiAttachmentError(null);
+    setAiResponseError(null);
     setIsAiAttachMenuOpen(false);
   };
 
@@ -930,6 +953,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     setAiPrompt("");
     clearComposerAttachments();
     setAiAttachmentError(null);
+    setAiResponseError(null);
     setIsAiAttachMenuOpen(false);
     setAiThreadMenuOpenId(null);
     setIsAiHistoryOpen(true);
@@ -985,6 +1009,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     activeAiThreadId,
     aiAttachmentError,
     aiMessagesContainerRef,
+    aiResponseError,
     aiMessagesEndRef,
     aiPrompt,
     autoRecommendStatus,
@@ -996,6 +1021,9 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     handleAiEcho,
     handleAiImageFileChange,
     handleAiInputPaste,
+    handleAiDropFiles,
+    handleAiDropLeave,
+    handleAiDropOver,
     handleAiInputKeyDown,
     resetAiSettings,
     setAiSettingText,
@@ -1005,6 +1033,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     handleRenameAiThread,
     isAiHistoryOpen,
     isAiAttachMenuOpen,
+    isAiDraggingFile,
     isAiResponding,
     removeComposerAttachment,
     respondingAiThreadId,

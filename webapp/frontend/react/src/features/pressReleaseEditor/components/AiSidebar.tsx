@@ -3,6 +3,7 @@ import type {
   ChangeEvent,
   ClipboardEvent,
   Dispatch,
+  DragEvent,
   KeyboardEvent,
   MouseEvent,
   RefObject,
@@ -52,7 +53,7 @@ export type AiSidebarProps = {
   activeAiThread: AiChatThread | null;
   activeAiThreadId: string;
   aiAttachmentError: string | null;
-  aiMessagesContainerRef: RefObject<HTMLDivElement | null>;
+  aiResponseError: string | null;
   aiMessagesEndRef: RefObject<HTMLDivElement | null>;
   aiPrompt: string;
   aiThreadMenuOpenId: string | null;
@@ -60,8 +61,11 @@ export type AiSidebarProps = {
   composerAttachments: AiComposerAttachment[];
   handleAiMixedFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   handleAiGeneralFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  handleAiEcho: () => void;
+  handleAiEcho: () => void | Promise<void>;
   handleAiImageFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  handleAiDropFiles: (event: DragEvent<HTMLTextAreaElement>) => void;
+  handleAiDropLeave: () => void;
+  handleAiDropOver: (event: DragEvent<HTMLTextAreaElement>) => void;
   handleAiInputPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   handleAiInputKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   handleJumpToSuggestion: (messageId: string) => void;
@@ -71,6 +75,7 @@ export type AiSidebarProps = {
   handleRenameAiThread: (thread: AiChatThread) => void;
   isAiHistoryOpen: boolean;
   isAiAttachMenuOpen: boolean;
+  isAiDraggingFile: boolean;
   isAiResponding: boolean;
   resetAiSettings: () => void;
   removeComposerAttachment: (attachmentId: string) => void;
@@ -95,7 +100,7 @@ export function AiSidebar({
   activeAiThread,
   activeAiThreadId,
   aiAttachmentError,
-  aiMessagesContainerRef,
+  aiResponseError,
   aiMessagesEndRef,
   aiPrompt,
   aiThreadMenuOpenId,
@@ -105,6 +110,9 @@ export function AiSidebar({
   handleAiGeneralFileChange,
   handleAiEcho,
   handleAiImageFileChange,
+  handleAiDropFiles,
+  handleAiDropLeave,
+  handleAiDropOver,
   handleAiInputPaste,
   handleAiInputKeyDown,
   handleJumpToSuggestion,
@@ -114,6 +122,7 @@ export function AiSidebar({
   handleRenameAiThread,
   isAiHistoryOpen,
   isAiAttachMenuOpen,
+  isAiDraggingFile,
   isAiResponding,
   resetAiSettings,
   removeComposerAttachment,
@@ -152,10 +161,11 @@ export function AiSidebar({
   return (
     <section className="aiPanel" aria-label="AIアシスタント">
       <div className="aiPanelHeader">
-        <h2 className="aiPanelTitle">
-          <Sparkles className="aiIcon aiIcon-title" aria-hidden="true" />
-          AIアシスタント
-        </h2>
+        <h2 className="aiPanelTitle">AIアシスタント</h2>
+        <p className="aiPanelDescription">
+          チャットを選択して会話できます。Enterで送信、Shift+Enterで改行できます。
+        </p>
+        <p className="aiPanelDescription">画像/ファイルは +、または Ctrl/Cmd + V、ドラッグ&ドロップで添付できます。</p>
       </div>
 
       <div className={`aiLayout${isAiHistoryOpen ? " is-thread-open" : ""}`}>
@@ -246,48 +256,48 @@ export function AiSidebar({
               </button>
               <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
             </div>
-            <div ref={aiMessagesContainerRef} className="aiChatList" aria-live="polite">
-              {activeAiMessages.length === 0 && (
-                <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
-              )}
-              {activeAiMessages.map((message) => (
-                <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
-                  <header className="aiMessageHeader">
-                    <span className="aiMessageRole">
-                      {message.role === "user" ? (
-                        <User className="aiIcon" aria-hidden="true" />
-                      ) : (
-                        <Bot className="aiIcon" aria-hidden="true" />
-                      )}
-                      {message.role === "user" ? "あなた" : "AI"}
-                    </span>
-                    <time className="aiMessageTime">{formatAiMessageTime(message.createdAt)}</time>
-                  </header>
-                  <p className="aiMessageBody">{message.text}</p>
-                  {message.attachments && message.attachments.length > 0 && (
-                    <ul className="aiMessageAttachmentList">
-                      {message.attachments.map((attachment) => (
-                        <li key={attachment.id} className="aiMessageAttachmentItem">
-                          {attachment.kind === "image" ? (
-                            <ImagePlus className="aiIcon" aria-hidden="true" />
-                          ) : (
-                            <FileText className="aiIcon" aria-hidden="true" />
-                          )}
-                          {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {message.documentEditResult && (
-                    <button type="button" className="aiMessageHintButton" onClick={() => handleJumpToSuggestion(message.id)}>
-                      <ArrowDownCircle className="aiIcon" aria-hidden="true" />
-                      {message.documentEditResult.navigation_label}
-                    </button>
-                  )}
-                </article>
-              ))}
-              {respondingAiThreadId === activeAiThread?.id && <p className="aiTyping">AIが返信を作成中です...</p>}
-              <div ref={aiMessagesEndRef} />
+            <div className="aiChatList" aria-live="polite">
+            {activeAiMessages.length === 0 && (
+              <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
+            )}
+            {activeAiMessages.map((message) => (
+              <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
+                <header className="aiMessageHeader">
+                  <span className="aiMessageRole">
+                    {message.role === "user" ? (
+                      <User className="aiIcon" aria-hidden="true" />
+                    ) : (
+                      <Bot className="aiIcon" aria-hidden="true" />
+                    )}
+                    {message.role === "user" ? "あなた" : "AI"}
+                  </span>
+                  <time className="aiMessageTime">{formatAiMessageTime(message.createdAt)}</time>
+                </header>
+                <p className="aiMessageBody">{message.text}</p>
+                {message.role === "assistant" && message.documentEditResult && (
+                  <button
+                    type="button"
+                    className="aiSuggestionJumpButton"
+                    onClick={() => handleJumpToSuggestion(message.id)}
+                  >
+                    <ArrowDownCircle className="aiIcon" aria-hidden="true" />
+                    提案へ移動
+                  </button>
+                )}
+                {message.attachments && message.attachments.length > 0 && (
+                  <ul className="aiMessageAttachmentList">
+                    {message.attachments.map((attachment) => (
+                      <li key={attachment.id} className="aiMessageAttachmentItem">
+                        {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            ))}
+            {respondingAiThreadId === activeAiThread?.id && <p className="aiTyping">AIが返信を作成中です...</p>}
+            {aiResponseError && <p className="aiResponseError">{aiResponseError}</p>}
+            <div ref={aiMessagesEndRef} />
             </div>
 
             <div className="aiComposer">
@@ -464,11 +474,15 @@ export function AiSidebar({
                 )}
               </section>
               <textarea
-                className="aiComposerInput"
+                className={`aiComposerInput${isAiDraggingFile ? " is-dragging" : ""}`}
                 value={aiPrompt}
                 onChange={(event) => setAiPrompt(event.target.value)}
                 onKeyDown={handleAiInputKeyDown}
                 onPaste={handleAiInputPaste}
+                onDragOver={handleAiDropOver}
+                onDragEnter={handleAiDropOver}
+                onDragLeave={handleAiDropLeave}
+                onDrop={handleAiDropFiles}
                 placeholder="AIに質問してみましょう"
                 rows={3}
               />
