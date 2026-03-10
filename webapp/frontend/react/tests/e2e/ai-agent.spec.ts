@@ -51,9 +51,7 @@ async function openAiPanel(page: Page) {
 async function createAiSuggestion(page: Page, prompt: string) {
   await page.getByPlaceholder("AIに質問してみましょう").fill(prompt);
   await page.getByRole("button", { name: "送信" }).click();
-  await expect(
-    page.getByText("提案を文書内に追加しました。該当箇所をクリックして差分を確認し、適用または破棄してください。"),
-  ).toBeVisible();
+  await expect(page.locator(".aiMessage-assistant").last()).toContainText("提案を文書内に追加しました。");
   await expect(page.locator(".aiSuggestionWidget")).toHaveCount(1);
 }
 

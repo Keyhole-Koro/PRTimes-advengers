@@ -37,7 +37,7 @@
 
 .aiPanelDescription {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
   line-height: 1.4;
 }
@@ -81,7 +81,7 @@
   background: #fff;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -96,7 +96,7 @@
   background: #fff;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -138,13 +138,13 @@
 }
 
 .aiThreadTitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #12385f;
 }
 
 .aiThreadPreview {
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
@@ -152,7 +152,7 @@
 }
 
 .aiThreadTime {
-  font-size: 10px;
+  font-size: 11px;
   color: #9ca3af;
 }
 
@@ -202,7 +202,7 @@
   background: transparent;
   color: #12385f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
@@ -233,7 +233,7 @@
 
 .aiActiveThreadTitle {
   min-width: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
   font-weight: 700;
   white-space: nowrap;
@@ -260,7 +260,7 @@
   padding: 16px;
   text-align: center;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .aiMessage {
@@ -288,7 +288,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 11px;
   opacity: 0.85;
 }
 
@@ -300,7 +300,7 @@
 }
 
 .aiMessageTime {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .aiMessageBody {
@@ -323,14 +323,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   opacity: 0.9;
 }
 
 .aiMessageHint {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: #1d4ed8;
 }
@@ -346,7 +346,7 @@
   background: #eff6ff;
   color: #1d4ed8;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
   cursor: pointer;
@@ -358,7 +358,7 @@
 
 .aiTyping {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #5b6b7f;
 }
 
@@ -400,7 +400,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #374151;
   white-space: nowrap;
   overflow: hidden;
@@ -424,7 +424,7 @@
 
 .aiComposerError {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #b91c1c;
 }
 
@@ -500,7 +500,7 @@
   color: #12385f;
   text-align: left;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -516,7 +516,7 @@
   background: transparent;
   color: #5b6b7f;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 4px 6px;
 }

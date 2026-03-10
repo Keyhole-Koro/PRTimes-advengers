@@ -177,7 +177,7 @@ export function EditorWorkspace({
                       addTag();
                     }
                   }}
-                  placeholder="人間がタグを追加"
+                  placeholder="タグを追加"
                 />
                 <button type="button" className="metaAppendButton" onClick={addTag}>
                   追加
