@@ -6,7 +6,7 @@ import { ensureDatabaseSchema } from './db/schemaSetup.js'
 import { collaborationHub } from './realtime/collaborationHub.js'
 import { parseClientRealtimeMessage } from './realtime/messages.js'
 import { pressReleaseService } from './services/pressReleaseService.js'
-import uuidv4 from 'uuid/v4'
+
 // Wire up the collaboration hub notification through the service callback
 // so that routes don't need to know about the collaboration hub
 pressReleaseService.onPressReleaseSaved((pressRelease) => {
@@ -63,7 +63,7 @@ server.on('upgrade', (request, socket, head) => {
   }
 
   const pressReleaseId = parseInt(matched[1], 10)
-  const clientId = uuidv4()
+  const clientId = globalThis.crypto.randomUUID()
   const userId = requestUrl.searchParams.get('userId') || clientId
   const name = requestUrl.searchParams.get('name') || `User ${clientId.slice(0, 4)}`
   const color = requestUrl.searchParams.get('color') || '#2563eb'
