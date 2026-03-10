@@ -3,7 +3,7 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+import traceback
 from services.task_service import TaskExecutionError, TaskNotFoundError, TaskService
 from services.validator import SchemaValidationError
 
