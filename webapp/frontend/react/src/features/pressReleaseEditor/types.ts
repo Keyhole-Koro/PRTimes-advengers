@@ -67,7 +67,7 @@ export type CommentMessageResponse = {
   created_at: string;
 };
 
-export type SidebarTab = "history" | "comments";
+export type SidebarTab = "history" | "comments" | "ai";
 
 export type ToolbarButtonConfig = {
   key: string;
@@ -134,4 +134,3 @@ export type RealtimeMessage =
       type: "presence.snapshot";
       users: PresenceUser[];
     };
-

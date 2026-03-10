@@ -27,6 +27,7 @@ import { useAssetActions } from "./hooks/useAssetActions";
 import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
+import { useAiAssistant } from "./hooks/useAiAssistant";
 import { MOCK_TEMPLATES } from "./mockTemplates";
 import type {
   MarkType,
@@ -456,6 +457,8 @@ export function PressReleaseEditorPage({
     title,
   });
 
+  const aiAssistant = useAiAssistant();
+
   const handleStartComment = () => {
     if (!editor) {
       return;
@@ -623,6 +626,7 @@ export function PressReleaseEditorPage({
             toolbarGroups={toolbarGroups}
           />
 
+<<<<<<< HEAD
           <div className="sidebarColumn">
             <EditorHeader
               identityColor={identity.color}
@@ -677,6 +681,53 @@ export function PressReleaseEditorPage({
               }
             />
           </div>
+=======
+      <EditorSidebar
+            activeThreadId={activeThreadId}
+            addReply={handleAddReply}
+            applyTemplate={applyTemplate}
+            applyingTemplateId={applyingTemplateId}
+            cancelCreateComment={() => {
+              setIsCreatingComment(false);
+              setNewCommentBody("");
+            }}
+            commentThreads={commentThreads}
+            editor={editor}
+            isCreatingComment={isCreatingComment}
+            isSavingTemplate={isSavingTemplate}
+            newCommentBody={newCommentBody}
+            previousRevision={previousRevision}
+            replyBodies={replyBodies}
+            restoreRevision={restoreRevision}
+            restoringRevisionId={restoringRevisionId}
+            revisionSummaries={revisionSummaries}
+            revisions={revisions}
+            saveCurrentAsTemplate={saveCurrentAsTemplate}
+            selectedRevision={selectedRevision}
+            selectedRevisionId={selectedRevisionId}
+            setActiveThreadId={setActiveThreadId}
+            setNewCommentBody={setNewCommentBody}
+            setReplyBody={(threadId, value) =>
+              setReplyBodies((current) => ({
+                ...current,
+                [threadId]: value,
+              }))
+            }
+            setSelectedRevisionId={setSelectedRevisionId}
+            setShowResolvedComments={setShowResolvedComments}
+            setSidebarTab={setSidebarTab}
+            setTemplateName={setTemplateName}
+            showResolvedComments={showResolvedComments}
+            sidebarTab={sidebarTab}
+            submitCreateComment={handleCreateComment}
+        templateName={templateName}
+        templates={templates}
+        toggleResolveThread={(thread) =>
+          thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
+        }
+        aiSidebarProps={aiAssistant}
+      />
+>>>>>>> 62e069d8c42313bebe3cb88c4fb2a3d86965ad31
         </div>
       </main>
     </div>

@@ -687,6 +687,11 @@
   background: #f8fbff;
   align-content: start;
   min-width: 0;
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
 }
 
 .sidebarTabs {
@@ -1029,6 +1034,13 @@
 
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .sidebarPanel {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .historyList {
