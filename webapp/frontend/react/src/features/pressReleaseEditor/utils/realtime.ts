@@ -2,9 +2,9 @@ import { Extension } from "@tiptap/core";
 import { collab } from "@tiptap/pm/collab";
 
 import { PRESENCE_COLORS } from "../constants";
-
+import { v4 as uuidv4 } from 'uuid'
 export function createRealtimeIdentity() {
-  const userId = crypto.randomUUID();
+  const userId= uuidv4();
   const suffix = userId.slice(0, 4);
   return {
     userId,
