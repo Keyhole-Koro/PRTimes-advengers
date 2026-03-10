@@ -973,6 +973,47 @@
   font-size: 13px;
 }
 
+.editorImageNode {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 16px 0;
+}
+
+.editorImageNode img {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.editorImageNode.is-selected img {
+  outline: 2px solid #12385f;
+  outline-offset: 2px;
+}
+
+.editorImageDeleteButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.editorImageDeleteButton:hover {
+  background: rgba(185, 28, 28, 0.9);
+}
+
 @media (max-width: 960px) {
   .container {
     padding: 16px;

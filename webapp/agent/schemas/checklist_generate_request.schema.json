@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context", "checklist"],
+  "properties": {
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference_docs", "uploaded_materials"],
+      "properties": {
+        "reference_docs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextDocument" }
+        },
+        "uploaded_materials": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextDocument" }
+        }
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "goal"],
+      "properties": {
+        "name": { "type": "string" },
+        "goal": { "type": "string" },
+        "existing_items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/checklistItem" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "contextDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "content"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "source_type": { "type": "string" }
+      }
+    },
+    "checklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "done", "blocked"]
+        }
+      }
+    }
+  }
+}
