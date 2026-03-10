@@ -15,4 +15,11 @@ export const PressReleaseAiEditRequestSchema = z.object({
   prompt: z.string().trim().min(1),
   title: z.string().trim().min(1),
   content: PressReleaseContentSchema,
+  conversation_history: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant']),
+      text: z.string(),
+      created_at: z.string(),
+    }),
+  ).optional(),
 })

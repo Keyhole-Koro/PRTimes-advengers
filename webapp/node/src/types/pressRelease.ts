@@ -64,6 +64,13 @@ export type RequestAiEditInput = {
   prompt: string
   title: string
   content: PressReleaseContent
+  conversation_history?: ConversationHistoryEntry[]
+}
+
+export type ConversationHistoryEntry = {
+  role: 'user' | 'assistant'
+  text: string
+  created_at: string
 }
 
 export type AgentDocumentBlock = {
