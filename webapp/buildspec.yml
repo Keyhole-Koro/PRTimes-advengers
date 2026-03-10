@@ -16,6 +16,7 @@ phases:
       # CodeBuildの環境変数 APP_API_BASE_URL を .env に書き出す
       # (注意: Viteで読み込むために VITE_ プレフィックスを付けています)
       - echo "VITE_APP_API_BASE_URL=$APP_API_BASE_URL" >> .env
+      - echo "VITE_WS_BASE_URL=$WS_BASE_URL" >> .env
       - echo "APP_ENV=$APP_ENV" >> .env
 
   build:
