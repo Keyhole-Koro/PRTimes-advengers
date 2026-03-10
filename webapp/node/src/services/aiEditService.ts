@@ -188,6 +188,8 @@ function buildDeterministicEditResult(input: RequestAiEditInput): AgentDocumentE
 
   return {
     summary,
+    assistant_message: `${instruction.paragraphIndex}つ目の段落への追記案を追加しました。`,
+    navigation_label: `${instruction.paragraphIndex}つ目の段落の提案を見る`,
     suggestions: [
       {
         id: `deterministic-${instruction.paragraphIndex}-${instruction.position}-${instruction.token}`,

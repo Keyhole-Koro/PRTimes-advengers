@@ -149,6 +149,8 @@ export type AgentDocumentEditSuggestion = {
 
 export type AgentDocumentEditResult = {
   summary: string;
+  assistant_message: string;
+  navigation_label: string;
   suggestions: AgentDocumentEditSuggestion[];
   notes?: string[];
 };

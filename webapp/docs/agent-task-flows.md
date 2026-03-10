@@ -52,6 +52,8 @@ block の `type` は次に限定されています。
 ### 出力
 
 - `summary`
+- `assistant_message`
+- `navigation_label`
 - `suggestions[]`
 - `notes[]`（任意）
 

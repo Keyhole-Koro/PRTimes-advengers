@@ -30,6 +30,8 @@ class TaskServiceTestCase(unittest.TestCase):
                 {
                     "document_edit": {
                         "summary": "文書を整理しました。",
+                        "assistant_message": "本文の改善案を追加しました。気になる箇所から確認してください。",
+                        "navigation_label": "本文提案を確認する",
                         "suggestions": [
                             {
                                 "id": "suggestion-1",
@@ -112,6 +114,8 @@ class TaskServiceTestCase(unittest.TestCase):
         self.assertIn("タイトル:", prompt)
         self.assertIn("メタデータ:", prompt)
         self.assertIn("リスク:", prompt)
+        self.assertIn("assistant_message", prompt)
+        self.assertIn("navigation_label", prompt)
 
     def test_document_edit_prompt_contains_frontend_settings_when_provided(self):
         prompt = build_document_edit_prompt(

@@ -74,6 +74,8 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
       JSON.stringify({
         result: {
           summary: 'ok',
+          assistant_message: '改善案を追加しました。',
+          navigation_label: '提案を見る',
           suggestions: [],
         },
       }),

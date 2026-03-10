@@ -217,6 +217,8 @@ function normalizeDocumentEditResult(value: unknown): AgentDocumentEditResult | 
 
   const result = value as {
     summary?: unknown;
+    assistant_message?: unknown;
+    navigation_label?: unknown;
     suggestions?: unknown;
     operations?: unknown;
     notes?: unknown;
@@ -226,9 +228,20 @@ function normalizeDocumentEditResult(value: unknown): AgentDocumentEditResult | 
     return undefined;
   }
 
+  const assistantMessage =
+    typeof result.assistant_message === "string" && result.assistant_message.trim() !== ""
+      ? result.assistant_message
+      : "提案を追加しました。内容を確認してください。";
+  const navigationLabel =
+    typeof result.navigation_label === "string" && result.navigation_label.trim() !== ""
+      ? result.navigation_label
+      : "提案箇所へ移動";
+
   if (Array.isArray(result.suggestions) && result.suggestions.every(isValidAgentDocumentEditSuggestion)) {
     return {
       summary: result.summary,
+      assistant_message: assistantMessage,
+      navigation_label: navigationLabel,
       suggestions: result.suggestions,
       notes: Array.isArray(result.notes) ? result.notes.filter((item): item is string => typeof item === "string") : undefined,
     };
@@ -237,6 +250,8 @@ function normalizeDocumentEditResult(value: unknown): AgentDocumentEditResult | 
   if (Array.isArray(result.operations) && result.operations.every(isValidAgentDocumentEditOperation)) {
     return {
       summary: result.summary,
+      assistant_message: assistantMessage,
+      navigation_label: navigationLabel,
       suggestions: [
         {
           id: "legacy-body-suggestion",
@@ -647,7 +662,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       const assistantMessage = {
         ...createAiMessage(
           "assistant",
-          "細かい提案を文書内に追加しました。該当箇所をクリックして内容を確認し、1つずつ反映するか見送るかを選べます。",
+          documentEditResult.assistant_message,
         ),
         documentEditResult,
       };
@@ -692,7 +707,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
           const assistantMessage = {
             ...createAiMessage(
               "assistant",
-              "行数差分が3行に達したため、自動レコメンドを作成しました。提案を確認してください。",
+              documentEditResult.assistant_message,
             ),
             documentEditResult,
           };
