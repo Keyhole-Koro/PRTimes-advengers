@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  "compilerOptions": {
+    "module": "NodeNext",             // または "Node16"
+    "moduleResolution": "NodeNext",   // または "Node16"
+    "types": ["node"]
+  }
 }
