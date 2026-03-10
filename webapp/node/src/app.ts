@@ -10,50 +10,28 @@ import { commentRoutes } from './routes/comments.js'
 
 export const app = new Hono()
 
-const appEnv = process.env.APP_ENV === 'prod' ? 'prod' : 'local'
-
-const resolveCorsOrigin = () => {
-  if (appEnv === 'local') {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-
-  const frontendUrl = process.env.APP_FRONTEND_URL || 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com'
-  console.log(`CORS configuration for environment "${appEnv}":`, { frontendUrl })
-  if (!frontendUrl) {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-
-  try {
-    const allowedOrigin = new URL(frontendUrl).origin
-    return allowedOrigin
-  } catch {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-}
-
-const corsOrigin = resolveCorsOrigin()
-
 app.use(
   '*',
   cors({
-    origin: corsOrigin,
+    origin: (origin) => {
+      // 1. S3のフロントエンドからのアクセスを無条件で許可
+      if (origin === 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com') {
+        return origin
+      }
+      // 2. ローカル開発環境 (localhost) からのアクセスを許可
+      if (origin && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+        return origin
+      }
+      // 3. 環境変数で動的に設定されたURLからのアクセスを許可
+      if (origin && process.env.APP_FRONTEND_URL === origin) {
+        return origin
+      }
+      // どれにも一致しない場合のフォールバック（確実化のためS3のURLを返す）
+      return 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com'
+    },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'Authorization'], // 今後のためAuthorizationも追加推奨
+    credentials: true, // フロントエンドからのFetchに必要になるケースが多いです
   })
 )
 
