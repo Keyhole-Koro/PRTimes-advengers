@@ -28,11 +28,9 @@ import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import { useAiAssistant } from "./hooks/useAiAssistant";
-import { MOCK_TEMPLATES } from "./mockTemplates";
 import type {
   MarkType,
   PressRelease,
-  PressReleaseTemplateResponse,
   RealtimeMessage,
   SaveStatus,
   SessionState,
@@ -55,10 +53,6 @@ export function PressReleaseEditorPage({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [editorResetToken, setEditorResetToken] = useState(0);
   const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
-  const [templateName, setTemplateName] = useState("");
-  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [applyingTemplateId, setApplyingTemplateId] = useState<number | null>(null);
-  const [templates, setTemplates] = useState<PressReleaseTemplateResponse[]>(MOCK_TEMPLATES);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("history");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
@@ -344,65 +338,6 @@ export function PressReleaseEditorPage({
     sendTitleUpdate(nextTitle);
   };
 
-  const saveCurrentAsTemplate = async () => {
-    if (!editor) {
-      return;
-    }
-
-    const trimmedName = templateName.trim();
-    if (!trimmedName) {
-      alert("テンプレート名を入力してください");
-      return;
-    }
-
-    setIsSavingTemplate(true);
-    try {
-      const timestamp = new Date().toLocaleString("ja-JP");
-      setTemplates((current) => [
-        {
-          content: editor.getJSON(),
-          created_at: timestamp,
-          id: Date.now(),
-          name: trimmedName,
-          title,
-          updated_at: timestamp,
-        },
-        ...current,
-      ]);
-      setTemplateName("");
-    } catch (templateError) {
-      const message = templateError instanceof Error ? templateError.message : "テンプレートの保存に失敗しました";
-      alert(message);
-    } finally {
-      setIsSavingTemplate(false);
-    }
-  };
-
-  const applyTemplate = async (templateId: number) => {
-    if (!editor) {
-      return;
-    }
-
-    setApplyingTemplateId(templateId);
-    try {
-      const template = templates.find((item) => item.id === templateId);
-      if (!template) {
-        throw new Error("テンプレートが見つかりません");
-      }
-
-      setTitle(template.title);
-      sendTitleUpdate(template.title);
-      editor.commands.setContent(template.content);
-      setSaveStatus("dirty");
-      requestFlush();
-    } catch (templateError) {
-      const message = templateError instanceof Error ? templateError.message : "テンプレートの適用に失敗しました";
-      alert(message);
-    } finally {
-      setApplyingTemplateId(null);
-    }
-  };
-
   const {
     activeThreadId,
     commentThreads,
@@ -638,8 +573,6 @@ export function PressReleaseEditorPage({
             <EditorSidebar
               activeThreadId={activeThreadId}
               addReply={handleAddReply}
-              applyTemplate={applyTemplate}
-              applyingTemplateId={applyingTemplateId}
               cancelCreateComment={() => {
                 setIsCreatingComment(false);
                 setNewCommentBody("");
@@ -647,7 +580,6 @@ export function PressReleaseEditorPage({
               commentThreads={commentThreads}
               editor={editor}
               isCreatingComment={isCreatingComment}
-              isSavingTemplate={isSavingTemplate}
               newCommentBody={newCommentBody}
               previousRevision={previousRevision}
               replyBodies={replyBodies}
@@ -655,7 +587,6 @@ export function PressReleaseEditorPage({
               restoringRevisionId={restoringRevisionId}
               revisionSummaries={revisionSummaries}
               revisions={revisions}
-              saveCurrentAsTemplate={saveCurrentAsTemplate}
               selectedRevision={selectedRevision}
               selectedRevisionId={selectedRevisionId}
               setActiveThreadId={setActiveThreadId}
@@ -669,12 +600,9 @@ export function PressReleaseEditorPage({
               setSelectedRevisionId={setSelectedRevisionId}
               setShowResolvedComments={setShowResolvedComments}
               setSidebarTab={setSidebarTab}
-              setTemplateName={setTemplateName}
               showResolvedComments={showResolvedComments}
               sidebarTab={sidebarTab}
               submitCreateComment={handleCreateComment}
-              templateName={templateName}
-              templates={templates}
               toggleResolveThread={(thread) =>
                 thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
               }
