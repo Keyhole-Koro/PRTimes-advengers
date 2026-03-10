@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-
+import { v4 as uuidv4 } from 'uuid'
 import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
 import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
 export type AiAttachmentKind = "image" | "file";
@@ -66,7 +66,7 @@ const AI_ALLOWED_FILE_MIME_TYPES = new Set([
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     title,
     updatedAt: new Date().toISOString(),
     messages: [],
@@ -75,7 +75,7 @@ function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
 
 function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessage {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     role,
     text,
     createdAt: new Date().toISOString(),
@@ -490,7 +490,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
         }
 
         next.push({
-          id: globalThis.crypto.randomUUID(),
+          id: uuidv4(),
           file,
           kind,
           name: file.name || (kind === "image" ? "pasted-image.png" : "untitled"),
