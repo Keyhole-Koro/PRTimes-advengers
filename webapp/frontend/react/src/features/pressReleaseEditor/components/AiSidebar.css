@@ -428,6 +428,135 @@
   color: #b91c1c;
 }
 
+.aiSettingsPanel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff 0%, #fdfefe 100%);
+}
+
+.aiSettingsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.aiSettingsToggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aiSettingsEyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #40678d;
+  text-transform: uppercase;
+}
+
+.aiSettingsDescription {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #5b6b7f;
+}
+
+.aiSettingsResetButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #d0dbe8;
+  border-radius: 999px;
+  background: #fff;
+  color: #40678d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aiSettingsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.aiSettingsField {
+  display: grid;
+  gap: 4px;
+}
+
+.aiSettingsLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #12385f;
+}
+
+.aiSettingsInput,
+.aiSettingsSelect {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #c8d6e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.aiSettingsInput:focus,
+.aiSettingsSelect:focus {
+  outline: 2px solid rgba(29, 78, 216, 0.16);
+  border-color: #2563eb;
+}
+
+.aiSettingsGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.aiSettingsChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aiSettingsChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border: 1px solid #c8d6e5;
+  border-radius: 999px;
+  background: #fff;
+  color: #40678d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.aiSettingsChip.is-active {
+  border-color: #12385f;
+  background: #12385f;
+  color: #fff;
+}
+
 .aiComposerInput {
   width: 100%;
   min-width: 0;
@@ -559,5 +688,9 @@
   .aiThreadList,
   .aiChatList {
     max-height: 240px;
+  }
+
+  .aiSettingsGrid {
+    grid-template-columns: 1fr;
   }
 }

@@ -65,6 +65,16 @@ export type RequestAiEditInput = {
   title: string
   content: PressReleaseContent
   conversation_history?: ConversationHistoryEntry[]
+  ai_settings?: AiEditSettings
+}
+
+export type AiEditSettings = {
+  target_audience?: string
+  writing_style?: string
+  tone?: string
+  brand_voice?: string
+  focus_points?: string[]
+  priority_checks?: string[]
 }
 
 export type ConversationHistoryEntry = {
@@ -113,6 +123,7 @@ export type AgentDocumentSuggestionCategory =
 
 export type AgentDocumentEditSuggestion = {
   id: string
+  presentation?: "block" | "inline"
   category: AgentDocumentSuggestionCategory
   summary: string
   reason?: string
@@ -121,6 +132,8 @@ export type AgentDocumentEditSuggestion = {
 
 export type AgentDocumentEditResult = {
   summary: string
+  assistant_message: string
+  navigation_label: string
   suggestions: AgentDocumentEditSuggestion[]
   notes?: string[]
 }

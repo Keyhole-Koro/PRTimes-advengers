@@ -20,6 +20,7 @@ type SuggestionExtensionOptions = {
 
 type IndexedBlockPosition = {
   id: string;
+  from: number;
   to: number;
 };
 
@@ -38,6 +39,7 @@ function buildIndexedBlockPositions(state: EditorState): IndexedBlockPosition[] 
     blockIndex += 1;
     positions.push({
       id: `block-${blockIndex}`,
+      from: offset + 1,
       to: offset + node.nodeSize,
     });
   });
@@ -188,6 +190,10 @@ function createOperationDiff(
   return card;
 }
 
+function isInlineSuggestion(suggestion: PendingAiSuggestion): boolean {
+  return suggestion.suggestion.presentation === "inline" && suggestion.suggestion.operations.length === 1;
+}
+
 function getSuggestionAnchorPosition(state: EditorState, suggestion: PendingAiSuggestion): number {
   const positions = buildIndexedBlockPositions(state);
   const operations = suggestion.suggestion?.operations;
@@ -320,26 +326,225 @@ function createSuggestionWidget(
   };
 }
 
+function createInlineSuggestionBubble(
+  suggestion: PendingAiSuggestion,
+  options: SuggestionExtensionOptions,
+) {
+  return () => {
+    const operation = suggestion.suggestion.operations[0];
+    if (!operation) {
+      return document.createElement("span");
+    }
+
+    const root = document.createElement("span");
+    root.className = "aiSuggestionWidget aiSuggestionWidget-inlineBubble";
+    root.contentEditable = "false";
+    root.setAttribute("data-suggestion-id", suggestion.id);
+    const bubble = document.createElement("div");
+    bubble.className = "aiSuggestionInlineBubble";
+
+    const title = document.createElement("p");
+    title.className = "aiSuggestionInlineTitle";
+    title.textContent = suggestion.suggestion.summary;
+    bubble.append(title);
+
+    const meta = document.createElement("p");
+    meta.className = "aiSuggestionInlineMeta";
+    meta.textContent = `分類: ${suggestion.suggestion.category}`;
+    bubble.append(meta);
+
+    if (operation.op === "modify") {
+      const beforeAfter = document.createElement("div");
+      beforeAfter.className = "aiSuggestionInlineDiff";
+
+      const before = document.createElement("span");
+      before.className = "aiSuggestionInlineBefore";
+      before.textContent = operation.before?.text ?? "";
+      beforeAfter.append(before);
+
+      const arrow = document.createElement("span");
+      arrow.className = "aiSuggestionInlineArrow";
+      arrow.textContent = "→";
+      beforeAfter.append(arrow);
+
+      const after = document.createElement("span");
+      after.className = "aiSuggestionInlineAfter";
+      after.textContent = operation.after.text;
+      beforeAfter.append(after);
+
+      bubble.append(beforeAfter);
+    } else if (operation.op === "remove") {
+      const removed = document.createElement("p");
+      removed.className = "aiSuggestionInlineMeta";
+      removed.textContent = `削除候補: ${operation.removed_block?.text ?? operation.block_id}`;
+      bubble.append(removed);
+    } else {
+      const added = document.createElement("p");
+      added.className = "aiSuggestionInlineMeta";
+      added.textContent = `追加候補: ${operation.block.text}`;
+      bubble.append(added);
+    }
+
+    const reason = operation.reason || suggestion.suggestion.reason;
+    if (reason) {
+      const reasonText = document.createElement("p");
+      reasonText.className = "aiSuggestionInlineReason";
+      reasonText.textContent = reason;
+      bubble.append(reasonText);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "aiSuggestionInlineActions";
+
+    const accept = document.createElement("button");
+    accept.type = "button";
+    accept.className = "aiSuggestionAccept aiSuggestionInlineAction";
+    accept.textContent = "反映";
+    accept.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onAcceptSuggestionOperation(suggestion.id, 0, operation.op === "modify" ? operation.after.text : undefined);
+    });
+    actions.append(accept);
+
+    const discard = document.createElement("button");
+    discard.type = "button";
+    discard.className = "aiSuggestionDiscard aiSuggestionInlineAction";
+    discard.textContent = "見送る";
+    discard.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onDiscardSuggestionOperation(suggestion.id, 0);
+    });
+    actions.append(discard);
+
+    bubble.append(actions);
+    root.append(bubble);
+
+    return root;
+  };
+}
+
+function createInlineSuggestionBadge(
+  suggestion: PendingAiSuggestion,
+  isActive: boolean,
+  toneIndex: number,
+  options: SuggestionExtensionOptions,
+) {
+  return () => {
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = `aiSuggestionInlineBadge aiSuggestionInlineBadge-${suggestion.suggestion.category} aiSuggestionInlineTone-${toneIndex}${isActive ? " is-active" : ""}`;
+    badge.textContent = "AI";
+    badge.setAttribute("aria-label", suggestion.suggestion.summary);
+    badge.title = suggestion.suggestion.summary;
+    badge.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onActivateSuggestion(isActive ? null : suggestion.id);
+    });
+    return badge;
+  };
+}
+
 function buildDecorations(state: EditorState, pluginState: SuggestionDecorationState, options: SuggestionExtensionOptions) {
-  const decorations = pluginState.suggestions
-    .filter((suggestion) => Array.isArray(suggestion.suggestion?.operations))
-    .map((suggestion) => {
+  const positions = buildIndexedBlockPositions(state);
+  const inlineToneIndexBySuggestionId = new Map<string, number>();
+  const inlineCountByBlockId = new Map<string, number>();
+
+  pluginState.suggestions.forEach((suggestion) => {
+    if (!isInlineSuggestion(suggestion)) {
+      return;
+    }
+
+    const operation = suggestion.suggestion.operations[0];
+    const blockId = operation?.op === "add" ? operation.after_block_id : operation?.block_id;
+    if (!blockId) {
+      inlineToneIndexBySuggestionId.set(suggestion.id, 0);
+      return;
+    }
+
+    const count = inlineCountByBlockId.get(blockId) ?? 0;
+    inlineToneIndexBySuggestionId.set(suggestion.id, count % 4);
+    inlineCountByBlockId.set(blockId, count + 1);
+  });
+
+  const decorations = pluginState.suggestions.flatMap((suggestion) => {
+    if (!Array.isArray(suggestion.suggestion?.operations)) {
+      return [];
+    }
+
     const position = getSuggestionAnchorPosition(state, suggestion);
     const isActive = pluginState.activeSuggestionId === suggestion.id;
-    return Decoration.widget(
-      Math.max(0, Math.min(position, state.doc.content.size)),
-      createSuggestionWidget(suggestion, isActive, options),
-      {
-        ignoreSelection: true,
-        side: 1,
-        key: `ai-suggestion-${suggestion.id}-${isActive ? "open" : "closed"}`,
-        stopEvent: (event) => {
-          const target = event.target;
-          return target instanceof HTMLElement && target.closest(".aiSuggestionWidget") !== null;
+
+    if (isInlineSuggestion(suggestion)) {
+      const operation = suggestion.suggestion.operations[0];
+      const blockId = operation?.op === "add" ? operation.after_block_id : operation?.block_id;
+      const target = blockId ? positions.find((item) => item.id === blockId) : null;
+      const toneIndex = inlineToneIndexBySuggestionId.get(suggestion.id) ?? 0;
+      const inlineDecorations = [];
+
+      if (target && target.to > target.from) {
+        inlineDecorations.push(
+          Decoration.inline(target.from, target.to - 1, {
+            class: `aiSuggestionInlineUnderline aiSuggestionInlineUnderline-${suggestion.suggestion.category} aiSuggestionInlineTone-${toneIndex}`,
+            "data-suggestion-id": suggestion.id,
+          }),
+        );
+        inlineDecorations.push(
+          Decoration.widget(
+            Math.max(target.to - 1, target.from),
+            createInlineSuggestionBadge(suggestion, isActive, toneIndex, options),
+            {
+              ignoreSelection: true,
+              side: 1,
+              key: `ai-inline-suggestion-${suggestion.id}-badge-${isActive ? "open" : "closed"}`,
+              stopEvent: (event) => {
+                const targetNode = event.target;
+                return targetNode instanceof HTMLElement && targetNode.closest(".aiSuggestionInlineBadge") !== null;
+              },
+            },
+          ),
+        );
+      }
+
+      if (isActive) {
+        inlineDecorations.push(
+          Decoration.widget(
+            Math.max(0, Math.min(position, state.doc.content.size)),
+            createInlineSuggestionBubble(suggestion, options),
+            {
+              ignoreSelection: true,
+              side: 1,
+              key: `ai-inline-suggestion-${suggestion.id}-open`,
+              stopEvent: (event) => {
+                const targetNode = event.target;
+                return targetNode instanceof HTMLElement && targetNode.closest(".aiSuggestionWidget") !== null;
+              },
+            },
+          ),
+        );
+      }
+
+      return inlineDecorations;
+    }
+
+    return [
+      Decoration.widget(
+        Math.max(0, Math.min(position, state.doc.content.size)),
+        createSuggestionWidget(suggestion, isActive, options),
+        {
+          ignoreSelection: true,
+          side: 1,
+          key: `ai-suggestion-${suggestion.id}-${isActive ? "open" : "closed"}`,
+          stopEvent: (event) => {
+            const target = event.target;
+            return target instanceof HTMLElement && target.closest(".aiSuggestionWidget") !== null;
+          },
         },
-      },
-    );
-    });
+      ),
+    ];
+  });
 
   return DecorationSet.create(state.doc, decorations);
 }
@@ -376,6 +581,29 @@ export const createAiSuggestionDecorations = (options: SuggestionExtensionOption
                 return DecorationSet.empty;
               }
               return buildDecorations(state, pluginState, options);
+            },
+            handleClick(view, _pos, event) {
+              const target = event.target;
+              if (!(target instanceof HTMLElement)) {
+                options.onActivateSuggestion(null);
+                return false;
+              }
+
+              if (target.closest(".aiSuggestionWidget")) {
+                return false;
+              }
+
+              const underline = target.closest<HTMLElement>(".aiSuggestionInlineUnderline");
+              if (!underline) {
+                options.onActivateSuggestion(null);
+                return false;
+              }
+
+              const suggestionId = underline.dataset.suggestionId ?? null;
+              const pluginState = aiSuggestionPluginKey.getState(view.state);
+              const isActive = pluginState?.activeSuggestionId === suggestionId;
+              options.onActivateSuggestion(isActive ? null : suggestionId);
+              return true;
             },
           },
         }),

@@ -1,4 +1,4 @@
-import type { PressReleaseContent, PressReleaseResponse } from '../types/pressRelease.js'
+import type { PressReleaseContent, PressReleaseResponse } from '../../types/pressRelease.js'
 
 export type PresencePayload = {
   userId: string

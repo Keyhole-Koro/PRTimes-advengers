@@ -22,4 +22,12 @@ export const PressReleaseAiEditRequestSchema = z.object({
       created_at: z.string(),
     }),
   ).optional(),
+  ai_settings: z.object({
+    target_audience: z.string().trim().min(1).optional(),
+    writing_style: z.string().trim().min(1).optional(),
+    tone: z.string().trim().min(1).optional(),
+    brand_voice: z.string().trim().min(1).optional(),
+    focus_points: z.array(z.string().trim().min(1)).optional(),
+    priority_checks: z.array(z.string().trim().min(1)).optional(),
+  }).optional(),
 })

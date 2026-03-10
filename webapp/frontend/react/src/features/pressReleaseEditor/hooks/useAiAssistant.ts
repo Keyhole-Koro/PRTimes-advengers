@@ -1,9 +1,10 @@
 import type { Editor } from "@tiptap/react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuidv4 } from 'uuid'
-import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
-import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
+
+import { PRESS_RELEASE_ID } from "../constants";
+import { normalizeDocumentEditResult, requestDocumentEdit } from "../infrastructure/aiApi";
+import type { AgentDocumentEditResult } from "../types";
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {
@@ -35,19 +36,35 @@ export type AiChatThread = {
   messages: AiChatMessage[];
 };
 
+export type AiAgentSettings = {
+  targetAudience: string;
+  writingStyle: string;
+  tone: string;
+  brandVoice: string;
+  focusPoints: string[];
+  priorityChecks: string[];
+};
+
+export type AiAutoRecommendStatus = {
+  lineDelta: number;
+  startedAt: string;
+};
+
 type UseAiAssistantOptions = {
   editor: Editor | null;
   onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
   title: string;
 };
 
-type ConversationHistoryEntry = {
+export type ConversationHistoryEntry = {
   role: "user" | "assistant";
   text: string;
   created_at: string;
 };
 
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
+const AI_SETTINGS_STORAGE_KEY = `press-release-editor-ai-settings:${PRESS_RELEASE_ID}`;
+const AI_SCROLL_STORAGE_KEY = `press-release-editor-ai-scroll:${PRESS_RELEASE_ID}`;
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
 const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -63,6 +80,38 @@ const AI_ALLOWED_FILE_MIME_TYPES = new Set([
   "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+const DEFAULT_AI_SETTINGS: AiAgentSettings = {
+  targetAudience: "",
+  writingStyle: "",
+  tone: "",
+  brandVoice: "",
+  focusPoints: [],
+  priorityChecks: [],
+};
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function parseStoredAiSettings(rawValue: string | null): AiAgentSettings {
+  if (!rawValue) {
+    return DEFAULT_AI_SETTINGS;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<AiAgentSettings>;
+    return {
+      targetAudience: typeof parsed.targetAudience === "string" ? parsed.targetAudience : "",
+      writingStyle: typeof parsed.writingStyle === "string" ? parsed.writingStyle : "",
+      tone: typeof parsed.tone === "string" ? parsed.tone : "",
+      brandVoice: typeof parsed.brandVoice === "string" ? parsed.brandVoice : "",
+      focusPoints: isStringArray(parsed.focusPoints) ? parsed.focusPoints : [],
+      priorityChecks: isStringArray(parsed.priorityChecks) ? parsed.priorityChecks : [],
+    };
+  } catch {
+    return DEFAULT_AI_SETTINGS;
+  }
+}
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
@@ -112,84 +161,6 @@ function isValidAiAttachmentMeta(value: unknown): value is AiAttachmentMeta {
     typeof attachment.size === "number" &&
     typeof attachment.mimeType === "string"
   );
-}
-
-function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const operation = value as Partial<AgentDocumentEditOperation>;
-  if (operation.op === "add") {
-    return "block" in operation && "after_block_id" in operation;
-  }
-
-  if (operation.op === "remove") {
-    return typeof operation.block_id === "string";
-  }
-
-  if (operation.op === "modify") {
-    return typeof operation.block_id === "string" && "after" in operation;
-  }
-
-  return false;
-}
-
-function isValidAgentDocumentEditSuggestion(value: unknown): value is AgentDocumentEditSuggestion {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const suggestion = value as Partial<AgentDocumentEditSuggestion>;
-  return (
-    typeof suggestion.id === "string" &&
-    typeof suggestion.category === "string" &&
-    typeof suggestion.summary === "string" &&
-    Array.isArray(suggestion.operations) &&
-    suggestion.operations.every(isValidAgentDocumentEditOperation)
-  );
-}
-
-function normalizeDocumentEditResult(value: unknown): AgentDocumentEditResult | undefined {
-  if (typeof value !== "object" || value === null) {
-    return undefined;
-  }
-
-  const result = value as {
-    summary?: unknown;
-    suggestions?: unknown;
-    operations?: unknown;
-    notes?: unknown;
-  };
-
-  if (typeof result.summary !== "string") {
-    return undefined;
-  }
-
-  if (Array.isArray(result.suggestions) && result.suggestions.every(isValidAgentDocumentEditSuggestion)) {
-    return {
-      summary: result.summary,
-      suggestions: result.suggestions,
-      notes: Array.isArray(result.notes) ? result.notes.filter((item): item is string => typeof item === "string") : undefined,
-    };
-  }
-
-  if (Array.isArray(result.operations) && result.operations.every(isValidAgentDocumentEditOperation)) {
-    return {
-      summary: result.summary,
-      suggestions: [
-        {
-          id: "legacy-body-suggestion",
-          category: "body",
-          summary: result.summary,
-          operations: result.operations,
-        },
-      ],
-      notes: Array.isArray(result.notes) ? result.notes.filter((item): item is string => typeof item === "string") : undefined,
-    };
-  }
-
-  return undefined;
 }
 
 function isValidAiMessage(value: unknown): value is AiChatMessage {
@@ -260,6 +231,21 @@ function parseStoredAiThreads(rawValue: string | null): AiChatThread[] {
   }
 }
 
+function parseStoredAiScrollPositions(rawValue: string | null): Record<string, number> {
+  if (!rawValue) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[0] === "string" && typeof entry[1] === "number"),
+    );
+  } catch {
+    return {};
+  }
+}
+
 function describeAttachments(attachments: AiAttachmentMeta[]): string {
   if (attachments.length === 0) {
     return "";
@@ -300,47 +286,6 @@ function countDocumentLines(editor: Editor): number {
   return text.split(/\r?\n/).length;
 }
 
-async function requestDocumentEdit(
-  prompt: string,
-  editor: Editor,
-  title: string,
-  conversationHistory: ConversationHistoryEntry[],
-): Promise<AgentDocumentEditResult> {
-  const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/ai-edit`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      prompt,
-      title,
-      content: editor.getJSON(),
-      conversation_history: conversationHistory,
-    }),
-  });
-
-  const responseBody = (await response.json()) as
-    | AgentDocumentEditResult
-    | PressReleaseResponse
-    | { result?: AgentDocumentEditResult; message?: string }
-    | undefined;
-
-  if (!response.ok) {
-    const message =
-      responseBody && typeof responseBody === "object" && "message" in responseBody && typeof responseBody.message === "string"
-        ? responseBody.message
-        : `AI編集の取得に失敗しました (${response.status})`;
-    throw new Error(message);
-  }
-
-  const normalized = normalizeDocumentEditResult(responseBody);
-  if (!normalized) {
-    throw new Error("AI編集のレスポンス形式が不正です");
-  }
-
-  return normalized;
-}
-
 export function formatAiMessageTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString("ja-JP", {
     hour: "2-digit",
@@ -372,8 +317,21 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   const [respondingAiThreadId, setRespondingAiThreadId] = useState<string | null>(null);
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
+  const [autoRecommendStatus, setAutoRecommendStatus] = useState<AiAutoRecommendStatus | null>(null);
+  const [aiSettings, setAiSettings] = useState<AiAgentSettings>(() => {
+    if (typeof window === "undefined") {
+      return DEFAULT_AI_SETTINGS;
+    }
+    return parseStoredAiSettings(window.localStorage.getItem(AI_SETTINGS_STORAGE_KEY));
+  });
+  const aiMessagesContainerRef = useRef<HTMLDivElement | null>(null);
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const autoRecommendBaselineLineCountRef = useRef<number | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const hasRestoredScrollRef = useRef(false);
+  const storedScrollPositionsRef = useRef<Record<string, number>>(
+    typeof window === "undefined" ? {} : parseStoredAiScrollPositions(window.localStorage.getItem(AI_SCROLL_STORAGE_KEY)),
+  );
 
   const isAiResponding = respondingAiThreadId !== null;
   const activeAiThread = useMemo(
@@ -390,14 +348,80 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   }, [aiThreads]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(aiSettings));
+  }, [aiSettings]);
+
+  useEffect(() => {
     if (!aiThreads.some((thread) => thread.id === activeAiThreadId)) {
       setActiveAiThreadId(aiThreads[0]?.id ?? "");
     }
   }, [aiThreads, activeAiThreadId]);
 
   useEffect(() => {
-    aiMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeAiMessages]);
+    const container = aiMessagesContainerRef.current;
+    if (!container || !activeAiThreadId) {
+      return;
+    }
+
+    const handleScroll = () => {
+      if (!hasRestoredScrollRef.current) {
+        return;
+      }
+
+      storedScrollPositionsRef.current[activeAiThreadId] = container.scrollTop;
+      shouldStickToBottomRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < 48;
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(AI_SCROLL_STORAGE_KEY, JSON.stringify(storedScrollPositionsRef.current));
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [activeAiThreadId]);
+
+  useEffect(() => {
+    const container = aiMessagesContainerRef.current;
+    if (!container || !activeAiThreadId) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const savedScrollTop = storedScrollPositionsRef.current[activeAiThreadId];
+      if (typeof savedScrollTop === "number") {
+        container.scrollTop = savedScrollTop;
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+
+      shouldStickToBottomRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < 48;
+      hasRestoredScrollRef.current = true;
+    });
+  }, [activeAiMessages.length, activeAiThreadId]);
+
+  useEffect(() => {
+    hasRestoredScrollRef.current = false;
+  }, [activeAiThreadId]);
+
+  useEffect(() => {
+    const container = aiMessagesContainerRef.current;
+    if (!container || !shouldStickToBottomRef.current) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, [activeAiMessages.length]);
 
   useEffect(() => {
     return () => {
@@ -568,11 +592,17 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
 
     try {
       const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
-      const documentEditResult = await requestDocumentEdit(effectivePrompt, editor, title, conversationHistory);
+      const documentEditResult = await requestDocumentEdit({
+        prompt: effectivePrompt,
+        editor,
+        title,
+        conversationHistory,
+        aiSettings,
+      });
       const assistantMessage = {
         ...createAiMessage(
           "assistant",
-          "細かい提案を文書内に追加しました。該当箇所をクリックして内容を確認し、1つずつ反映するか見送るかを選べます。",
+          documentEditResult.assistant_message,
         ),
         documentEditResult,
       };
@@ -609,15 +639,25 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       const threadId = activeAiThread.id;
       updateThreadMessages(threadId, userMessage);
       setRespondingAiThreadId(threadId);
+      setAutoRecommendStatus({
+        lineDelta,
+        startedAt: new Date().toISOString(),
+      });
 
       void (async () => {
         try {
           const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
-          const documentEditResult = await requestDocumentEdit(autoPrompt, editor, title, conversationHistory);
+          const documentEditResult = await requestDocumentEdit({
+            prompt: autoPrompt,
+            editor,
+            title,
+            conversationHistory,
+            aiSettings,
+          });
           const assistantMessage = {
             ...createAiMessage(
               "assistant",
-              "行数差分が3行に達したため、自動レコメンドを作成しました。提案を確認してください。",
+              documentEditResult.assistant_message,
             ),
             documentEditResult,
           };
@@ -627,6 +667,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
           const message = error instanceof Error ? error.message : "AIリクエストの自動実行に失敗しました";
           updateThreadMessages(threadId, createAiMessage("assistant", message));
         } finally {
+          setAutoRecommendStatus((current) => (current?.lineDelta === lineDelta ? null : current));
           setRespondingAiThreadId((current) => (current === threadId ? null : current));
         }
       })();
@@ -644,7 +685,32 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     return () => {
       editor.off("transaction", handleTransaction);
     };
-  }, [activeAiThread, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
+  }, [activeAiThread, aiSettings, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
+
+  const setAiSettingText = (field: "targetAudience" | "writingStyle" | "tone" | "brandVoice", value: string) => {
+    setAiSettings((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const toggleAiSettingListValue = (field: "focusPoints" | "priorityChecks", value: string) => {
+    setAiSettings((current) => {
+      const currentValues = current[field];
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
+
+      return {
+        ...current,
+        [field]: nextValues,
+      };
+    });
+  };
+
+  const resetAiSettings = () => {
+    setAiSettings(DEFAULT_AI_SETTINGS);
+  };
 
   const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -749,11 +815,14 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
 
   return {
     activeAiMessages,
+    aiSettings,
     activeAiThread,
     activeAiThreadId,
     aiAttachmentError,
+    aiMessagesContainerRef,
     aiMessagesEndRef,
     aiPrompt,
+    autoRecommendStatus,
     aiThreadMenuOpenId,
     aiThreads,
     composerAttachments,
@@ -763,6 +832,8 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     handleAiImageFileChange,
     handleAiInputPaste,
     handleAiInputKeyDown,
+    resetAiSettings,
+    setAiSettingText,
     handleClearAiComposer,
     handleCreateAiThread,
     handleDeleteAiThread,
@@ -777,5 +848,6 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     setIsAiAttachMenuOpen,
     setAiThreadMenuOpenId,
     setIsAiHistoryOpen,
+    toggleAiSettingListValue,
   };
 }

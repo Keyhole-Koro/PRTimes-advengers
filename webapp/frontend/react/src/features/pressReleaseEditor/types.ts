@@ -141,6 +141,7 @@ export type AgentDocumentSuggestionCategory =
 
 export type AgentDocumentEditSuggestion = {
   id: string;
+  presentation?: "block" | "inline";
   category: AgentDocumentSuggestionCategory;
   summary: string;
   reason?: string;
@@ -149,6 +150,8 @@ export type AgentDocumentEditSuggestion = {
 
 export type AgentDocumentEditResult = {
   summary: string;
+  assistant_message: string;
+  navigation_label: string;
   suggestions: AgentDocumentEditSuggestion[];
   notes?: string[];
 };

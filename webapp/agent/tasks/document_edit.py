@@ -17,6 +17,26 @@ def build_document_edit_task() -> TaskDefinition:
 
 
 def build_prompt(payload: dict) -> str:
+    instructions = payload.get("instructions", {})
+    settings_lines = []
+
+    if instructions.get("audience"):
+        settings_lines.append(f"- 想定読者: {instructions['audience']}")
+    if instructions.get("style"):
+        settings_lines.append(f"- 文章スタイル: {instructions['style']}")
+    if instructions.get("tone"):
+        settings_lines.append(f"- トーン: {instructions['tone']}")
+    if instructions.get("brand_voice"):
+        settings_lines.append(f"- ブランドらしさ・文体方針: {instructions['brand_voice']}")
+    if instructions.get("focus_points"):
+        settings_lines.append("- 特に重視する論点: " + " / ".join(instructions["focus_points"]))
+    if instructions.get("priority_checks"):
+        settings_lines.append("- 優先的に確認する項目: " + " / ".join(instructions["priority_checks"]))
+
+    settings_block = ""
+    if settings_lines:
+        settings_block = "依頼者がフロントで指定した編集方針:\n" + "\n".join(settings_lines) + "\n\n"
+
     return (
         "あなたは TipTap 形式のドキュメントを編集するエージェントです。\n"
         "同時に、プレスリリースの品質を高める編集アシスタントとして振る舞ってください。\n"
@@ -31,8 +51,16 @@ def build_prompt(payload: dict) -> str:
         "提案はできるだけ小さく独立して適用できる単位に分けてください。\n"
         "各 suggestion は 1 つの明確な改善意図だけを持つようにしてください。\n"
         "例えば、タイトル改善、導入改善、見出し整理、可読性改善、キーワード改善、タグ改善、リスク低減などに分けてください。\n"
+        "assistant_message には、チャット欄に表示する短い案内文を日本語で簡潔に入れてください。\n"
+        "navigation_label には、文書上の提案位置へ移動するための短いボタン文言を日本語で簡潔に入れてください。\n"
+        "assistant_message と navigation_label は、summary の単純な繰り返しではなく、ユーザーが次に何をすればよいかが一目で分かる文にしてください。\n"
+        "suggestion.presentation には、表示方式として block または inline を入れてください。\n"
+        "inline は、1つの suggestion が 1つの block に対する 1つの modify operation だけを持ち、差分が短い局所修正である場合にだけ使ってください。\n"
+        "誤字脱字、表記ゆれ、句読点、数字や日付の不自然さ、短い言い換えのように、その場で即判断できる修正は inline を優先してください。\n"
+        "add や remove を含む提案、複数 operation の提案、複数 block にまたがる提案、構成変更、大きい書き換え、説明が必要な提案は block を使ってください。\n"
         "各 suggestion には category、summary、operations を必ず含めてください。\n"
         "可能であれば suggestion の reason や operation の reason で、どの編集基準に基づく修正かを説明してください。\n\n"
+        f"{settings_block}"
         f"入力JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 

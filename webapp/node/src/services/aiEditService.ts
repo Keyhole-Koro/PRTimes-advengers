@@ -1,6 +1,9 @@
 import type {
+  AiEditSettings,
   AgentDocumentBlock,
+  AgentDocumentEditOperation,
   AgentDocumentEditResult,
+  AgentDocumentEditSuggestion,
   ConversationHistoryEntry,
   PressReleaseContent,
   RequestAiEditInput,
@@ -89,10 +92,116 @@ function buildAgentBlocks(content: PressReleaseContent): AgentDocumentBlock[] {
   return [{ id: 'block-1', type: 'paragraph', text: '' }]
 }
 
+function normalizeSettingList(values: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(values)) {
+    return undefined
+  }
+
+  const normalized = values
+    .map((value) => value.trim())
+    .filter((value, index, array) => value !== '' && array.indexOf(value) === index)
+
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function buildAgentInstructions(prompt: string, settings: AiEditSettings | undefined): Record<string, unknown> {
+  return {
+    goal: prompt,
+    language: 'ja',
+    audience: settings?.target_audience?.trim() || undefined,
+    style: settings?.writing_style?.trim() || undefined,
+    tone: settings?.tone?.trim() || undefined,
+    brand_voice: settings?.brand_voice?.trim() || undefined,
+    focus_points: normalizeSettingList(settings?.focus_points),
+    priority_checks: normalizeSettingList(settings?.priority_checks),
+  }
+}
+
 type DeterministicInstruction = {
   paragraphIndex: number
   position: 'prefix' | 'suffix'
   token: string
+}
+
+const INLINE_ELIGIBLE_CATEGORIES = new Set<AgentDocumentEditSuggestion['category']>(['body', 'readability'])
+const INLINE_MAX_CHANGED_FRAGMENT_LENGTH = 24
+const INLINE_MAX_BLOCK_TEXT_LENGTH = 180
+
+function getChangedFragments(beforeText: string, afterText: string): { before: string; after: string } {
+  let prefixLength = 0
+  const prefixLimit = Math.min(beforeText.length, afterText.length)
+  while (prefixLength < prefixLimit && beforeText[prefixLength] === afterText[prefixLength]) {
+    prefixLength += 1
+  }
+
+  let suffixLength = 0
+  const suffixLimit = Math.min(beforeText.length - prefixLength, afterText.length - prefixLength)
+  while (
+    suffixLength < suffixLimit &&
+    beforeText[beforeText.length - 1 - suffixLength] === afterText[afterText.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1
+  }
+
+  return {
+    before: beforeText.slice(prefixLength, beforeText.length - suffixLength),
+    after: afterText.slice(prefixLength, afterText.length - suffixLength),
+  }
+}
+
+function isInlineEligibleModifyOperation(operation: AgentDocumentEditOperation): boolean {
+  if (operation.op !== 'modify' || !operation.before) {
+    return false
+  }
+
+  const beforeText = operation.before.text
+  const afterText = operation.after.text
+  if (
+    beforeText.includes('\n') ||
+    afterText.includes('\n') ||
+    Math.max(beforeText.length, afterText.length) > INLINE_MAX_BLOCK_TEXT_LENGTH
+  ) {
+    return false
+  }
+
+  const changed = getChangedFragments(beforeText, afterText)
+  return Math.max(changed.before.length, changed.after.length) <= INLINE_MAX_CHANGED_FRAGMENT_LENGTH
+}
+
+function normalizeSuggestionPresentation(suggestion: AgentDocumentEditSuggestion): AgentDocumentEditSuggestion {
+  if (!INLINE_ELIGIBLE_CATEGORIES.has(suggestion.category)) {
+    return {
+      ...suggestion,
+      presentation: 'block',
+    }
+  }
+
+  if (suggestion.operations.length !== 1) {
+    return {
+      ...suggestion,
+      presentation: 'block',
+    }
+  }
+
+  const [operation] = suggestion.operations
+  if (!operation || !isInlineEligibleModifyOperation(operation)) {
+    return {
+      ...suggestion,
+      presentation: 'block',
+    }
+  }
+
+  return {
+    ...suggestion,
+    presentation: suggestion.presentation === 'inline' ? 'inline' : 'block',
+  }
+}
+
+function normalizeEditResult(result: AgentDocumentEditResult): AgentDocumentEditResult {
+  return {
+    ...result,
+    suggestions: result.suggestions.map(normalizeSuggestionPresentation),
+  }
 }
 
 function parseInstruction(prompt: string): Omit<DeterministicInstruction, 'paragraphIndex'> & { paragraphIndex?: number } | null {
@@ -160,11 +269,14 @@ function buildDeterministicEditResult(input: RequestAiEditInput): AgentDocumentE
   const positionLabel = instruction.position === 'prefix' ? '先頭' : '末尾'
   const summary = `${instruction.paragraphIndex}つ目の段落の${positionLabel}に「${instruction.token}」を追加します。`
 
-  return {
+  return normalizeEditResult({
     summary,
+    assistant_message: `${instruction.paragraphIndex}つ目の段落への追記案を追加しました。`,
+    navigation_label: `${instruction.paragraphIndex}つ目の段落の提案を見る`,
     suggestions: [
       {
         id: `deterministic-${instruction.paragraphIndex}-${instruction.position}-${instruction.token}`,
+        presentation: 'block',
         category: 'body',
         summary,
         reason: '単純な追記指示のため、決定的な編集提案を返しました。',
@@ -182,7 +294,7 @@ function buildDeterministicEditResult(input: RequestAiEditInput): AgentDocumentE
         ],
       },
     ],
-  }
+  })
 }
 
 export class AiEditService {
@@ -210,10 +322,7 @@ export class AiEditService {
             title: input.title,
             blocks: buildAgentBlocks(input.content),
           },
-          instructions: {
-            goal: input.prompt,
-            language: 'ja',
-          },
+          instructions: buildAgentInstructions(input.prompt, input.ai_settings),
         }),
       })
     } catch (error) {
@@ -236,7 +345,7 @@ export class AiEditService {
       )
     }
 
-    return payload.result
+    return normalizeEditResult(payload.result)
   }
 }
 

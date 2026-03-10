@@ -30,9 +30,12 @@ class TaskServiceTestCase(unittest.TestCase):
                 {
                     "document_edit": {
                         "summary": "文書を整理しました。",
+                        "assistant_message": "本文の改善案を追加しました。気になる箇所から確認してください。",
+                        "navigation_label": "本文提案を確認する",
                         "suggestions": [
                             {
                                 "id": "suggestion-1",
+                                "presentation": "block",
                                 "category": "body",
                                 "summary": "本文を分かりやすく修正しました。",
                                 "operations": [
@@ -112,6 +115,42 @@ class TaskServiceTestCase(unittest.TestCase):
         self.assertIn("タイトル:", prompt)
         self.assertIn("メタデータ:", prompt)
         self.assertIn("リスク:", prompt)
+        self.assertIn("assistant_message", prompt)
+        self.assertIn("navigation_label", prompt)
+
+    def test_document_edit_prompt_contains_frontend_settings_when_provided(self):
+        prompt = build_document_edit_prompt(
+            {
+                "context": {
+                    "reference_docs": [],
+                    "uploaded_materials": [],
+                },
+                "document": {
+                    "title": "テスト文書",
+                    "blocks": [
+                        {
+                            "id": "p-1",
+                            "type": "paragraph",
+                            "text": "本文",
+                        }
+                    ],
+                },
+                "instructions": {
+                    "goal": "改善する",
+                    "audience": "記者",
+                    "style": "ニュースライク",
+                    "tone": "簡潔",
+                    "brand_voice": "信頼感重視",
+                    "focus_points": ["導入文", "CTA"],
+                    "priority_checks": ["誤字脱字", "リスク表現"],
+                },
+            }
+        )
+
+        self.assertIn("依頼者がフロントで指定した編集方針", prompt)
+        self.assertIn("想定読者: 記者", prompt)
+        self.assertIn("文章スタイル: ニュースライク", prompt)
+        self.assertIn("優先的に確認する項目: 誤字脱字 / リスク表現", prompt)
 
     def test_checklist_prompt_contains_global_editorial_policy(self):
         prompt = build_checklist_prompt(

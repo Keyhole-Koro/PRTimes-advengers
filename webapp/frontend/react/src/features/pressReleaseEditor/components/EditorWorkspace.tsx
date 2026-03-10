@@ -56,11 +56,11 @@ export function EditorWorkspace({
   const contentLayoutRef = useRef<HTMLDivElement | null>(null);
   const [metaPanelWidth, setMetaPanelWidth] = useState(() => {
     if (typeof window === "undefined") {
-      return 260;
+      return 300;
     }
     const raw = window.localStorage.getItem(metaWidthStorageKey);
     const value = Number.parseInt(raw ?? "", 10);
-    return Number.isFinite(value) ? Math.min(360, Math.max(220, value)) : 260;
+    return Number.isFinite(value) ? Math.min(360, Math.max(220, value)) : 300;
   });
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
@@ -221,7 +221,7 @@ export function EditorWorkspace({
                             {tag}
                           </strong>
                         </div>
-                        <p className="editorMetaSuggestionDescription">反映すると追加されます</p>
+                        <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
                       </div>
                       <div className="editorMetaSuggestionActions">
                         <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>

@@ -2,9 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["summary", "suggestions"],
+  "required": ["summary", "assistant_message", "navigation_label", "suggestions"],
   "properties": {
     "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assistant_message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "navigation_label": {
       "type": "string",
       "minLength": 1
     },
@@ -74,6 +82,10 @@
       "required": ["id", "category", "summary", "operations"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
+        "presentation": {
+          "type": "string",
+          "enum": ["block", "inline"]
+        },
         "category": {
           "type": "string",
           "enum": ["title", "lede", "structure", "readability", "keyword", "tag", "risk", "body"]
