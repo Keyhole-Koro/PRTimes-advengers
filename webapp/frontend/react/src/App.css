@@ -525,6 +525,143 @@
   color: #4a5568;
 }
 
+.editorMetaPanel {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.editorMetaPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editorMetaPanelTitle {
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.editorMetaRestoreButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.metaRestoreButton {
+  padding: 5px 8px;
+  border: 1px solid #d0dbe8;
+  border-radius: 8px;
+  background: #fff;
+  color: #12385f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editorMetaCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.editorMetaCard {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d0dbe8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.editorMetaCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.editorMetaCardTitle {
+  margin: 0;
+  color: #12385f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.metaDismissButton {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d0dbe8;
+  border-radius: 999px;
+  background: #fff;
+  color: #5b6b7f;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editorMetaChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editorMetaChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #edf3fb;
+  color: #12385f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editorMetaCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metaDecisionButton {
+  padding: 6px 10px;
+  border: 1px solid #12385f;
+  border-radius: 8px;
+  background: #12385f;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.metaDecisionButton.is-decided {
+  border-color: #0f766e;
+  background: #0f766e;
+}
+
+.metaDecisionStatus {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metaDecisionStatus.is-decided {
+  color: #0f766e;
+}
+
 .linkCard {
   display: block;
   margin: 1rem 0;
@@ -1054,6 +1191,10 @@
   .imageForm,
   .linkCardForm {
     flex-direction: column;
+  }
+
+  .editorMetaCards {
+    grid-template-columns: 1fr;
   }
 
   .linkCardBody {
