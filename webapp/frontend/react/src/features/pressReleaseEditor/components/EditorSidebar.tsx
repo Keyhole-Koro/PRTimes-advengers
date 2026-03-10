@@ -87,7 +87,7 @@ export function EditorSidebar({
   aiSidebarProps,
 }: EditorSidebarProps) {
   return (
-    <aside className="sidebarPanel" aria-label="サイドパネル">
+    <aside className={`sidebarPanel${sidebarTab === "ai" ? " is-ai-tab" : ""}`} aria-label="サイドパネル">
       <div className="sidebarTabs">
         <button
           type="button"

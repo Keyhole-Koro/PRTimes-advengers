@@ -1,11 +1,27 @@
-import type { KeyboardEvent } from "react";
+import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+export type AiAttachmentKind = "image" | "file";
+
+export type AiAttachmentMeta = {
+  id: string;
+  kind: AiAttachmentKind;
+  name: string;
+  size: number;
+  mimeType: string;
+};
+
+export type AiComposerAttachment = AiAttachmentMeta & {
+  file: File;
+  previewUrl?: string;
+};
 
 export type AiChatMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
   createdAt: string;
+  attachments?: AiAttachmentMeta[];
 };
 
 export type AiChatThread = {
@@ -17,6 +33,17 @@ export type AiChatThread = {
 
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
+const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const AI_MAX_ATTACHMENT_COUNT = 4;
+const AI_MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const AI_ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const AI_ALLOWED_FILE_MIME_TYPES = new Set([
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
@@ -33,6 +60,16 @@ function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessa
     role,
     text,
     createdAt: new Date().toISOString(),
+  };
+}
+
+function createAttachmentMeta(attachment: AiComposerAttachment): AiAttachmentMeta {
+  return {
+    id: attachment.id,
+    kind: attachment.kind,
+    name: attachment.name,
+    size: attachment.size,
+    mimeType: attachment.mimeType,
   };
 }
 
@@ -53,7 +90,23 @@ function isValidAiMessage(value: unknown): value is AiChatMessage {
     typeof message.id === "string" &&
     (message.role === "user" || message.role === "assistant") &&
     typeof message.text === "string" &&
-    typeof message.createdAt === "string"
+    typeof message.createdAt === "string" &&
+    (message.attachments === undefined ||
+      (Array.isArray(message.attachments) && message.attachments.every(isValidAiAttachmentMeta)))
+  );
+}
+
+function isValidAiAttachmentMeta(value: unknown): value is AiAttachmentMeta {
+  if (typeof value !== "object" || !value) {
+    return false;
+  }
+  const attachment = value as Partial<AiAttachmentMeta>;
+  return (
+    typeof attachment.id === "string" &&
+    (attachment.kind === "image" || attachment.kind === "file") &&
+    typeof attachment.name === "string" &&
+    typeof attachment.size === "number" &&
+    typeof attachment.mimeType === "string"
   );
 }
 
@@ -118,6 +171,9 @@ export function formatAiThreadTime(isoString: string): string {
 
 export function useAiAssistant() {
   const [aiPrompt, setAiPrompt] = useState("");
+  const [aiAttachmentError, setAiAttachmentError] = useState<string | null>(null);
+  const [isAiAttachMenuOpen, setIsAiAttachMenuOpen] = useState(false);
+  const [composerAttachments, setComposerAttachments] = useState<AiComposerAttachment[]>([]);
   const [aiThreads, setAiThreads] = useState<AiChatThread[]>(() => {
     if (typeof window === "undefined") {
       return [createAiThread()];
@@ -154,6 +210,105 @@ export function useAiAssistant() {
     aiMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeAiMessages]);
 
+  useEffect(() => {
+    return () => {
+      composerAttachments.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl);
+        }
+      });
+    };
+  }, [composerAttachments]);
+
+  const clearComposerAttachments = () => {
+    setComposerAttachments((current) => {
+      current.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl);
+        }
+      });
+      return [];
+    });
+  };
+
+  const removeComposerAttachment = (attachmentId: string) => {
+    setComposerAttachments((current) =>
+      current.filter((attachment) => {
+        if (attachment.id === attachmentId) {
+          if (attachment.previewUrl) {
+            URL.revokeObjectURL(attachment.previewUrl);
+          }
+          return false;
+        }
+        return true;
+      }),
+    );
+    setAiAttachmentError(null);
+  };
+
+  const addComposerFiles = (files: File[], mode: "image" | "file" | "paste-image") => {
+    if (files.length === 0) {
+      return;
+    }
+
+    let nextError: string | null = null;
+    setComposerAttachments((current) => {
+      const next = [...current];
+
+      for (const file of files) {
+        if (next.length >= AI_MAX_ATTACHMENT_COUNT) {
+          nextError = `添付は最大${AI_MAX_ATTACHMENT_COUNT}件までです。`;
+          break;
+        }
+
+        const isImage = file.type.startsWith("image/");
+        const kind: AiAttachmentKind = isImage ? "image" : "file";
+
+        if (mode !== "file" && !isImage) {
+          nextError = "画像のみ貼り付けできます。";
+          continue;
+        }
+
+        if (isImage && !AI_ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
+          nextError = "画像は JPG / PNG / WEBP / GIF のみ対応です。";
+          continue;
+        }
+
+        if (!isImage && mode === "file" && !AI_ALLOWED_FILE_MIME_TYPES.has(file.type) && file.type !== "") {
+          nextError = "このファイル形式は現在サポートされていません。";
+          continue;
+        }
+
+        const maxSize = isImage ? AI_MAX_IMAGE_BYTES : AI_MAX_FILE_BYTES;
+        if (file.size > maxSize) {
+          nextError = `${isImage ? "画像" : "ファイル"}は1件あたり${Math.floor(maxSize / (1024 * 1024))}MBまでです。`;
+          continue;
+        }
+
+        const totalSize = next.reduce((sum, attachment) => sum + attachment.size, 0) + file.size;
+        if (totalSize > AI_MAX_TOTAL_ATTACHMENT_BYTES) {
+          nextError = `添付合計は${Math.floor(AI_MAX_TOTAL_ATTACHMENT_BYTES / (1024 * 1024))}MBまでです。`;
+          break;
+        }
+
+        next.push({
+          id: globalThis.crypto.randomUUID(),
+          file,
+          kind,
+          name: file.name || (kind === "image" ? "pasted-image.png" : "untitled"),
+          size: file.size,
+          mimeType: file.type || "application/octet-stream",
+          previewUrl: kind === "image" ? URL.createObjectURL(file) : undefined,
+        });
+      }
+
+      return next;
+    });
+
+    setAiAttachmentError(nextError);
+    setIsAiAttachMenuOpen(false);
+  };
+
   const updateThreadMessages = (threadId: string, message: AiChatMessage) => {
     setAiThreads((current) => {
       const next = current.map((thread) => {
@@ -182,19 +337,32 @@ export function useAiAssistant() {
     }
 
     const normalizedPrompt = aiPrompt.trim();
-    if (!normalizedPrompt || respondingAiThreadId !== null) {
+    const attachments = composerAttachments.map(createAttachmentMeta);
+    if ((normalizedPrompt === "" && attachments.length === 0) || respondingAiThreadId !== null) {
       return;
     }
 
     const threadId = activeAiThread.id;
     const userMessage = createAiMessage("user", normalizedPrompt);
+    if (attachments.length > 0) {
+      userMessage.attachments = attachments;
+    }
     updateThreadMessages(threadId, userMessage);
 
     setAiPrompt("");
+    clearComposerAttachments();
+    setAiAttachmentError(null);
+    setIsAiAttachMenuOpen(false);
     setRespondingAiThreadId(threadId);
 
     window.setTimeout(() => {
-      const assistantMessage = createAiMessage("assistant", normalizedPrompt);
+      const assistantReply =
+        normalizedPrompt !== ""
+          ? normalizedPrompt
+          : attachments.length > 0
+            ? `${attachments.length}件の添付を受け取りました。`
+            : "";
+      const assistantMessage = createAiMessage("assistant", assistantReply);
       updateThreadMessages(threadId, assistantMessage);
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
     }, 250);
@@ -207,11 +375,54 @@ export function useAiAssistant() {
     }
   };
 
+  const handleAiInputPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(event.clipboardData.items);
+    const imageFiles = items
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    addComposerFiles(imageFiles, "paste-image");
+  };
+
+  const handleAiImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    addComposerFiles(files, "image");
+    event.target.value = "";
+  };
+
+  const handleAiGeneralFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    addComposerFiles(files, "file");
+    event.target.value = "";
+  };
+
+  const handleAiMixedFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    addComposerFiles(files, "file");
+    event.target.value = "";
+  };
+
+  const handleClearAiComposer = () => {
+    setAiPrompt("");
+    clearComposerAttachments();
+    setAiAttachmentError(null);
+    setIsAiAttachMenuOpen(false);
+  };
+
   const handleCreateAiThread = () => {
     const newThread = createAiThread();
     setAiThreads((current) => [newThread, ...current]);
     setActiveAiThreadId(newThread.id);
     setAiPrompt("");
+    clearComposerAttachments();
+    setAiAttachmentError(null);
+    setIsAiAttachMenuOpen(false);
     setAiThreadMenuOpenId(null);
     setIsAiHistoryOpen(true);
   };
@@ -262,20 +473,30 @@ export function useAiAssistant() {
     activeAiMessages,
     activeAiThread,
     activeAiThreadId,
+    aiAttachmentError,
     aiMessagesEndRef,
     aiPrompt,
     aiThreadMenuOpenId,
     aiThreads,
+    composerAttachments,
+    handleAiMixedFileChange,
+    handleAiGeneralFileChange,
     handleAiEcho,
+    handleAiImageFileChange,
+    handleAiInputPaste,
     handleAiInputKeyDown,
+    handleClearAiComposer,
     handleCreateAiThread,
     handleDeleteAiThread,
     handleRenameAiThread,
     isAiHistoryOpen,
+    isAiAttachMenuOpen,
     isAiResponding,
+    removeComposerAttachment,
     respondingAiThreadId,
     setActiveAiThreadId,
     setAiPrompt,
+    setIsAiAttachMenuOpen,
     setAiThreadMenuOpenId,
     setIsAiHistoryOpen,
   };
