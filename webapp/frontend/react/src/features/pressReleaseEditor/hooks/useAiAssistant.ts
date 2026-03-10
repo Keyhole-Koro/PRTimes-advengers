@@ -35,6 +35,15 @@ export type AiChatThread = {
   messages: AiChatMessage[];
 };
 
+export type AiAgentSettings = {
+  targetAudience: string;
+  writingStyle: string;
+  tone: string;
+  brandVoice: string;
+  focusPoints: string[];
+  priorityChecks: string[];
+};
+
 type UseAiAssistantOptions = {
   editor: Editor | null;
   onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
@@ -48,6 +57,7 @@ type ConversationHistoryEntry = {
 };
 
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
+const AI_SETTINGS_STORAGE_KEY = `press-release-editor-ai-settings:${PRESS_RELEASE_ID}`;
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
 const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -63,6 +73,56 @@ const AI_ALLOWED_FILE_MIME_TYPES = new Set([
   "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+const DEFAULT_AI_SETTINGS: AiAgentSettings = {
+  targetAudience: "",
+  writingStyle: "",
+  tone: "",
+  brandVoice: "",
+  focusPoints: [],
+  priorityChecks: [],
+};
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function parseStoredAiSettings(rawValue: string | null): AiAgentSettings {
+  if (!rawValue) {
+    return DEFAULT_AI_SETTINGS;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<AiAgentSettings>;
+    return {
+      targetAudience: typeof parsed.targetAudience === "string" ? parsed.targetAudience : "",
+      writingStyle: typeof parsed.writingStyle === "string" ? parsed.writingStyle : "",
+      tone: typeof parsed.tone === "string" ? parsed.tone : "",
+      brandVoice: typeof parsed.brandVoice === "string" ? parsed.brandVoice : "",
+      focusPoints: isStringArray(parsed.focusPoints) ? parsed.focusPoints : [],
+      priorityChecks: isStringArray(parsed.priorityChecks) ? parsed.priorityChecks : [],
+    };
+  } catch {
+    return DEFAULT_AI_SETTINGS;
+  }
+}
+
+function normalizeSettingText(value: string): string | undefined {
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+function serializeAiSettings(settings: AiAgentSettings): Record<string, unknown> | undefined {
+  const payload = {
+    target_audience: normalizeSettingText(settings.targetAudience),
+    writing_style: normalizeSettingText(settings.writingStyle),
+    tone: normalizeSettingText(settings.tone),
+    brand_voice: normalizeSettingText(settings.brandVoice),
+    focus_points: settings.focusPoints.length > 0 ? settings.focusPoints : undefined,
+    priority_checks: settings.priorityChecks.length > 0 ? settings.priorityChecks : undefined,
+  };
+
+  return Object.values(payload).some((value) => value !== undefined) ? payload : undefined;
+}
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
@@ -305,6 +365,7 @@ async function requestDocumentEdit(
   editor: Editor,
   title: string,
   conversationHistory: ConversationHistoryEntry[],
+  aiSettings: AiAgentSettings,
 ): Promise<AgentDocumentEditResult> {
   const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/ai-edit`, {
     method: "POST",
@@ -316,6 +377,7 @@ async function requestDocumentEdit(
       title,
       content: editor.getJSON(),
       conversation_history: conversationHistory,
+      ai_settings: serializeAiSettings(aiSettings),
     }),
   });
 
@@ -372,6 +434,12 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   const [respondingAiThreadId, setRespondingAiThreadId] = useState<string | null>(null);
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
+  const [aiSettings, setAiSettings] = useState<AiAgentSettings>(() => {
+    if (typeof window === "undefined") {
+      return DEFAULT_AI_SETTINGS;
+    }
+    return parseStoredAiSettings(window.localStorage.getItem(AI_SETTINGS_STORAGE_KEY));
+  });
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const autoRecommendBaselineLineCountRef = useRef<number | null>(null);
 
@@ -388,6 +456,13 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     }
     window.localStorage.setItem(AI_CHAT_STORAGE_KEY, JSON.stringify(aiThreads));
   }, [aiThreads]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(aiSettings));
+  }, [aiSettings]);
 
   useEffect(() => {
     if (!aiThreads.some((thread) => thread.id === activeAiThreadId)) {
@@ -568,7 +643,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
 
     try {
       const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
-      const documentEditResult = await requestDocumentEdit(effectivePrompt, editor, title, conversationHistory);
+      const documentEditResult = await requestDocumentEdit(effectivePrompt, editor, title, conversationHistory, aiSettings);
       const assistantMessage = {
         ...createAiMessage(
           "assistant",
@@ -613,7 +688,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       void (async () => {
         try {
           const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
-          const documentEditResult = await requestDocumentEdit(autoPrompt, editor, title, conversationHistory);
+          const documentEditResult = await requestDocumentEdit(autoPrompt, editor, title, conversationHistory, aiSettings);
           const assistantMessage = {
             ...createAiMessage(
               "assistant",
@@ -644,7 +719,32 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     return () => {
       editor.off("transaction", handleTransaction);
     };
-  }, [activeAiThread, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
+  }, [activeAiThread, aiSettings, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
+
+  const setAiSettingText = (field: "targetAudience" | "writingStyle" | "tone" | "brandVoice", value: string) => {
+    setAiSettings((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const toggleAiSettingListValue = (field: "focusPoints" | "priorityChecks", value: string) => {
+    setAiSettings((current) => {
+      const currentValues = current[field];
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
+
+      return {
+        ...current,
+        [field]: nextValues,
+      };
+    });
+  };
+
+  const resetAiSettings = () => {
+    setAiSettings(DEFAULT_AI_SETTINGS);
+  };
 
   const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -749,6 +849,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
 
   return {
     activeAiMessages,
+    aiSettings,
     activeAiThread,
     activeAiThreadId,
     aiAttachmentError,
@@ -763,6 +864,8 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     handleAiImageFileChange,
     handleAiInputPaste,
     handleAiInputKeyDown,
+    resetAiSettings,
+    setAiSettingText,
     handleClearAiComposer,
     handleCreateAiThread,
     handleDeleteAiThread,
@@ -777,5 +880,6 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     setIsAiAttachMenuOpen,
     setAiThreadMenuOpenId,
     setIsAiHistoryOpen,
+    toggleAiSettingListValue,
   };
 }

@@ -21,9 +21,14 @@
 - `document.blocks[]`: block 単位の本文
 - `instructions.goal`
 - `instructions.tone`
+- `instructions.audience`
+- `instructions.style`
+- `instructions.brand_voice`
 - `instructions.must_include[]`
 - `instructions.must_avoid[]`
 - `instructions.language`
+- `instructions.focus_points[]`
+- `instructions.priority_checks[]`
 
 `document.blocks` は最低 1 件必要です。
 block の `type` は次に限定されています。
@@ -42,6 +47,7 @@ block の `type` は次に限定されています。
 - suggestion は小さく独立して適用できる単位に分割する
 - `category`, `summary`, `operations` を必須意図として明示する
 - 共通 editorial policy を prompt に埋め込む
+- フロントで指定した想定読者、文章スタイル、トーン、ブランド方針、重視ポイント、優先チェック項目を判断材料として使う
 
 ### 出力
 

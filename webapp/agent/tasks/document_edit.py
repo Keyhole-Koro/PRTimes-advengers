@@ -17,6 +17,26 @@ def build_document_edit_task() -> TaskDefinition:
 
 
 def build_prompt(payload: dict) -> str:
+    instructions = payload.get("instructions", {})
+    settings_lines = []
+
+    if instructions.get("audience"):
+        settings_lines.append(f"- 想定読者: {instructions['audience']}")
+    if instructions.get("style"):
+        settings_lines.append(f"- 文章スタイル: {instructions['style']}")
+    if instructions.get("tone"):
+        settings_lines.append(f"- トーン: {instructions['tone']}")
+    if instructions.get("brand_voice"):
+        settings_lines.append(f"- ブランドらしさ・文体方針: {instructions['brand_voice']}")
+    if instructions.get("focus_points"):
+        settings_lines.append("- 特に重視する論点: " + " / ".join(instructions["focus_points"]))
+    if instructions.get("priority_checks"):
+        settings_lines.append("- 優先的に確認する項目: " + " / ".join(instructions["priority_checks"]))
+
+    settings_block = ""
+    if settings_lines:
+        settings_block = "依頼者がフロントで指定した編集方針:\n" + "\n".join(settings_lines) + "\n\n"
+
     return (
         "あなたは TipTap 形式のドキュメントを編集するエージェントです。\n"
         "同時に、プレスリリースの品質を高める編集アシスタントとして振る舞ってください。\n"
@@ -33,6 +53,7 @@ def build_prompt(payload: dict) -> str:
         "例えば、タイトル改善、導入改善、見出し整理、可読性改善、キーワード改善、タグ改善、リスク低減などに分けてください。\n"
         "各 suggestion には category、summary、operations を必ず含めてください。\n"
         "可能であれば suggestion の reason や operation の reason で、どの編集基準に基づく修正かを説明してください。\n\n"
+        f"{settings_block}"
         f"入力JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 

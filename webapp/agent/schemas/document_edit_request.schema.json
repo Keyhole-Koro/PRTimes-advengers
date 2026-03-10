@@ -39,6 +39,9 @@
       "properties": {
         "goal": { "type": "string", "minLength": 1 },
         "tone": { "type": "string" },
+        "audience": { "type": "string" },
+        "style": { "type": "string" },
+        "brand_voice": { "type": "string" },
         "must_include": {
           "type": "array",
           "items": { "type": "string" }
@@ -47,7 +50,15 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "language": { "type": "string" }
+        "language": { "type": "string" },
+        "focus_points": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "priority_checks": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     }
   },

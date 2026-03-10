@@ -62,3 +62,79 @@ test('AiEditService resolves same paragraph prompts from conversation history', 
   assert.equal(operation.block_id, 'block-2')
   assert.equal(operation.after.text, 'AI_E2E_THREAD_SECOND二番目の段落です。')
 })
+
+test('AiEditService forwards ai settings to agent instructions', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: unknown = null
+
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    capturedBody = init?.body ? JSON.parse(String(init.body)) : null
+
+    return new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          suggestions: [],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+
+    await service.requestDocumentEdit({
+      prompt: 'より読みやすくしてください。',
+      title: 'テスト',
+      content,
+      ai_settings: {
+        target_audience: '記者',
+        writing_style: 'ニュースライク',
+        tone: '簡潔',
+        brand_voice: '信頼感重視',
+        focus_points: ['導入文', 'CTA'],
+        priority_checks: ['誤字脱字', 'リスク表現'],
+      },
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+
+  assert.deepEqual(capturedBody, {
+    context: {
+      reference_docs: [],
+      uploaded_materials: [],
+    },
+    document: {
+      title: 'テスト',
+      blocks: [
+        {
+          id: 'block-1',
+          type: 'paragraph',
+          text: '最初の段落です。',
+        },
+        {
+          id: 'block-2',
+          type: 'paragraph',
+          text: '二番目の段落です。',
+        },
+      ],
+    },
+    instructions: {
+      goal: 'より読みやすくしてください。',
+      language: 'ja',
+      audience: '記者',
+      style: 'ニュースライク',
+      tone: '簡潔',
+      brand_voice: '信頼感重視',
+      focus_points: ['導入文', 'CTA'],
+      priority_checks: ['誤字脱字', 'リスク表現'],
+    },
+  })
+})

@@ -11,7 +11,6 @@ import { CommentHighlight } from "../../editor/commentHighlight";
 import { LinkCard } from "../../editor/linkCard";
 import type { PresenceUser } from "../../editor/remotePresence";
 import { RemotePresence, setRemotePresence } from "../../editor/remotePresence";
-import { EditorHeader } from "./components/EditorHeader";
 import { EditorSidebar } from "./components/EditorSidebar";
 import { EditorWorkspace } from "./components/EditorWorkspace";
 import {
@@ -947,12 +946,6 @@ export function PressReleaseEditorPage({
           />
 
           <div className="sidebarColumn">
-            <EditorHeader
-              remoteUserCount={remoteUsers.length}
-              saveStatus={saveStatus}
-              version={version}
-            />
-
             <EditorSidebar
               activeThreadId={activeThreadId}
               addReply={handleAddReply}
@@ -966,10 +959,12 @@ export function PressReleaseEditorPage({
               newCommentBody={newCommentBody}
               previousRevision={previousRevision}
               replyBodies={replyBodies}
+              remoteUserCount={remoteUsers.length}
               restoreRevision={restoreRevision}
               restoringRevisionId={restoringRevisionId}
               revisionSummaries={revisionSummaries}
               revisions={revisions}
+              saveStatus={saveStatus}
               selectedRevision={selectedRevision}
               selectedRevisionId={selectedRevisionId}
               setActiveThreadId={setActiveThreadId}
@@ -989,6 +984,7 @@ export function PressReleaseEditorPage({
               toggleResolveThread={(thread) =>
                 thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
               }
+              version={version}
               aiSidebarProps={{ ...aiAssistant, handleJumpToSuggestion }}
             />
           </div>

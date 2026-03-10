@@ -196,6 +196,14 @@
 
 .sidebarColumn {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.sidebarShell {
+  display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
@@ -1200,29 +1208,22 @@ body.is-resizing-panels {
 
 .sidebarPanel {
   display: grid;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #dbe5f0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
-  background: #f8fbff;
+  background: #fff;
   align-content: start;
   min-width: 0;
   min-height: 0;
-  position: sticky;
-  top: 12px;
-  align-self: start;
-  max-height: calc(100vh - 24px);
-  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .sidebarPanel.is-ai-tab {
-  grid-template-rows: auto minmax(0, 1fr);
-  position: static;
-  top: auto;
-  align-self: stretch;
-  height: 100%;
-  max-height: none;
-  overflow: hidden;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .sidebarHeader {

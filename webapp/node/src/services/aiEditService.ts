@@ -1,4 +1,5 @@
 import type {
+  AiEditSettings,
   AgentDocumentBlock,
   AgentDocumentEditResult,
   ConversationHistoryEntry,
@@ -87,6 +88,31 @@ function buildAgentBlocks(content: PressReleaseContent): AgentDocumentBlock[] {
   }
 
   return [{ id: 'block-1', type: 'paragraph', text: '' }]
+}
+
+function normalizeSettingList(values: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(values)) {
+    return undefined
+  }
+
+  const normalized = values
+    .map((value) => value.trim())
+    .filter((value, index, array) => value !== '' && array.indexOf(value) === index)
+
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function buildAgentInstructions(prompt: string, settings: AiEditSettings | undefined): Record<string, unknown> {
+  return {
+    goal: prompt,
+    language: 'ja',
+    audience: settings?.target_audience?.trim() || undefined,
+    style: settings?.writing_style?.trim() || undefined,
+    tone: settings?.tone?.trim() || undefined,
+    brand_voice: settings?.brand_voice?.trim() || undefined,
+    focus_points: normalizeSettingList(settings?.focus_points),
+    priority_checks: normalizeSettingList(settings?.priority_checks),
+  }
 }
 
 type DeterministicInstruction = {
@@ -210,10 +236,7 @@ export class AiEditService {
             title: input.title,
             blocks: buildAgentBlocks(input.content),
           },
-          instructions: {
-            goal: input.prompt,
-            language: 'ja',
-          },
+          instructions: buildAgentInstructions(input.prompt, input.ai_settings),
         }),
       })
     } catch (error) {

@@ -221,7 +221,7 @@ export function EditorWorkspace({
                             {tag}
                           </strong>
                         </div>
-                        <p className="editorMetaSuggestionDescription">反映すると追加されます</p>
+                        <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
                       </div>
                       <div className="editorMetaSuggestionActions">
                         <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>

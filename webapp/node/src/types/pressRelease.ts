@@ -65,6 +65,16 @@ export type RequestAiEditInput = {
   title: string
   content: PressReleaseContent
   conversation_history?: ConversationHistoryEntry[]
+  ai_settings?: AiEditSettings
+}
+
+export type AiEditSettings = {
+  target_audience?: string
+  writing_style?: string
+  tone?: string
+  brand_voice?: string
+  focus_points?: string[]
+  priority_checks?: string[]
 }
 
 export type ConversationHistoryEntry = {
