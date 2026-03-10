@@ -30,6 +30,3 @@ export function App() {
       </div>
     );
   }
-
-  return <PressReleaseEditorPage title={data.title} content={data.content ?? EMPTY_CONTENT} version={data.version} />;
-}

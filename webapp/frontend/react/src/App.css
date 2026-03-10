@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  padding: 20px 24px 24px;
+  padding: 4px 24px 24px;
   box-sizing: border-box;
 }
 
@@ -24,16 +24,18 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 2px;
   width: 100%;
 }
 
 .titleBlock {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .title {
@@ -44,6 +46,7 @@
 .metaRow {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
   color: #556274;
   font-size: 13px;
@@ -52,8 +55,9 @@
 .presenceList {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .presenceChip {
@@ -106,7 +110,7 @@
 
 .main {
   display: flex;
-  min-height: calc(100vh - 124px);
+  min-height: calc(100vh - 24px);
 }
 
 .workspace {
@@ -680,6 +684,10 @@
   background: #f8fbff;
   align-content: start;
   min-width: 0;
+}
+
+.sidebarHeader {
+  margin-bottom: 2px;
 }
 
 .sidebarTabs {
