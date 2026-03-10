@@ -12,49 +12,19 @@ export const app = new Hono()
 
 const appEnv = process.env.APP_ENV === 'prod' ? 'prod' : 'local'
 
-const resolveCorsOrigin = () => {
-  if (appEnv === 'local') {
-    // Allow all localhost origins with any port
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-
-  const baseApiUrl = process.env.APP_BASE_API_URL
-  console.log(`CORS configuration for environment "${appEnv}":`, { baseApiUrl })
-  if (!baseApiUrl) {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-
-  try {
-    const allowedOrigin = new URL(baseApiUrl).origin
-    return allowedOrigin
-  } catch {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-}
-
-const corsOrigin = resolveCorsOrigin()
-
 app.use(
   '*',
   cors({
-    origin: corsOrigin,
+    origin: (origin) => {
+      if (!origin) return ''
+      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return origin
+      if (origin === 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com') return origin
+      if (process.env.APP_FRONTEND_URL && origin === process.env.APP_FRONTEND_URL) return origin
+      return undefined
+    },
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   })
 )
 
