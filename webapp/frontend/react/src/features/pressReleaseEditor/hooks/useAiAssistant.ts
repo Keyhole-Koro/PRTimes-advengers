@@ -572,7 +572,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       const assistantMessage = {
         ...createAiMessage(
           "assistant",
-          "細かい提案を文書内に追加しました。該当箇所をクリックして差分を確認し、個別に適用または破棄してください。",
+          "細かい提案を文書内に追加しました。該当箇所をクリックして内容を確認し、1つずつ反映するか見送るかを選べます。",
         ),
         documentEditResult,
       };
