@@ -71,13 +71,27 @@ export type CommentMessageResponse = {
 
 export type SidebarTab = "history" | "comments" | "ai";
 
-export type ToolbarButtonConfig = {
-  key: string;
-  label: string;
-  tooltip?: string;
-  isActive: boolean;
-  onClick: () => void;
-};
+export type ToolbarButtonConfig =
+  | {
+      key: string;
+      label: string;
+      tooltip?: string;
+      isActive: boolean;
+      onClick: () => void;
+      type?: "button";
+    }
+  | {
+      key: string;
+      label: string;
+      tooltip?: string;
+      type: "select";
+      value: string;
+      options: Array<{
+        label: string;
+        value: string;
+      }>;
+      onChange: (value: string) => void;
+    };
 
 export type ToolbarGroupConfig = {
   label: string;

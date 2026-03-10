@@ -1,20 +1,39 @@
-type ToolbarButtonProps = {
-  label: string;
-  tooltip?: string;
-  isActive: boolean;
-  onClick: () => void;
-};
+import type { ChangeEvent } from "react";
 
-export function ToolbarButton({ label, tooltip, isActive, onClick }: ToolbarButtonProps) {
+import type { ToolbarButtonConfig } from "../types";
+
+type ToolbarButtonProps = ToolbarButtonConfig;
+
+export function ToolbarButton(props: ToolbarButtonProps) {
+  const { label, tooltip } = props;
   const tooltipText = tooltip ?? label;
+
+  if (props.type === "select") {
+    const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+      props.onChange(event.target.value);
+    };
+
+    return (
+      <label className="toolbarSelectWrap" aria-label={tooltipText} title={tooltipText}>
+        <span className="toolbarSelectLabel">{label}</span>
+        <select className="toolbarSelect" value={props.value} onChange={handleChange}>
+          {props.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
 
   return (
     <button
       type="button"
       onMouseDown={(event) => event.preventDefault()}
-      onClick={onClick}
-      className={`toolbarButton${isActive ? " is-active" : ""}`}
-      aria-pressed={isActive}
+      onClick={props.onClick}
+      className={`toolbarButton${props.isActive ? " is-active" : ""}`}
+      aria-pressed={props.isActive}
       aria-label={tooltipText}
       title={tooltipText}
     >

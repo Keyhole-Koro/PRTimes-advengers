@@ -456,9 +456,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
     autoRecommendBaselineTextRef.current = currentSnapshotText;
     setAiSettingSuggestions(inferAiSettingSuggestions(editor, title, aiSettings));
     const autoPrompt = `${AI_AUTO_RECOMMEND_PROMPT}（推定差分量: ${diffSize}文字）`;
-    const userMessage = createAiMessage("user", `自動レコメンドを実行します（推定差分量: ${diffSize}文字）。`);
     const threadId = activeAiThread.id;
-    updateThreadMessages(threadId, userMessage);
     setRespondingAiThreadId(threadId);
     setAutoRecommendStatus({
       diffSize,
@@ -467,7 +465,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
 
     void (async () => {
       try {
-        const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
+        const conversationHistory = activeAiThread.messages.slice(-12).map(serializeMessageForHistory);
         const documentEditResult = await requestDocumentEdit({
           pressReleaseId,
           prompt: autoPrompt,

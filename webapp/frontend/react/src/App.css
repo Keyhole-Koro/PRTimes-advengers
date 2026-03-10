@@ -831,6 +831,42 @@ body.is-resizing-panels {
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
 }
 
+.toolbarSelectWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.toolbarSelectLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.toolbarSelect {
+  min-height: 30px;
+  padding: 0 28px 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.toolbarSelect:focus {
+  outline: 2px solid #7aa2d6;
+  outline-offset: 1px;
+}
+
 .imageForm {
   display: flex;
   gap: 0.5rem;
@@ -1416,7 +1452,7 @@ body.is-resizing-panels {
   border: 1px solid #ddd;
   border-radius: 6px;
   outline: none;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
 .tiptap.ProseMirror {

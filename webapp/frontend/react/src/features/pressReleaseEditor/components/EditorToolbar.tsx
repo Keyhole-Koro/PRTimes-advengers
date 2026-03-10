@@ -13,13 +13,7 @@ export function EditorToolbar({ toolbarGroups }: EditorToolbarProps) {
           <span className="toolbarGroupLabel">{group.label}</span>
           <div className="toolbarGroupButtons">
             {group.buttons.map((button) => (
-              <ToolbarButton
-                key={button.key}
-                label={button.label}
-                tooltip={button.tooltip}
-                isActive={button.isActive}
-                onClick={button.onClick}
-              />
+              <ToolbarButton {...button} />
             ))}
           </div>
         </div>

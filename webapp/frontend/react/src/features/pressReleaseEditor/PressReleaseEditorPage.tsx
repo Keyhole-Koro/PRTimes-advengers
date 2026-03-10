@@ -27,6 +27,7 @@ import {
   setActiveAiSuggestion,
   setAiSuggestions,
 } from "./editor/tiptapExtensions/aiSuggestionDecorations";
+import { LineHeight } from "./editor/tiptapExtensions/lineHeight";
 import { withOperationText } from "./domain/pendingAiSuggestion";
 import { openPressReleaseCollaborationSocket, parseRealtimeMessage, sendCollaborationMessage } from "./infrastructure/collaborationGateway";
 import { RemovableImage } from "./editor/tiptapExtensions/removableImage";
@@ -207,6 +208,7 @@ export function PressReleaseEditorPage({
       extensions: session
         ? [
             StarterKit,
+            LineHeight,
             RemovableImage,
             aiSuggestionExtension,
             LinkCard,
@@ -214,7 +216,7 @@ export function PressReleaseEditorPage({
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, LineHeight, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -301,6 +303,10 @@ export function PressReleaseEditorPage({
       bold: currentEditor?.isActive("bold") ?? false,
       italic: currentEditor?.isActive("italic") ?? false,
       underline: currentEditor?.isActive("underline") ?? false,
+      lineHeight:
+        typeof currentEditor?.state.selection.$from.parent.attrs.lineHeight === "string"
+          ? currentEditor.state.selection.$from.parent.attrs.lineHeight
+          : "",
     }),
   });
 
@@ -668,6 +674,11 @@ export function PressReleaseEditorPage({
     chain.toggleUnderline().run();
   };
 
+  const setLineHeight = (lineHeight: string) => {
+    const nextValue = lineHeight === "" ? null : lineHeight;
+    editor.chain().focus().setLineHeight(nextValue).run();
+  };
+
   const toolbarGroups: ToolbarGroupConfig[] = [
     {
       buttons: MARK_BUTTONS.map((button) => ({
@@ -678,6 +689,30 @@ export function PressReleaseEditorPage({
         onClick: () => toggleMark(button.key),
       })),
       label: "書式",
+    },
+    {
+      buttons: [
+        {
+          key: "line-height-select",
+          label: "行間",
+          tooltip: "行間",
+          type: "select",
+          value: markState?.lineHeight ?? "",
+          options: [
+            { label: "既定", value: "" },
+            { label: "1.2", value: "1.2" },
+            { label: "1.3", value: "1.3" },
+            { label: "1.4", value: "1.4" },
+            { label: "1.5", value: "1.5" },
+            { label: "1.6", value: "1.6" },
+            { label: "1.7", value: "1.7" },
+            { label: "1.8", value: "1.8" },
+            { label: "2.0", value: "2.0" },
+          ],
+          onChange: (value) => setLineHeight(value),
+        },
+      ],
+      label: "行間",
     },
     {
       buttons: [
