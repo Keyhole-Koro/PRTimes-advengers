@@ -36,6 +36,11 @@ export type PressReleaseResponse = {
   updated_at: string
 }
 
+export type CreatePressReleaseInput = {
+  title: string
+  content: PressReleaseContent
+}
+
 export type PressReleaseRevisionResponse = {
   id: number
   press_release_id: number
@@ -108,6 +113,12 @@ export type AgentDocumentEditOperation =
       block_id: string
       before?: AgentDocumentBlock
       after: AgentDocumentBlock
+      reason?: string
+    }
+  | {
+      op: 'title_modify'
+      before_title?: string
+      after_title: string
       reason?: string
     }
 

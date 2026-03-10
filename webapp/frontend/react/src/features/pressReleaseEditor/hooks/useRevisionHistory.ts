@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { buildRevisionDiffSummary } from "../utils/diff";
 import { usePressReleaseRevisionsQuery } from "./usePressReleaseQueries";
 
-export function useRevisionHistory() {
-  const { data: revisions = [] } = usePressReleaseRevisionsQuery();
+export function useRevisionHistory(pressReleaseId: number) {
+  const { data: revisions = [] } = usePressReleaseRevisionsQuery(pressReleaseId);
   const [selectedRevisionId, setSelectedRevisionId] = useState<number | null>(null);
 
   useEffect(() => {

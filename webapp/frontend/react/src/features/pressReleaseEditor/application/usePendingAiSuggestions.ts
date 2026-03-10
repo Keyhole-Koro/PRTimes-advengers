@@ -4,6 +4,8 @@ import { normalizeLegacySuggestion } from "../domain/pendingAiSuggestion";
 import { getStoredJson, setStoredJson } from "../infrastructure/localStorageRepository";
 import type { PendingAiSuggestion } from "../types";
 
+const MAX_PENDING_AI_SUGGESTIONS = 4;
+
 type UsePendingAiSuggestionsOptions = {
   storageKey: string;
 };
@@ -14,7 +16,10 @@ export function usePendingAiSuggestions({ storageKey }: UsePendingAiSuggestionsO
       storageKey,
       (value) =>
         Array.isArray(value)
-          ? value.map(normalizeLegacySuggestion).filter((entry): entry is PendingAiSuggestion => entry !== null)
+          ? value
+              .map(normalizeLegacySuggestion)
+              .filter((entry): entry is PendingAiSuggestion => entry !== null)
+              .slice(-MAX_PENDING_AI_SUGGESTIONS)
           : [],
       [],
     ),

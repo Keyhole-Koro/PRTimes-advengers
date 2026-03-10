@@ -22,6 +22,10 @@ export function presentInvalidPressReleasePayload() {
   return { code: 'MISSING_REQUIRED_FIELDS', message: 'Title and content are required' }
 }
 
+export function presentInvalidCreatePressReleasePayload() {
+  return { code: 'MISSING_REQUIRED_FIELDS', message: 'Title is required' }
+}
+
 export function presentInvalidAiPayload() {
   return { code: 'MISSING_REQUIRED_FIELDS', message: 'Prompt, title and content are required' }
 }

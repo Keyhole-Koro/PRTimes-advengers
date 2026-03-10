@@ -36,7 +36,7 @@ import "./AiSidebar.css";
 
 const AI_STYLE_OPTIONS = ["", "プレスリリース標準", "ニュースライク", "やわらかめ", "採用向け", "商品訴求寄り"];
 const AI_TONE_OPTIONS = ["", "簡潔", "丁寧", "力強い", "親しみやすい", "落ち着いた"];
-const AI_FOCUS_POINT_OPTIONS = ["タイトル", "導入文", "本文構成", "見出し", "CTA", "SEOキーワード"];
+const AI_FOCUS_POINT_OPTIONS = ["タイトル", "導入文", "本文構成", "見出し", "CTA"];
 const AI_PRIORITY_CHECK_OPTIONS = ["誤字脱字", "表記ゆれ", "読みやすさ", "リスク表現", "数字・日付の整合性"];
 
 function formatAttachmentSize(size: number): string {

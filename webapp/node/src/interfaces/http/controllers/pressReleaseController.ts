@@ -1,10 +1,13 @@
 import type { Context } from 'hono'
 import { PressReleaseAiEditRequestSchema, PressReleaseInputSchema } from '../../../schemas/pressRelease.js'
 import { requestDocumentEdit } from '../../../application/ai/requestDocumentEdit.js'
+import { createPressRelease } from '../../../application/pressRelease/createPressRelease.js'
 import { getPressRelease } from '../../../application/pressRelease/getPressRelease.js'
 import { getPressReleaseRevisions } from '../../../application/pressRelease/getPressReleaseRevisions.js'
+import { listPressReleases } from '../../../application/pressRelease/listPressReleases.js'
 import { restoreRevision } from '../../../application/pressRelease/restoreRevision.js'
 import { updatePressRelease } from '../../../application/pressRelease/updatePressRelease.js'
+import { EMPTY_CONTENT } from '../../../interfaces/http/presenters/pressReleaseViewDefaults.js'
 import {
   PressReleaseNotFoundError,
   PressReleaseRevisionNotFoundError,
@@ -13,12 +16,47 @@ import {
 import { AiEditServiceError } from '../../../services/aiEditService.js'
 import {
   presentInternalError,
+  presentInvalidCreatePressReleasePayload,
   presentInvalidAiPayload,
   presentInvalidPressReleasePayload,
   presentNotFound,
   presentRevisionNotFound,
   presentVersionConflict,
 } from '../presenters/pressReleasePresenter.js'
+
+export async function listPressReleasesAction(c: Context) {
+  try {
+    return c.json(await listPressReleases())
+  } catch (error) {
+    console.error('Database error:', error)
+    return c.json(presentInternalError(), 500)
+  }
+}
+
+export async function createPressReleaseAction(c: Context, data: unknown) {
+  if (typeof data !== 'object' || data === null) {
+    return c.json(presentInvalidCreatePressReleasePayload(), 400)
+  }
+
+  const record = data as { title?: unknown; content?: unknown }
+  const title = typeof record.title === 'string' ? record.title.trim() : ''
+  if (title === '') {
+    return c.json(presentInvalidCreatePressReleasePayload(), 400)
+  }
+
+  try {
+    return c.json(
+      await createPressRelease({
+        title,
+        content: record.content && typeof record.content === 'object' ? (record.content as Record<string, unknown>) : EMPTY_CONTENT,
+      }),
+      201
+    )
+  } catch (error) {
+    console.error('Database error:', error)
+    return c.json(presentInternalError(), 500)
+  }
+}
 
 export async function getPressReleaseAction(c: Context, id: number) {
   try {

@@ -7,6 +7,8 @@ export type PressReleaseResponse = {
   title: string;
   content: JSONContent;
   version: number;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type PressRelease = {
@@ -126,6 +128,12 @@ export type AgentDocumentEditOperation =
       block_id: string;
       before?: AgentDocumentBlock;
       after: AgentDocumentBlock;
+      reason?: string;
+    }
+  | {
+      op: "title_modify";
+      before_title?: string;
+      after_title: string;
       reason?: string;
     };
 

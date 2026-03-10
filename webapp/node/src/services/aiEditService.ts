@@ -126,6 +126,7 @@ type DeterministicInstruction = {
 const INLINE_ELIGIBLE_CATEGORIES = new Set<AgentDocumentEditSuggestion['category']>(['body', 'readability'])
 const INLINE_MAX_CHANGED_FRAGMENT_LENGTH = 24
 const INLINE_MAX_BLOCK_TEXT_LENGTH = 180
+const MAX_VISIBLE_SUGGESTIONS = 2
 
 function getChangedFragments(beforeText: string, afterText: string): { before: string; after: string } {
   let prefixLength = 0
@@ -200,7 +201,7 @@ function normalizeSuggestionPresentation(suggestion: AgentDocumentEditSuggestion
 function normalizeEditResult(result: AgentDocumentEditResult): AgentDocumentEditResult {
   return {
     ...result,
-    suggestions: result.suggestions.map(normalizeSuggestionPresentation),
+    suggestions: result.suggestions.map(normalizeSuggestionPresentation).slice(0, MAX_VISIBLE_SUGGESTIONS),
   }
 }
 

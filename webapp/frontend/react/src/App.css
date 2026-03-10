@@ -1,5 +1,5 @@
 .container {
-  height: 100vh;
+  height: 100%;
   padding: 4px 24px 24px;
   box-sizing: border-box;
   overflow: hidden;
@@ -193,6 +193,135 @@
   display: flex;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
+}
+
+.appShell {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f3f6fa 0%, #eef3f8 100%);
+}
+
+.editorTopBar {
+  display: flex;
+  justify-content: flex-start;
+  padding: 16px 20px 4px;
+}
+
+.pressReleaseBackButton,
+.pressReleaseCreateButton {
+  border: 1px solid #c8d7e6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #12385f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.pressReleaseCreateButton:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.pressReleaseListScreen {
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 40px 20px 56px;
+  display: grid;
+  gap: 24px;
+}
+
+.pressReleaseListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.pressReleaseListEyebrow {
+  margin: 0 0 6px;
+  color: #5f7a95;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pressReleaseListTitle {
+  margin: 0;
+  color: #12385f;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.pressReleaseListDescription,
+.pressReleaseListError {
+  margin: 8px 0 0;
+  color: #5c7188;
+  font-size: 14px;
+}
+
+.pressReleaseCardList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.pressReleaseCard {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #d5e2ee;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(246,250,255,.98) 100%);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.pressReleaseCard:hover,
+.pressReleaseCard.is-active {
+  border-color: #9db9d4;
+  box-shadow: 0 14px 28px rgba(17, 40, 71, 0.1);
+}
+
+.pressReleaseCardMetaRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pressReleaseCardMeta {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8f0f8;
+  color: #35506b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pressReleaseCardTitle {
+  color: #12385f;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.pressReleaseCardSnippet,
+.pressReleaseEmptyState {
+  margin: 0;
+  color: #61788f;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .workspace {
@@ -223,7 +352,7 @@
 
 .editorWrapper {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   border: 1px solid #e5e5e5;
   border-radius: 12px;
   padding: 16px;
@@ -233,6 +362,99 @@
   background: #fff;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.editorAiAssistStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #dce7f2;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f4f8fc 100%);
+  overflow: hidden;
+}
+
+.editorAiAssistHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.editorAiAssistBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.editorAiAssistText {
+  margin: 0;
+  color: #5f7388;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.editorAiAssistList {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  min-width: 0;
+  padding-bottom: 1px;
+}
+
+.editorAiAssistCard {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.editorAiAssistPrompt {
+  display: inline-block;
+  color: #12385f;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.editorAiAssistOptions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.editorAiAssistOption {
+  border: 1px solid #c9d9ea;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #12385f;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.editorAiAssistOption:hover {
+  border-color: #8fb3d6;
+  background: #f7fbff;
+  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.08);
 }
 
 .editorContentLayout {
@@ -804,6 +1026,73 @@ body.is-resizing-panels {
 .dropZone > div {
   min-height: 0;
   height: 100%;
+}
+
+.editorCanvasTabsRow {
+  display: flex;
+  justify-content: flex-end;
+  margin: 2px 0 12px;
+}
+
+.editorCanvasTabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid #d8e2ec;
+  border-radius: 999px;
+  background: #f8fbfe;
+}
+
+.editorCanvasTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5a728b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editorCanvasTab.is-active {
+  background: #ffffff;
+  color: #12385f;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.editorPreviewPane {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 22px 24px;
+}
+
+.editorPreviewContent {
+  max-width: 780px;
+  margin: 0 auto;
+  color: #1f3349;
+  line-height: 1.8;
+}
+
+.editorPreviewContent > *:first-child {
+  margin-top: 0;
+}
+
+.editorPreviewContent h1,
+.editorPreviewContent h2,
+.editorPreviewContent h3 {
+  color: #12385f;
+  line-height: 1.3;
+}
+
+.editorPreviewContent p,
+.editorPreviewContent ul,
+.editorPreviewContent ol,
+.editorPreviewContent blockquote {
+  margin: 0 0 1rem;
 }
 
 .dropZoneHint {

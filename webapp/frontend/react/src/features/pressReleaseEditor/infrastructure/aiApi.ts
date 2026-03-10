@@ -1,4 +1,4 @@
-import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
+import { BASE_URL } from "../constants";
 import type { AiAgentSettings, ConversationHistoryEntry } from "../hooks/useAiAssistant";
 import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
 
@@ -18,6 +18,10 @@ function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocume
 
   if (operation.op === "modify") {
     return typeof operation.block_id === "string" && "after" in operation;
+  }
+
+  if (operation.op === "title_modify") {
+    return typeof operation.after_title === "string";
   }
 
   return false;
@@ -114,13 +118,14 @@ function serializeAiSettings(settings: AiAgentSettings): Record<string, unknown>
 }
 
 export async function requestDocumentEdit(params: {
+  pressReleaseId: number;
   prompt: string;
   editor: { getJSON: () => Record<string, unknown> };
   title: string;
   conversationHistory: ConversationHistoryEntry[];
   aiSettings: AiAgentSettings;
 }): Promise<AgentDocumentEditResult> {
-  const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/ai-edit`, {
+  const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-edit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

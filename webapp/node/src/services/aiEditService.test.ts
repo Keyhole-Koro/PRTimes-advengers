@@ -328,3 +328,62 @@ test('AiEditService keeps short single-block inline suggestions as inline', asyn
     globalThis.fetch = originalFetch
   }
 })
+
+test('AiEditService limits suggestions to two items', async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          assistant_message: '提案を追加しました。',
+          navigation_label: '提案を見る',
+          suggestions: [
+            {
+              id: 'suggestion-1',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案1',
+              operations: [],
+            },
+            {
+              id: 'suggestion-2',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案2',
+              operations: [],
+            },
+            {
+              id: 'suggestion-3',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案3',
+              operations: [],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestDocumentEdit({
+      prompt: '改善して',
+      title: 'テスト',
+      content,
+    })
+
+    assert.equal(result.suggestions.length, 2)
+    assert.equal(result.suggestions[0]?.id, 'suggestion-1')
+    assert.equal(result.suggestions[1]?.id, 'suggestion-2')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

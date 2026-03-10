@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import {
+  createPressReleaseAction,
   getPressReleaseAction,
   getPressReleaseRevisionsAction,
+  listPressReleasesAction,
   requestAiEditAction,
   restoreRevisionAction,
   updatePressReleaseAction,
@@ -10,6 +12,17 @@ import { invalidIdResponse, invalidJsonResponse, parseIdParam, parseJsonBody } f
 
 export function createPressReleaseRoutes(): Hono {
   const pressReleaseRoutes = new Hono()
+
+  pressReleaseRoutes.get('/press-releases', async (c) => listPressReleasesAction(c))
+
+  pressReleaseRoutes.post('/press-releases', async (c) => {
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
+    }
+
+    return createPressReleaseAction(c, data)
+  })
 
   pressReleaseRoutes.get('/press-releases/:id', async (c) => {
     const id = parseIdParam(c, 'id')

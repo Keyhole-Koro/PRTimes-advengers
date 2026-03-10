@@ -85,6 +85,27 @@ block の `type` は次に限定されています。
 - `modify` で `before` が無ければ、入力 document の元 block を補完
 - `remove` で `removed_block` が無ければ、入力 document の元 block を補完
 
+### API / UI 運用ルール
+
+`document_edit` の提案は、そのまま全件を UI に出すのではなく、サーバとフロントで次の制約をかけています。
+
+- 1 回の agent 応答で返す suggestion は最大 2 件
+- フロントで保持する本文中の pending suggestion は最大 4 件
+- 5 件目以降が来たら、プログラム側で古い本文中 suggestion から破棄する
+- 新しく追加された suggestion は最初は閉じた状態で出す
+- suggestion 追加時は、ユーザーが見ている本文位置が極力ずれないようスクロール補正する
+- この 4 件上限は prompt で agent に指示しているものではなく、フロント側で本文中 suggestion のみを制御している
+- AI 設定の補助候補はこの上限に含めない
+
+自動レコメンドも追加の運用ルールがあります。
+
+- 起動条件は「行数差分」ではなく、タイトル込み本文テキストの推定差分量
+- title は document.title として本文 block 群とは別に扱う
+- タイトル修正提案は本文先頭への追記ではなく `title_modify` operation で返す
+- 一定以上の差分文字数が発生したときだけ agent を呼ぶ
+- 自動レコメンド実行中にさらに差分が発生した場合は、その場では捨てず保留する
+- 実行中の agent 応答が終わったあと、保留されていた差分をまとめて再判定する
+
 ### 図: `document_edit` の処理
 
 ```mermaid

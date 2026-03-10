@@ -159,11 +159,15 @@ export class CollaborationHub {
     room.isSaving = true
 
     try {
-      const pressRelease = await pressReleaseService.updatePressRelease(pressReleaseId, {
-        title: room.snapshot.title,
-        content: room.snapshot.content,
-        version: room.snapshot.version,
-      })
+      const pressRelease = await pressReleaseService.updatePressRelease(
+        pressReleaseId,
+        {
+          title: room.snapshot.title,
+          content: room.snapshot.content,
+          version: room.snapshot.version,
+        },
+        { notifySaved: false }
+      )
 
       room.snapshot = {
         title: pressRelease.title,

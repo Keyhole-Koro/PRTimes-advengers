@@ -18,9 +18,8 @@ import { useSidebarState } from "./application/useSidebarState";
 import {
   BASE_URL,
   MARK_BUTTONS,
-  PRESS_RELEASE_ID,
-  QUERY_KEY,
-  REVISIONS_QUERY_KEY,
+  buildPressReleaseQueryKey,
+  buildPressReleaseRevisionsQueryKey,
   WS_BASE_URL,
 } from "./constants";
 import {
@@ -43,17 +42,18 @@ import type {
   PressRelease,
   ToolbarGroupConfig,
 } from "./types";
-import { applyAgentDocumentSuggestion } from "./utils/applyAgentDocumentEdit";
+import { applyAgentDocumentSuggestion, getSuggestedTitle } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./editor/tiptapAdapters/realtime";
 
 export function PressReleaseEditorPage({
+  pressReleaseId,
   title: initialTitle,
   content,
   version: initialVersion,
-}: PressRelease) {
-  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
-  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
-  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${PRESS_RELEASE_ID}`;
+}: PressRelease & { pressReleaseId: number }) {
+  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${pressReleaseId}`;
+  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${pressReleaseId}`;
+  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${pressReleaseId}`;
   const queryClient = useQueryClient();
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [identity] = useState(createRealtimeIdentity);
@@ -99,7 +99,12 @@ export function PressReleaseEditorPage({
           return;
         }
 
+        const nextTitle = getSuggestedTitle(suggestion.suggestion.operations);
         const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), suggestion.suggestion);
+        if (nextTitle !== null) {
+          setTitle(nextTitle);
+          sendTitleUpdate(nextTitle);
+        }
         editorRef.current.commands.setContent(nextContent);
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId(null);
@@ -123,7 +128,12 @@ export function PressReleaseEditorPage({
           operations: [editedOperation],
         };
 
+        const nextTitle = getSuggestedTitle(partialSuggestion.operations);
         const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), partialSuggestion);
+        if (nextTitle !== null) {
+          setTitle(nextTitle);
+          sendTitleUpdate(nextTitle);
+        }
         editorRef.current.commands.setContent(nextContent);
         let hasRemainingOperations = false;
         setPendingAiSuggestions((current) =>
@@ -214,12 +224,39 @@ export function PressReleaseEditorPage({
     editorRef.current = editor;
   }, [editor]);
 
+  const preserveEditorViewportState = (currentEditor: Editor, applyUpdate: () => void) => {
+    const scrollContainer = currentEditor.view.dom as HTMLElement;
+    const hadFocus = currentEditor.view.hasFocus();
+    const { from, to } = currentEditor.state.selection;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+
+    applyUpdate();
+
+    window.requestAnimationFrame(() => {
+      try {
+        if (hadFocus) {
+          currentEditor.chain().focus().setTextSelection({ from, to }).run();
+        }
+      } catch {
+        if (hadFocus) {
+          currentEditor.view.focus();
+        }
+      } finally {
+        scrollContainer.scrollTop = scrollTop;
+        scrollContainer.scrollLeft = scrollLeft;
+      }
+    });
+  };
+
   useEffect(() => {
     if (!editor) {
       return;
     }
 
-    setAiSuggestions(editor, pendingAiSuggestions);
+    preserveEditorViewportState(editor, () => {
+      setAiSuggestions(editor, pendingAiSuggestions);
+    });
   }, [editor, pendingAiSuggestions]);
 
   useEffect(() => {
@@ -227,7 +264,9 @@ export function PressReleaseEditorPage({
       return;
     }
 
-    setActiveAiSuggestion(editor, activeAiSuggestionId);
+    preserveEditorViewportState(editor, () => {
+      setActiveAiSuggestion(editor, activeAiSuggestionId);
+    });
   }, [activeAiSuggestionId, editor]);
 
   const sendPendingSteps = (currentEditor: Editor) => {
@@ -272,7 +311,7 @@ export function PressReleaseEditorPage({
     selectedRevision,
     selectedRevisionId,
     setSelectedRevisionId,
-  } = useRevisionHistory();
+  } = useRevisionHistory(pressReleaseId);
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -282,7 +321,7 @@ export function PressReleaseEditorPage({
     });
 
     const websocket = openPressReleaseCollaborationSocket(
-      `${WS_BASE_URL}/ws/press-releases/${PRESS_RELEASE_ID}?${params.toString()}`,
+      `${WS_BASE_URL}/ws/press-releases/${pressReleaseId}?${params.toString()}`,
     );
     websocketRef.current = websocket;
 
@@ -317,8 +356,8 @@ export function PressReleaseEditorPage({
         setTitle(message.title);
         setVersion(message.version);
         setSaveStatus("saved");
-        void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-        void queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: buildPressReleaseQueryKey(pressReleaseId) });
+        void queryClient.invalidateQueries({ queryKey: buildPressReleaseRevisionsQueryKey(pressReleaseId) });
         return;
       }
 
@@ -371,7 +410,7 @@ export function PressReleaseEditorPage({
       websocket.close();
       websocketRef.current = null;
     };
-  }, [identity, queryClient]);
+  }, [identity, pressReleaseId, queryClient]);
 
   useEffect(() => {
     if (!editor) {
@@ -456,7 +495,7 @@ export function PressReleaseEditorPage({
     setSaveStatus("saving");
 
     try {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions/${revisionId}/restore`, {
+      const response = await fetch(`${BASE_URL}/press-releases/${pressReleaseId}/revisions/${revisionId}/restore`, {
         method: "POST",
       });
 
@@ -464,8 +503,8 @@ export function PressReleaseEditorPage({
         throw new Error("変更履歴の復元に失敗しました");
       }
 
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      await queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: buildPressReleaseQueryKey(pressReleaseId) });
+      await queryClient.invalidateQueries({ queryKey: buildPressReleaseRevisionsQueryKey(pressReleaseId) });
       setSaveStatus("saved");
     } catch (restoreError) {
       setSaveStatus("error");
@@ -536,6 +575,7 @@ export function PressReleaseEditorPage({
       setActiveThreadId(threadId);
       setSidebarTab("comments");
     },
+    pressReleaseId,
     requestFlush,
     session,
   });
@@ -564,6 +604,7 @@ export function PressReleaseEditorPage({
   const { aiAssistant, handleJumpToSuggestion } = useAiRecommendations({
     editor,
     pendingAiSuggestionsRef,
+    pressReleaseId,
     setActiveAiSuggestionId,
     setPendingAiSuggestions,
     title,
@@ -736,6 +777,7 @@ export function PressReleaseEditorPage({
           style={{ gridTemplateColumns: `minmax(0, 1fr) 12px ${sidebarWidth}px` }}
         >
           <EditorWorkspace
+            aiSettingSuggestions={aiAssistant.aiSettingSuggestions}
             editor={editor}
             fileInputRef={fileInputRef}
             handleDragEnter={handleDragEnter}
@@ -748,7 +790,9 @@ export function PressReleaseEditorPage({
             isDraggingImage={isDraggingImage}
             isUploadingImage={isUploadingImage}
             onTitleChange={handleTitleChange}
+            setAiSettingText={aiAssistant.setAiSettingText}
             title={title}
+            toggleAiSettingListValue={aiAssistant.toggleAiSettingListValue}
             toolbarGroups={toolbarGroups}
           />
 
@@ -764,7 +808,7 @@ export function PressReleaseEditorPage({
             <EditorSidebar
               activeThreadId={activeThreadId}
               addReply={handleAddReply}
-              autoRecommendLineDelta={aiAssistant.autoRecommendStatus?.lineDelta ?? null}
+              autoRecommendDiffSize={aiAssistant.autoRecommendStatus?.diffSize ?? null}
               cancelCreateComment={() => {
                 setIsCreatingComment(false);
                 setNewCommentBody("");

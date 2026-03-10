@@ -1,5 +1,6 @@
 import { pressReleaseRepository } from '../repositories/pressReleaseRepository.js'
 import type {
+  CreatePressReleaseInput,
   PressReleaseRecord,
   PressReleaseRevisionRecord,
   PressReleaseRevisionResponse,
@@ -25,6 +26,11 @@ export class PressReleaseService {
     this.onSaved = callback
   }
 
+  async listPressReleases(): Promise<PressReleaseResponse[]> {
+    const pressReleases = await pressReleaseRepository.findAll()
+    return pressReleases.map(toResponse)
+  }
+
   async getPressRelease(id: number): Promise<PressReleaseResponse> {
     const pressRelease = await pressReleaseRepository.findById(id)
     if (!pressRelease) {
@@ -34,7 +40,11 @@ export class PressReleaseService {
     return toResponse(pressRelease)
   }
 
-  async updatePressRelease(id: number, input: UpdatePressReleaseInput): Promise<PressReleaseResponse> {
+  async updatePressRelease(
+    id: number,
+    input: UpdatePressReleaseInput,
+    options: { notifySaved?: boolean } = {}
+  ): Promise<PressReleaseResponse> {
     const result = await pressReleaseRepository.update(id, input)
     if (result.status === 'not_found') {
       throw new PressReleaseNotFoundError()
@@ -45,6 +55,14 @@ export class PressReleaseService {
     }
 
     const response = toResponse(result.pressRelease)
+    if (options.notifySaved !== false) {
+      this.onSaved?.(response)
+    }
+    return response
+  }
+
+  async createPressRelease(input: CreatePressReleaseInput): Promise<PressReleaseResponse> {
+    const response = toResponse(await pressReleaseRepository.create(input))
     this.onSaved?.(response)
     return response
   }
