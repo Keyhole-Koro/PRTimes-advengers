@@ -9,19 +9,29 @@ phases:
       # 環境変数を使って確実に目的のディレクトリへ移動
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm install
+
+  pre_build:
+    commands:
+      - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
+      # CodeBuildの環境変数 APP_API_BASE_URL を .env に書き出す
+      # (注意: Viteで読み込むために VITE_ プレフィックスを付けています)
+      - echo "VITE_APP_API_BASE_URL=$APP_API_BASE_URL" >> .env
+      - echo "VITE_WS_BASE_URL=$WS_BASE_URL" >> .env
+      - echo "APP_ENV=$APP_ENV" >> .env
+
   build:
     commands:
       # 各フェーズの最初で確実にディレクトリを指定する
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm run build
+
   post_build:
     commands:
       # S3へのデプロイ時も確実にディレクトリを指定
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - aws s3 sync dist s3://pr-times-4/ --delete
-      # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する（追記）
+      # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する
       - rm -rf node_modules
-      - aws s3 sync dist s3://pr-times-4/ --delete
 
 artifacts:
   base-directory: webapp

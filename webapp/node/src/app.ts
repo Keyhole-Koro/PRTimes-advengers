@@ -13,37 +13,33 @@ export const app = new Hono()
 const appEnv = process.env.APP_ENV === 'prod' ? 'prod' : 'local'
 
 const resolveCorsOrigin = () => {
-  if (appEnv === 'local') {
-    // Allow all localhost origins with any port
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
-
-  const baseApiUrl = process.env.APP_BASE_API_URL
-  console.log(`CORS configuration for environment "${appEnv}":`, { baseApiUrl })
-  if (!baseApiUrl) {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
-    }
-  }
+  const frontendUrl = process.env.APP_FRONTEND_URL || 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com'
+  let allowedFrontendOrigin: string;
 
   try {
-    const allowedOrigin = new URL(baseApiUrl).origin
-    return allowedOrigin
+    allowedFrontendOrigin = new URL(frontendUrl).origin
   } catch {
-    return (origin: string) => {
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return origin
-      }
-      return undefined
+    // 万が一URLパースに失敗した場合の安全なフォールバック
+    allowedFrontendOrigin = 'http://pr-times-4.s3-website-ap-northeast-1.amazonaws.com'
+  }
+
+  // リクエストのoriginを動的に評価して許可するかどうかを返す
+  return (origin: string) => {
+    // originが存在しない場合（同一オリジンや一部のツールからのアクセス等）はundefinedを返す
+    if (!origin) return undefined
+
+    // 1. ローカル開発環境 (localhost) を許可
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      return origin
     }
+
+    // 2. フロントエンドのURLを許可
+    if (origin === allowedFrontendOrigin) {
+      return origin
+    }
+
+    // 上記以外は許可しない
+    return undefined
   }
 }
 
