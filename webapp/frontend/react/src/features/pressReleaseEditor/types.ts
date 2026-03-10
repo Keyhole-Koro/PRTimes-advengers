@@ -129,16 +129,35 @@ export type AgentDocumentEditOperation =
       reason?: string;
     };
 
+export type AgentDocumentSuggestionCategory =
+  | "title"
+  | "lede"
+  | "structure"
+  | "readability"
+  | "keyword"
+  | "tag"
+  | "risk"
+  | "body";
+
+export type AgentDocumentEditSuggestion = {
+  id: string;
+  category: AgentDocumentSuggestionCategory;
+  summary: string;
+  reason?: string;
+  operations: AgentDocumentEditOperation[];
+};
+
 export type AgentDocumentEditResult = {
   summary: string;
-  operations: AgentDocumentEditOperation[];
+  suggestions: AgentDocumentEditSuggestion[];
   notes?: string[];
 };
 
 export type PendingAiSuggestion = {
   id: string;
   prompt: string;
-  result: AgentDocumentEditResult;
+  responseSummary: string;
+  suggestion: AgentDocumentEditSuggestion;
 };
 
 export type RealtimeMessage =

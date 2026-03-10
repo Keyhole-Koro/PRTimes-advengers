@@ -94,9 +94,27 @@ export type AgentDocumentEditOperation =
       reason?: string
     }
 
+export type AgentDocumentSuggestionCategory =
+  | 'title'
+  | 'lede'
+  | 'structure'
+  | 'readability'
+  | 'keyword'
+  | 'tag'
+  | 'risk'
+  | 'body'
+
+export type AgentDocumentEditSuggestion = {
+  id: string
+  category: AgentDocumentSuggestionCategory
+  summary: string
+  reason?: string
+  operations: AgentDocumentEditOperation[]
+}
+
 export type AgentDocumentEditResult = {
   summary: string
-  operations: AgentDocumentEditOperation[]
+  suggestions: AgentDocumentEditSuggestion[]
   notes?: string[]
 }
 

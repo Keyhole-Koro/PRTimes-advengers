@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import Underline from "@tiptap/extension-underline";
 import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
 import { type Editor, useEditor, useEditorState } from "@tiptap/react";
@@ -35,6 +34,9 @@ import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import { useAiAssistant } from "./hooks/useAiAssistant";
 import type {
   AgentDocumentEditResult,
+  AgentDocumentEditOperation,
+  AgentDocumentEditSuggestion,
+  AgentDocumentSuggestionCategory,
   MarkType,
   PendingAiSuggestion,
   PressRelease,
@@ -44,8 +46,110 @@ import type {
   SidebarTab,
   ToolbarGroupConfig,
 } from "./types";
-import { applyAgentDocumentEdit } from "./utils/applyAgentDocumentEdit";
+import { applyAgentDocumentSuggestion } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./utils/realtime";
+
+function isValidSuggestionCategory(value: unknown): value is AgentDocumentSuggestionCategory {
+  return (
+    value === "title" ||
+    value === "lede" ||
+    value === "structure" ||
+    value === "readability" ||
+    value === "keyword" ||
+    value === "tag" ||
+    value === "risk" ||
+    value === "body"
+  );
+}
+
+function isValidPendingAiSuggestion(value: unknown): value is PendingAiSuggestion {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Partial<PendingAiSuggestion>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.prompt === "string" &&
+    typeof record.responseSummary === "string" &&
+    typeof record.suggestion === "object" &&
+    record.suggestion !== null &&
+    typeof record.suggestion.id === "string" &&
+    isValidSuggestionCategory(record.suggestion.category) &&
+    typeof record.suggestion.summary === "string" &&
+    Array.isArray(record.suggestion.operations)
+  );
+}
+
+function normalizeLegacySuggestion(value: unknown): PendingAiSuggestion | null {
+  if (isValidPendingAiSuggestion(value)) {
+    return value;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const legacy = value as {
+    id?: unknown;
+    prompt?: unknown;
+    result?: {
+      summary?: unknown;
+      operations?: unknown[];
+    };
+  };
+
+  if (
+    typeof legacy.id !== "string" ||
+    typeof legacy.prompt !== "string" ||
+    typeof legacy.result?.summary !== "string" ||
+    !Array.isArray(legacy.result?.operations)
+  ) {
+    return null;
+  }
+
+  const suggestion: AgentDocumentEditSuggestion = {
+    id: `${legacy.id}-legacy`,
+    category: "body",
+    summary: legacy.result.summary,
+    operations: legacy.result.operations as AgentDocumentEditSuggestion["operations"],
+  };
+
+  return {
+    id: legacy.id,
+    prompt: legacy.prompt,
+    responseSummary: legacy.result.summary,
+    suggestion,
+  };
+}
+
+function withOperationText(operation: AgentDocumentEditOperation, nextText?: string): AgentDocumentEditOperation {
+  if (typeof nextText !== "string") {
+    return operation;
+  }
+
+  if (operation.op === "add") {
+    return {
+      ...operation,
+      block: {
+        ...operation.block,
+        text: nextText,
+      },
+    };
+  }
+
+  if (operation.op === "modify") {
+    return {
+      ...operation,
+      after: {
+        ...operation.after,
+        text: nextText,
+      },
+    };
+  }
+
+  return operation;
+}
 
 export function PressReleaseEditorPage({
   title: initialTitle,
@@ -83,7 +187,11 @@ export function PressReleaseEditorPage({
       }
 
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as PendingAiSuggestion[]) : [];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed.map(normalizeLegacySuggestion).filter((value): value is PendingAiSuggestion => value !== null);
     } catch {
       return [];
     }
@@ -105,10 +213,57 @@ export function PressReleaseEditorPage({
           return;
         }
 
-        const nextContent = applyAgentDocumentEdit(editorRef.current.getJSON(), suggestion.result);
+        const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), suggestion.suggestion);
         editorRef.current.commands.setContent(nextContent);
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId(null);
+        setSaveStatus("dirty");
+        requestFlushRef.current();
+      },
+      onAcceptSuggestionOperation: (suggestionId, operationIndex, nextText) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (!suggestion || !editorRef.current) {
+          return;
+        }
+
+        const operation = suggestion.suggestion.operations[operationIndex];
+        if (!operation) {
+          return;
+        }
+
+        const editedOperation = withOperationText(operation, nextText);
+        const partialSuggestion: AgentDocumentEditSuggestion = {
+          ...suggestion.suggestion,
+          operations: [editedOperation],
+        };
+
+        const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), partialSuggestion);
+        editorRef.current.commands.setContent(nextContent);
+        let hasRemainingOperations = false;
+        setPendingAiSuggestions((current) =>
+          current
+            .map((entry) => {
+              if (entry.id !== suggestionId) {
+                return entry;
+              }
+
+              const remainingOperations = entry.suggestion.operations.filter((_, index) => index !== operationIndex);
+              hasRemainingOperations = remainingOperations.length > 0;
+              if (remainingOperations.length === 0) {
+                return null;
+              }
+
+              return {
+                ...entry,
+                suggestion: {
+                  ...entry.suggestion,
+                  operations: remainingOperations,
+                },
+              };
+            })
+            .filter((entry): entry is PendingAiSuggestion => entry !== null),
+        );
+        setActiveAiSuggestionId((current) => (current === suggestionId && !hasRemainingOperations ? null : current));
         setSaveStatus("dirty");
         requestFlushRef.current();
       },
@@ -118,6 +273,33 @@ export function PressReleaseEditorPage({
       onDiscardSuggestion: (suggestionId) => {
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
+      },
+      onDiscardSuggestionOperation: (suggestionId, operationIndex) => {
+        let hasRemainingOperations = false;
+        setPendingAiSuggestions((current) =>
+          current
+            .map((entry) => {
+              if (entry.id !== suggestionId) {
+                return entry;
+              }
+
+              const remainingOperations = entry.suggestion.operations.filter((_, index) => index !== operationIndex);
+              hasRemainingOperations = remainingOperations.length > 0;
+              if (remainingOperations.length === 0) {
+                return null;
+              }
+
+              return {
+                ...entry,
+                suggestion: {
+                  ...entry.suggestion,
+                  operations: remainingOperations,
+                },
+              };
+            })
+            .filter((entry): entry is PendingAiSuggestion => entry !== null),
+        );
+        setActiveAiSuggestionId((current) => (current === suggestionId && !hasRemainingOperations ? null : current));
       },
     }),
   );
@@ -129,7 +311,6 @@ export function PressReleaseEditorPage({
       extensions: session
         ? [
             StarterKit,
-            Underline,
             RemovableImage,
             aiSuggestionExtension,
             LinkCard,
@@ -137,7 +318,7 @@ export function PressReleaseEditorPage({
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -487,8 +668,15 @@ export function PressReleaseEditorPage({
   });
 
   const handleCreateAiSuggestion = (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => {
-    setPendingAiSuggestions((current) => [...current, { id: suggestionId, prompt, result }]);
-    setActiveAiSuggestionId(suggestionId);
+    const suggestions = result.suggestions.map((suggestion) => ({
+      id: `${suggestionId}:${suggestion.id}`,
+      prompt,
+      responseSummary: result.summary,
+      suggestion,
+    }));
+
+    setPendingAiSuggestions((current) => [...current, ...suggestions]);
+    setActiveAiSuggestionId(suggestions[0]?.id ?? null);
   };
 
   const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, title });
