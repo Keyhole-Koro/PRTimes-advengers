@@ -7,7 +7,6 @@ type EditorHeaderProps = {
   identityColor: string;
   identityName: string;
   remoteUsers: PresenceUser[];
-  requestFlush: () => void;
   saveStatus: SaveStatus;
   version: number;
 };
@@ -16,14 +15,12 @@ export function EditorHeader({
   identityColor,
   identityName,
   remoteUsers,
-  requestFlush,
   saveStatus,
   version,
 }: EditorHeaderProps) {
   return (
     <header className="header">
       <div className="titleBlock">
-        <h1 className="title">プレスリリースエディター</h1>
         <div className="metaRow">
           <span className={`saveStatus saveStatus-${saveStatus}`} aria-live="polite">
             {saveStatus === "saving" && "保存中..."}
@@ -44,9 +41,6 @@ export function EditorHeader({
           ))}
         </div>
       </div>
-      <button onClick={requestFlush} className="saveButton" disabled={saveStatus === "saving"}>
-        {saveStatus === "saving" ? "保存中..." : "保存"}
-      </button>
     </header>
   );
 }

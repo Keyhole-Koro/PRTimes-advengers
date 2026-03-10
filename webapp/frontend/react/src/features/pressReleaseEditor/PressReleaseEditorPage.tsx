@@ -599,15 +599,6 @@ export function PressReleaseEditorPage({
 
   return (
     <div className="container">
-      <EditorHeader
-        identityColor={identity.color}
-        identityName={identity.name}
-        remoteUsers={remoteUsers}
-        requestFlush={requestFlush}
-        saveStatus={saveStatus}
-        version={version}
-      />
-
       <main className="main">
         <div className="workspace">
           <EditorWorkspace
@@ -635,6 +626,62 @@ export function PressReleaseEditorPage({
             toolbarGroups={toolbarGroups}
           />
 
+<<<<<<< HEAD
+          <div className="sidebarColumn">
+            <EditorHeader
+              identityColor={identity.color}
+              identityName={identity.name}
+              remoteUsers={remoteUsers}
+              saveStatus={saveStatus}
+              version={version}
+            />
+
+            <EditorSidebar
+              activeThreadId={activeThreadId}
+              addReply={handleAddReply}
+              applyTemplate={applyTemplate}
+              applyingTemplateId={applyingTemplateId}
+              cancelCreateComment={() => {
+                setIsCreatingComment(false);
+                setNewCommentBody("");
+              }}
+              commentThreads={commentThreads}
+              editor={editor}
+              isCreatingComment={isCreatingComment}
+              isSavingTemplate={isSavingTemplate}
+              newCommentBody={newCommentBody}
+              previousRevision={previousRevision}
+              replyBodies={replyBodies}
+              restoreRevision={restoreRevision}
+              restoringRevisionId={restoringRevisionId}
+              revisionSummaries={revisionSummaries}
+              revisions={revisions}
+              saveCurrentAsTemplate={saveCurrentAsTemplate}
+              selectedRevision={selectedRevision}
+              selectedRevisionId={selectedRevisionId}
+              setActiveThreadId={setActiveThreadId}
+              setNewCommentBody={setNewCommentBody}
+              setReplyBody={(threadId, value) =>
+                setReplyBodies((current) => ({
+                  ...current,
+                  [threadId]: value,
+                }))
+              }
+              setSelectedRevisionId={setSelectedRevisionId}
+              setShowResolvedComments={setShowResolvedComments}
+              setSidebarTab={setSidebarTab}
+              setTemplateName={setTemplateName}
+              showResolvedComments={showResolvedComments}
+              sidebarTab={sidebarTab}
+              submitCreateComment={handleCreateComment}
+              templateName={templateName}
+              templates={templates}
+              toggleResolveThread={(thread) =>
+                thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
+              }
+            />
+          </div>
+=======
       <EditorSidebar
             activeThreadId={activeThreadId}
             addReply={handleAddReply}
@@ -680,6 +727,7 @@ export function PressReleaseEditorPage({
         }
         aiSidebarProps={aiAssistant}
       />
+>>>>>>> 62e069d8c42313bebe3cb88c4fb2a3d86965ad31
         </div>
       </main>
     </div>
