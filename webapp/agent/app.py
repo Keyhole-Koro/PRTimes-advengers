@@ -3,7 +3,7 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+import traceback
 from services.task_service import TaskExecutionError, TaskNotFoundError, TaskService
 from services.validator import SchemaValidationError
 
@@ -55,6 +55,7 @@ def create_app() -> Flask:
         except TaskExecutionError as exc:
             return jsonify({"code": exc.code, "message": str(exc)}), exc.status_code
         except Exception:
+            traceback.print_exc()
             return jsonify({"code": "INTERNAL_ERROR", "message": "Internal server error"}), 500
 
         return app.response_class(

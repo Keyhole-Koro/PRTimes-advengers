@@ -115,7 +115,7 @@ function parseStoredAiSettings(rawValue: string | null): AiAgentSettings {
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     title,
     updatedAt: new Date().toISOString(),
     messages: [],
@@ -124,7 +124,7 @@ function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
 
 function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessage {
   return {
-    id: globalThis.crypto.randomUUID(),
+    id: uuidv4(),
     role,
     text,
     createdAt: new Date().toISOString(),
@@ -514,7 +514,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
         }
 
         next.push({
-          id: globalThis.crypto.randomUUID(),
+          id: uuidv4(),
           file,
           kind,
           name: file.name || (kind === "image" ? "pasted-image.png" : "untitled"),
