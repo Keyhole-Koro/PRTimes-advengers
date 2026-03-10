@@ -100,9 +100,21 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
         writing_style: 'ニュースライク',
         tone: '簡潔',
         brand_voice: '信頼感重視',
+        consistency_policy: 'です・ます調を維持し、煽り表現を避ける',
         focus_points: ['導入文', 'CTA'],
         priority_checks: ['誤字脱字', 'リスク表現'],
       },
+      edit_memory: [
+        {
+          decision: 'accepted',
+          prompt: '導入を整理して',
+          suggestion_summary: '導入文を簡潔に整理する',
+          suggestion_reason: '冒頭の焦点を明確にするため',
+          operation_reasons: ['冗長な説明を削る'],
+          target_hint: 'block-1',
+          created_at: '2026-03-10T00:00:00.000Z',
+        },
+      ],
     })
   } finally {
     globalThis.fetch = originalFetch
@@ -112,6 +124,17 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
     context: {
       reference_docs: [],
       uploaded_materials: [],
+      edit_history: [
+        {
+          decision: 'accepted',
+          prompt: '導入を整理して',
+          suggestion_summary: '導入文を簡潔に整理する',
+          suggestion_reason: '冒頭の焦点を明確にするため',
+          operation_reasons: ['冗長な説明を削る'],
+          target_hint: 'block-1',
+          created_at: '2026-03-10T00:00:00.000Z',
+        },
+      ],
     },
     document: {
       title: 'テスト',
@@ -135,6 +158,7 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
       style: 'ニュースライク',
       tone: '簡潔',
       brand_voice: '信頼感重視',
+      consistency_policy: 'です・ます調を維持し、煽り表現を避ける',
       focus_points: ['導入文', 'CTA'],
       priority_checks: ['誤字脱字', 'リスク表現'],
     },

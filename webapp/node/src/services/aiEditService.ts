@@ -1,5 +1,6 @@
 import type {
   AiEditSettings,
+  AiEditMemoryEntry,
   AgentDocumentBlock,
   AgentDocumentEditOperation,
   AgentDocumentEditResult,
@@ -112,8 +113,21 @@ function buildAgentInstructions(prompt: string, settings: AiEditSettings | undef
     style: settings?.writing_style?.trim() || undefined,
     tone: settings?.tone?.trim() || undefined,
     brand_voice: settings?.brand_voice?.trim() || undefined,
+    consistency_policy: settings?.consistency_policy?.trim() || undefined,
     focus_points: normalizeSettingList(settings?.focus_points),
     priority_checks: normalizeSettingList(settings?.priority_checks),
+  }
+}
+
+function normalizeEditMemoryEntry(entry: AiEditMemoryEntry): Record<string, unknown> {
+  return {
+    decision: entry.decision,
+    prompt: entry.prompt?.trim() || undefined,
+    suggestion_summary: entry.suggestion_summary.trim(),
+    suggestion_reason: entry.suggestion_reason?.trim() || undefined,
+    operation_reasons: normalizeSettingList(entry.operation_reasons),
+    target_hint: entry.target_hint?.trim() || undefined,
+    created_at: entry.created_at,
   }
 }
 
@@ -314,13 +328,14 @@ export class AiEditService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          context: {
-            reference_docs: [],
-            uploaded_materials: [],
-          },
-          document: {
-            title: input.title,
+      body: JSON.stringify({
+        context: {
+          reference_docs: [],
+          uploaded_materials: [],
+          edit_history: (input.edit_memory ?? []).slice(-12).map(normalizeEditMemoryEntry),
+        },
+        document: {
+          title: input.title,
             blocks: buildAgentBlocks(input.content),
           },
           instructions: buildAgentInstructions(input.prompt, input.ai_settings),

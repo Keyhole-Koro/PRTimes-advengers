@@ -71,6 +71,7 @@ export type RequestAiEditInput = {
   content: PressReleaseContent
   conversation_history?: ConversationHistoryEntry[]
   ai_settings?: AiEditSettings
+  edit_memory?: AiEditMemoryEntry[]
 }
 
 export type AiEditSettings = {
@@ -78,8 +79,19 @@ export type AiEditSettings = {
   writing_style?: string
   tone?: string
   brand_voice?: string
+  consistency_policy?: string
   focus_points?: string[]
   priority_checks?: string[]
+}
+
+export type AiEditMemoryEntry = {
+  decision: 'accepted' | 'dismissed'
+  prompt?: string
+  suggestion_summary: string
+  suggestion_reason?: string
+  operation_reasons?: string[]
+  target_hint?: string
+  created_at: string
 }
 
 export type ConversationHistoryEntry = {

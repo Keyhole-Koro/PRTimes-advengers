@@ -1,5 +1,5 @@
 import { BASE_URL } from "../constants";
-import type { AiAgentSettings, ConversationHistoryEntry } from "../hooks/useAiAssistant";
+import type { AiAgentSettings, AiEditMemoryEntry, ConversationHistoryEntry } from "../hooks/useAiAssistant";
 import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
 
 function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
@@ -110,11 +110,28 @@ function serializeAiSettings(settings: AiAgentSettings): Record<string, unknown>
     writing_style: normalizeSettingText(settings.writingStyle),
     tone: normalizeSettingText(settings.tone),
     brand_voice: normalizeSettingText(settings.brandVoice),
+    consistency_policy: normalizeSettingText(settings.consistencyPolicy),
     focus_points: settings.focusPoints.length > 0 ? settings.focusPoints : undefined,
     priority_checks: settings.priorityChecks.length > 0 ? settings.priorityChecks : undefined,
   };
 
   return Object.values(payload).some((value) => value !== undefined) ? payload : undefined;
+}
+
+function serializeAiEditMemory(memory: AiEditMemoryEntry[]): Record<string, unknown>[] | undefined {
+  if (memory.length === 0) {
+    return undefined;
+  }
+
+  return memory.slice(-12).map((entry) => ({
+    decision: entry.decision,
+    prompt: entry.prompt,
+    suggestion_summary: entry.suggestionSummary,
+    suggestion_reason: entry.suggestionReason?.trim() || undefined,
+    operation_reasons: entry.operationReasons.length > 0 ? entry.operationReasons : undefined,
+    target_hint: entry.targetHint?.trim() || undefined,
+    created_at: entry.createdAt,
+  }));
 }
 
 export async function requestDocumentEdit(params: {
@@ -124,6 +141,7 @@ export async function requestDocumentEdit(params: {
   title: string;
   conversationHistory: ConversationHistoryEntry[];
   aiSettings: AiAgentSettings;
+  aiEditMemory: AiEditMemoryEntry[];
 }): Promise<AgentDocumentEditResult> {
   const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-edit`, {
     method: "POST",
@@ -136,6 +154,7 @@ export async function requestDocumentEdit(params: {
       content: params.editor.getJSON(),
       conversation_history: params.conversationHistory,
       ai_settings: serializeAiSettings(params.aiSettings),
+      edit_memory: serializeAiEditMemory(params.aiEditMemory),
     }),
   });
 

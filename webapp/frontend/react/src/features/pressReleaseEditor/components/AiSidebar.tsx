@@ -76,7 +76,10 @@ export type AiSidebarProps = {
   removeComposerAttachment: (attachmentId: string) => void;
   respondingAiThreadId: string | null;
   setActiveAiThreadId: (threadId: string) => void;
-  setAiSettingText: (field: "targetAudience" | "writingStyle" | "tone" | "brandVoice", value: string) => void;
+  setAiSettingText: (
+    field: "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "consistencyPolicy",
+    value: string,
+  ) => void;
   setAiPrompt: (value: string) => void;
   setIsAiAttachMenuOpen: (open: boolean) => void;
   setAiThreadMenuOpenId: Dispatch<SetStateAction<string | null>>;
@@ -408,6 +411,16 @@ export function AiSidebar({
                           value={aiSettings.brandVoice}
                           onChange={(event) => setAiSettingText("brandVoice", event.target.value)}
                           placeholder="例: 信頼感重視、誠実、専門性を強調"
+                        />
+                      </label>
+                      <label className="aiSettingsField aiSettingsField-wide">
+                        <span className="aiSettingsLabel">固定方針</span>
+                        <textarea
+                          className="aiSettingsTextarea"
+                          value={aiSettings.consistencyPolicy}
+                          onChange={(event) => setAiSettingText("consistencyPolicy", event.target.value)}
+                          placeholder="例: 見出しは簡潔に保つ、です・ます調を維持、煽り表現は避ける"
+                          rows={3}
                         />
                       </label>
                     </div>

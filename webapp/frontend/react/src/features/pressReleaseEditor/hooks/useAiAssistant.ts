@@ -41,8 +41,20 @@ export type AiAgentSettings = {
   writingStyle: string;
   tone: string;
   brandVoice: string;
+  consistencyPolicy: string;
   focusPoints: string[];
   priorityChecks: string[];
+};
+
+export type AiEditMemoryEntry = {
+  id: string;
+  decision: "accepted" | "dismissed";
+  prompt: string;
+  suggestionSummary: string;
+  suggestionReason?: string;
+  operationReasons: string[];
+  targetHint?: string;
+  createdAt: string;
 };
 
 export type AiSettingSuggestionField = "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "focusPoints" | "priorityChecks";
@@ -65,6 +77,7 @@ export type AiAutoRecommendStatus = {
 
 type UseAiAssistantOptions = {
   editor: Editor | null;
+  aiEditMemory: AiEditMemoryEntry[];
   onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
   pressReleaseId: number;
   title: string;
@@ -97,6 +110,7 @@ const DEFAULT_AI_SETTINGS: AiAgentSettings = {
   writingStyle: "",
   tone: "",
   brandVoice: "",
+  consistencyPolicy: "",
   focusPoints: [],
   priorityChecks: [],
 };
@@ -117,6 +131,7 @@ function parseStoredAiSettings(rawValue: string | null): AiAgentSettings {
       writingStyle: typeof parsed.writingStyle === "string" ? parsed.writingStyle : "",
       tone: typeof parsed.tone === "string" ? parsed.tone : "",
       brandVoice: typeof parsed.brandVoice === "string" ? parsed.brandVoice : "",
+      consistencyPolicy: typeof parsed.consistencyPolicy === "string" ? parsed.consistencyPolicy : "",
       focusPoints: isStringArray(parsed.focusPoints) ? parsed.focusPoints : [],
       priorityChecks: isStringArray(parsed.priorityChecks) ? parsed.priorityChecks : [],
     };
@@ -304,9 +319,8 @@ function computeDocumentDiffSize(previousText: string, nextText: string): number
   return diffSize;
 }
 
-function inferAiSettingSuggestions(editor: Editor, title: string, settings: AiAgentSettings): AiSettingSuggestion[] {
-  const text = editor.getText({ blockSeparator: "\n" });
-  const normalizedText = `${title}\n${text}`;
+function inferAiSettingSuggestions(documentSnapshotText: string, settings: AiAgentSettings): AiSettingSuggestion[] {
+  const normalizedText = documentSnapshotText;
   const suggestions: AiSettingSuggestion[] = [];
 
   const hasMediaTerms = /(取材|報道|メディア|発表|お知らせ|公開)/.test(normalizedText);
@@ -397,7 +411,7 @@ export function formatAiThreadTime(isoString: string): string {
   });
 }
 
-export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleaseId, title }: UseAiAssistantOptions) {
+export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestion, pressReleaseId, title }: UseAiAssistantOptions) {
   const aiSettingsStorageKey = `press-release-editor-ai-settings:${pressReleaseId}`;
   const aiScrollStorageKey = `press-release-editor-ai-scroll:${pressReleaseId}`;
   const [aiPrompt, setAiPrompt] = useState("");
@@ -415,7 +429,6 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
   const [autoRecommendStatus, setAutoRecommendStatus] = useState<AiAutoRecommendStatus | null>(null);
-  const [aiSettingSuggestions, setAiSettingSuggestions] = useState<AiSettingSuggestion[]>([]);
   const [aiSettings, setAiSettings] = useState<AiAgentSettings>(() => {
     if (typeof window === "undefined") {
       return DEFAULT_AI_SETTINGS;
@@ -425,6 +438,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
   const aiMessagesContainerRef = useRef<HTMLDivElement | null>(null);
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const autoRecommendBaselineTextRef = useRef<string | null>(null);
+  const [editorSnapshotText, setEditorSnapshotText] = useState("");
   const pendingAutoRecommendRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const hasRestoredScrollRef = useRef(false);
@@ -438,6 +452,10 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
     [activeAiThreadId, aiThreads],
   );
   const activeAiMessages = activeAiThread?.messages ?? [];
+  const aiSettingSuggestions = useMemo(
+    () => inferAiSettingSuggestions(editorSnapshotText, aiSettings),
+    [aiSettings, editorSnapshotText],
+  );
 
   const runAutoRecommend = () => {
     if (!editor || !activeAiThread) {
@@ -454,7 +472,6 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
 
     pendingAutoRecommendRef.current = false;
     autoRecommendBaselineTextRef.current = currentSnapshotText;
-    setAiSettingSuggestions(inferAiSettingSuggestions(editor, title, aiSettings));
     const autoPrompt = `${AI_AUTO_RECOMMEND_PROMPT}（推定差分量: ${diffSize}文字）`;
     const threadId = activeAiThread.id;
     setRespondingAiThreadId(threadId);
@@ -473,6 +490,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
           title,
           conversationHistory,
           aiSettings,
+          aiEditMemory,
         });
         const assistantMessage = {
           ...createAiMessage(
@@ -589,10 +607,29 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
   useEffect(() => {
     if (!editor) {
       autoRecommendBaselineTextRef.current = null;
+      setEditorSnapshotText("");
       return;
     }
 
-    autoRecommendBaselineTextRef.current = getDocumentSnapshotText(editor, title);
+    const snapshotText = getDocumentSnapshotText(editor, title);
+    autoRecommendBaselineTextRef.current = snapshotText;
+    setEditorSnapshotText(snapshotText);
+
+    const syncSnapshotText = () => {
+      setEditorSnapshotText(getDocumentSnapshotText(editor, title));
+    };
+
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) {
+        return;
+      }
+      syncSnapshotText();
+    };
+
+    editor.on("transaction", handleTransaction);
+    return () => {
+      editor.off("transaction", handleTransaction);
+    };
   }, [editor, title]);
 
   const clearComposerAttachments = () => {
@@ -752,6 +789,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
         title,
         conversationHistory,
         aiSettings,
+        aiEditMemory,
       });
       const assistantMessage = {
         ...createAiMessage(
@@ -796,7 +834,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
     return () => {
       editor.off("transaction", handleTransaction);
     };
-  }, [activeAiThread, aiSettings, editor, onCreateDocumentSuggestion, pressReleaseId, respondingAiThreadId, title]);
+  }, [activeAiThread, aiEditMemory, aiSettings, editor, onCreateDocumentSuggestion, pressReleaseId, respondingAiThreadId, title]);
 
   useEffect(() => {
     if (respondingAiThreadId !== null || !pendingAutoRecommendRef.current) {
@@ -810,12 +848,14 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
     });
   }, [respondingAiThreadId, runAutoRecommend]);
 
-  const setAiSettingText = (field: "targetAudience" | "writingStyle" | "tone" | "brandVoice", value: string) => {
+  const setAiSettingText = (
+    field: "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "consistencyPolicy",
+    value: string,
+  ) => {
     setAiSettings((current) => ({
       ...current,
       [field]: value,
     }));
-    setAiSettingSuggestions((current) => current.filter((suggestion) => suggestion.field !== field));
   };
 
   const toggleAiSettingListValue = (field: "focusPoints" | "priorityChecks", value: string) => {
@@ -830,12 +870,10 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, pressReleas
         [field]: nextValues,
       };
     });
-    setAiSettingSuggestions((current) => current.filter((suggestion) => suggestion.field !== field));
   };
 
   const resetAiSettings = () => {
     setAiSettings(DEFAULT_AI_SETTINGS);
-    setAiSettingSuggestions([]);
   };
 
   const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

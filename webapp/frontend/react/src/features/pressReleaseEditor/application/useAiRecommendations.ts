@@ -3,11 +3,13 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { buildAiSuggestionWidgetSelector } from "../domain/editorSession";
 import { useAiAssistant } from "../hooks/useAiAssistant";
+import type { AiEditMemoryEntry } from "../hooks/useAiAssistant";
 import type { AgentDocumentEditResult, PendingAiSuggestion } from "../types";
 
 const MAX_PENDING_AI_SUGGESTIONS = 4;
 
 type UseAiRecommendationsOptions = {
+  aiEditMemory: AiEditMemoryEntry[];
   editor: Editor | null;
   pendingAiSuggestionsRef: RefObject<PendingAiSuggestion[]>;
   pressReleaseId: number;
@@ -17,6 +19,7 @@ type UseAiRecommendationsOptions = {
 };
 
 export function useAiRecommendations({
+  aiEditMemory,
   editor,
   pendingAiSuggestionsRef,
   pressReleaseId,
@@ -65,7 +68,13 @@ export function useAiRecommendations({
     });
   };
 
-  const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, pressReleaseId, title });
+  const aiAssistant = useAiAssistant({
+    editor,
+    aiEditMemory,
+    onCreateDocumentSuggestion: handleCreateAiSuggestion,
+    pressReleaseId,
+    title,
+  });
 
   const handleJumpToSuggestion = (messageId: string) => {
     const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id.startsWith(`${messageId}:`));

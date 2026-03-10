@@ -18,7 +18,9 @@ def build_document_edit_task() -> TaskDefinition:
 
 def build_prompt(payload: dict) -> str:
     instructions = payload.get("instructions", {})
+    context = payload.get("context", {})
     settings_lines = []
+    edit_history_lines = []
 
     if instructions.get("audience"):
         settings_lines.append(f"- 想定読者: {instructions['audience']}")
@@ -28,6 +30,8 @@ def build_prompt(payload: dict) -> str:
         settings_lines.append(f"- トーン: {instructions['tone']}")
     if instructions.get("brand_voice"):
         settings_lines.append(f"- ブランドらしさ・文体方針: {instructions['brand_voice']}")
+    if instructions.get("consistency_policy"):
+        settings_lines.append(f"- できるだけ維持したい固定方針: {instructions['consistency_policy']}")
     if instructions.get("focus_points"):
         settings_lines.append("- 特に重視する論点: " + " / ".join(instructions["focus_points"]))
     if instructions.get("priority_checks"):
@@ -36,6 +40,25 @@ def build_prompt(payload: dict) -> str:
     settings_block = ""
     if settings_lines:
         settings_block = "依頼者がフロントで指定した編集方針:\n" + "\n".join(settings_lines) + "\n\n"
+
+    for item in context.get("edit_history", []):
+        summary = item.get("suggestion_summary", "")
+        if not summary:
+            continue
+        parts = [f"- {item.get('decision', 'unknown')}: {summary}"]
+        if item.get("suggestion_reason"):
+            parts.append(f"理由: {item['suggestion_reason']}")
+        if item.get("operation_reasons"):
+            parts.append("詳細理由: " + " / ".join(item["operation_reasons"]))
+        if item.get("target_hint"):
+            parts.append(f"対象: {item['target_hint']}")
+        if item.get("prompt"):
+            parts.append(f"元指示: {item['prompt']}")
+        edit_history_lines.append(" | ".join(parts))
+
+    edit_history_block = ""
+    if edit_history_lines:
+        edit_history_block = "直近の編集メモリ:\n" + "\n".join(edit_history_lines[-12:]) + "\n\n"
 
     return (
         "あなたは TipTap 形式のドキュメントを編集するエージェントです。\n"
@@ -64,7 +87,12 @@ def build_prompt(payload: dict) -> str:
         "add や remove を含む提案、複数 operation の提案、複数 block にまたがる提案、構成変更、大きい書き換え、説明が必要な提案は block を使ってください。\n"
         "各 suggestion には category、summary、operations を必ず含めてください。\n"
         "可能であれば suggestion の reason や operation の reason で、どの編集基準に基づく修正かを説明してください。\n\n"
+        "直近の編集メモリがある場合は、それを参照して同じ対象・同じ意図の提案を繰り返さないでください。\n"
+        "過去に dismissed された提案と同型の提案は、文脈が大きく変わった場合を除いて再提案しないでください。\n"
+        "過去に accepted された提案は、その方向性を局所的な既定方針として尊重してください。\n"
+        "特に style、tone、brand_voice、consistency_policy に関わる変更は、明確な改善根拠がない限り頻繁に揺らさないでください。\n\n"
         f"{settings_block}"
+        f"{edit_history_block}"
         f"入力JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 

@@ -1,6 +1,6 @@
 import { EditorContent, type Editor, useEditorState } from "@tiptap/react";
 import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Eye, PencilLine, Plus, Sparkles, Tag, Trash2 } from "lucide-react";
 
 import type { AiSettingSuggestion } from "../hooks/useAiAssistant";
@@ -43,6 +43,35 @@ function normalizeMetaValue(value: string, withHash = false): string {
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
 }
 
+function inferTagSuggestions(title: string, bodyText: string): string[] {
+  const normalizedText = `${title}\n${bodyText}`;
+  const candidates: string[] = [];
+
+  const pushTag = (condition: boolean, tag: string) => {
+    if (!condition || candidates.includes(tag)) {
+      return;
+    }
+    candidates.push(tag);
+  };
+
+  pushTag(/(AI|人工知能|生成AI|LLM|機械学習)/i.test(normalizedText), "#AI");
+  pushTag(/(採用|候補者|人材|人事|インターン|キャリア)/.test(normalizedText), "#採用");
+  pushTag(/(サービス|提供開始|リリース|公開|ローンチ|新機能|機能追加)/.test(normalizedText), "#サービス");
+  pushTag(/(製品|プロダクト|SaaS|プラットフォーム)/i.test(normalizedText), "#プロダクト");
+  pushTag(/(調査|アンケート|レポート|分析結果)/.test(normalizedText), "#調査");
+  pushTag(/(イベント|セミナー|ウェビナー|カンファレンス)/.test(normalizedText), "#イベント");
+  pushTag(/(資金調達|出資|シリーズA|シリーズB|調達)/.test(normalizedText), "#資金調達");
+  pushTag(/(導入事例|導入企業|導入実績|事例)/.test(normalizedText), "#導入事例");
+  pushTag(/(提携|連携|協業|パートナー)/.test(normalizedText), "#提携");
+  pushTag(/(DX|デジタル変革|業務効率化)/.test(normalizedText), "#DX");
+
+  if (candidates.length === 0 && normalizedText.trim() !== "") {
+    candidates.push("#PR", "#お知らせ");
+  }
+
+  return candidates.slice(0, 5);
+}
+
 export function EditorWorkspace({
   aiSettingSuggestions,
   editor,
@@ -75,11 +104,22 @@ export function EditorWorkspace({
   });
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
-  const [suggestedTags, setSuggestedTags] = useState<string[]>(["#AI", "#ドラフト"]);
+  const [dismissedSuggestedTags, setDismissedSuggestedTags] = useState<string[]>([]);
   const previewHtml = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => currentEditor?.getHTML() ?? "",
   });
+  const editorText = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => currentEditor?.getText({ blockSeparator: "\n" }) ?? "",
+  });
+  const suggestedTags = useMemo(
+    () =>
+      inferTagSuggestions(title, editorText).filter(
+        (tag) => !tags.includes(tag) && !dismissedSuggestedTags.includes(tag),
+      ),
+    [dismissedSuggestedTags, editorText, tags, title],
+  );
 
   const addTag = () => {
     const nextTag = normalizeMetaValue(tagInput, true);
@@ -92,11 +132,11 @@ export function EditorWorkspace({
 
   const applySuggestedTag = (tag: string) => {
     setTags((current) => (current.includes(tag) ? current : [...current, tag]));
-    setSuggestedTags((current) => current.filter((item) => item !== tag));
+    setDismissedSuggestedTags((current) => current.filter((item) => item !== tag));
   };
 
   const discardSuggestedTag = (tag: string) => {
-    setSuggestedTags((current) => current.filter((item) => item !== tag));
+    setDismissedSuggestedTags((current) => (current.includes(tag) ? current : [...current, tag]));
   };
 
   useEffect(() => {
@@ -157,7 +197,7 @@ export function EditorWorkspace({
               <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
               推測
             </span>
-            <p className="editorAiAssistText">差分更新を見て、本文から候補を出しています。</p>
+            <p className="editorAiAssistText">未設定のAI方針を本文から補っています。</p>
           </div>
           <div className="editorAiAssistList">
             {aiSettingSuggestions.map((suggestion) => (

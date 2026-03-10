@@ -11,6 +11,7 @@ import { CommentHighlight } from "../../editor/commentHighlight";
 import { LinkCard } from "../../editor/linkCard";
 import { RemotePresence, setRemotePresence } from "../../editor/remotePresence";
 import { useAiRecommendations } from "./application/useAiRecommendations";
+import { useAiEditMemory } from "./application/useAiEditMemory";
 import { useEditorSession } from "./application/useEditorSession";
 import { usePendingAiSuggestions } from "./application/usePendingAiSuggestions";
 import { useSaveStatus } from "./application/useSaveStatus";
@@ -46,6 +47,31 @@ import type {
 import { applyAgentDocumentSuggestion, getSuggestedTitle } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./editor/tiptapAdapters/realtime";
 
+function collectSuggestionOperationReasons(suggestion: AgentDocumentEditSuggestion): string[] {
+  return suggestion.operations
+    .map((operation) => operation.reason?.trim() ?? "")
+    .filter((reason, index, array) => reason !== "" && array.indexOf(reason) === index);
+}
+
+function buildSuggestionTargetHint(suggestion: AgentDocumentEditSuggestion): string | undefined {
+  const targetHints = suggestion.operations
+    .map((operation) => {
+      if (operation.op === "title_modify") {
+        return "title";
+      }
+      if ("block_id" in operation && typeof operation.block_id === "string") {
+        return operation.block_id;
+      }
+      if ("after_block_id" in operation && typeof operation.after_block_id === "string") {
+        return operation.after_block_id;
+      }
+      return null;
+    })
+    .filter((value): value is string => value !== null);
+
+  return targetHints.length > 0 ? Array.from(new Set(targetHints)).join(", ") : undefined;
+}
+
 export function PressReleaseEditorPage({
   pressReleaseId,
   title: initialTitle,
@@ -53,6 +79,7 @@ export function PressReleaseEditorPage({
   version: initialVersion,
 }: PressRelease & { pressReleaseId: number }) {
   const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${pressReleaseId}`;
+  const aiEditMemoryStorageKey = `press-release-editor-ai-edit-memory:${pressReleaseId}`;
   const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${pressReleaseId}`;
   const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${pressReleaseId}`;
   const queryClient = useQueryClient();
@@ -92,6 +119,9 @@ export function PressReleaseEditorPage({
   } = usePendingAiSuggestions({
     storageKey: aiSuggestionStorageKey,
   });
+  const { aiEditMemory, recordAiEditMemory } = useAiEditMemory({
+    storageKey: aiEditMemoryStorageKey,
+  });
   const [aiSuggestionExtension] = useState(() =>
     createAiSuggestionDecorations({
       onAcceptSuggestion: (suggestionId) => {
@@ -107,6 +137,14 @@ export function PressReleaseEditorPage({
           sendTitleUpdate(nextTitle);
         }
         editorRef.current.commands.setContent(nextContent);
+        recordAiEditMemory({
+          decision: "accepted",
+          prompt: suggestion.prompt,
+          suggestionSummary: suggestion.suggestion.summary,
+          suggestionReason: suggestion.suggestion.reason,
+          operationReasons: collectSuggestionOperationReasons(suggestion.suggestion),
+          targetHint: buildSuggestionTargetHint(suggestion.suggestion),
+        });
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId(null);
         setSaveStatus("dirty");
@@ -136,6 +174,14 @@ export function PressReleaseEditorPage({
           sendTitleUpdate(nextTitle);
         }
         editorRef.current.commands.setContent(nextContent);
+        recordAiEditMemory({
+          decision: "accepted",
+          prompt: suggestion.prompt,
+          suggestionSummary: partialSuggestion.summary,
+          suggestionReason: partialSuggestion.reason,
+          operationReasons: collectSuggestionOperationReasons(partialSuggestion),
+          targetHint: buildSuggestionTargetHint(partialSuggestion),
+        });
         let hasRemainingOperations = false;
         setPendingAiSuggestions((current) =>
           current
@@ -168,10 +214,37 @@ export function PressReleaseEditorPage({
         setActiveAiSuggestionId(suggestionId);
       },
       onDiscardSuggestion: (suggestionId) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (suggestion) {
+          recordAiEditMemory({
+            decision: "dismissed",
+            prompt: suggestion.prompt,
+            suggestionSummary: suggestion.suggestion.summary,
+            suggestionReason: suggestion.suggestion.reason,
+            operationReasons: collectSuggestionOperationReasons(suggestion.suggestion),
+            targetHint: buildSuggestionTargetHint(suggestion.suggestion),
+          });
+        }
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
       },
       onDiscardSuggestionOperation: (suggestionId, operationIndex) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        const operation = suggestion?.suggestion.operations[operationIndex];
+        if (suggestion && operation) {
+          const partialSuggestion: AgentDocumentEditSuggestion = {
+            ...suggestion.suggestion,
+            operations: [operation],
+          };
+          recordAiEditMemory({
+            decision: "dismissed",
+            prompt: suggestion.prompt,
+            suggestionSummary: partialSuggestion.summary,
+            suggestionReason: partialSuggestion.reason,
+            operationReasons: collectSuggestionOperationReasons(partialSuggestion),
+            targetHint: buildSuggestionTargetHint(partialSuggestion),
+          });
+        }
         let hasRemainingOperations = false;
         setPendingAiSuggestions((current) =>
           current
@@ -608,6 +681,7 @@ export function PressReleaseEditorPage({
   });
 
   const { aiAssistant, handleJumpToSuggestion } = useAiRecommendations({
+    aiEditMemory,
     editor,
     pendingAiSuggestionsRef,
     pressReleaseId,
