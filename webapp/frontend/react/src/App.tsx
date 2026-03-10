@@ -5,7 +5,7 @@ import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { CSSProperties, ChangeEvent, DragEvent } from "react";
+import type { CSSProperties, ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { CommentHighlight } from "./editor/commentHighlight";
@@ -61,6 +61,121 @@ function normalizePathKey(path: string): string {
     .replace(/^\.\//, "")
     .replace(/^\/+/, "")
     .toLowerCase();
+}
+
+type AiChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+};
+
+type AiChatThread = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: AiChatMessage[];
+};
+
+const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
+const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
+function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
+  return {
+    id: globalThis.crypto.randomUUID(),
+    title,
+    updatedAt: new Date().toISOString(),
+    messages: [],
+  };
+}
+
+function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessage {
+  return {
+    id: globalThis.crypto.randomUUID(),
+    role,
+    text,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function buildThreadTitle(text: string): string {
+  const normalized = text.trim();
+  if (!normalized) {
+    return AI_DEFAULT_THREAD_TITLE;
+  }
+  return normalized.length > 24 ? `${normalized.slice(0, 24)}...` : normalized;
+}
+
+function isValidAiMessage(value: unknown): value is AiChatMessage {
+  if (typeof value !== "object" || !value) {
+    return false;
+  }
+  const message = value as Partial<AiChatMessage>;
+  return (
+    typeof message.id === "string" &&
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.text === "string" &&
+    typeof message.createdAt === "string"
+  );
+}
+
+function isValidAiThread(value: unknown): value is AiChatThread {
+  if (typeof value !== "object" || !value) {
+    return false;
+  }
+  const thread = value as Partial<AiChatThread>;
+  return (
+    typeof thread.id === "string" &&
+    typeof thread.title === "string" &&
+    typeof thread.updatedAt === "string" &&
+    Array.isArray(thread.messages) &&
+    thread.messages.every(isValidAiMessage)
+  );
+}
+
+function parseStoredAiThreads(rawValue: string | null): AiChatThread[] {
+  if (!rawValue) {
+    return [createAiThread()];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [createAiThread()];
+    }
+
+    // Migration for old format: message array only
+    if (parsed.length > 0 && parsed.every(isValidAiMessage)) {
+      const legacyMessages = parsed as AiChatMessage[];
+      return [
+        {
+          ...createAiThread(buildThreadTitle(legacyMessages[0]?.text ?? "")),
+          updatedAt: legacyMessages[legacyMessages.length - 1]?.createdAt ?? new Date().toISOString(),
+          messages: legacyMessages,
+        },
+      ];
+    }
+
+    const threads = parsed.filter(isValidAiThread);
+    return threads.length > 0 ? threads : [createAiThread()];
+  } catch {
+    return [createAiThread()];
+  }
+}
+
+function formatMessageTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatThreadTime(isoString: string): string {
+  return new Date(isoString).toLocaleString("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function App() {
@@ -121,6 +236,19 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
   const [newCommentBody, setNewCommentBody] = useState("");
   const [replyBodies, setReplyBodies] = useState<Record<number, string>>({});
   const [isCreatingComment, setIsCreatingComment] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiThreads, setAiThreads] = useState<AiChatThread[]>(() => {
+    if (typeof window === "undefined") {
+      return [createAiThread()];
+    }
+    return parseStoredAiThreads(window.localStorage.getItem(AI_CHAT_STORAGE_KEY));
+  });
+  const [activeAiThreadId, setActiveAiThreadId] = useState<string>(() => aiThreads[0]?.id ?? createAiThread().id);
+  const [respondingAiThreadId, setRespondingAiThreadId] = useState<string | null>(null);
+  const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
+  const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
+  const isAiResponding = respondingAiThreadId !== null;
+  const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
@@ -888,6 +1016,135 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
     };
   }, [editor, session, commentThreads]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(AI_CHAT_STORAGE_KEY, JSON.stringify(aiThreads));
+  }, [aiThreads]);
+
+  useEffect(() => {
+    if (!aiThreads.some((thread) => thread.id === activeAiThreadId)) {
+      setActiveAiThreadId(aiThreads[0]?.id ?? "");
+    }
+  }, [aiThreads, activeAiThreadId]);
+
+  const activeAiThread = aiThreads.find((thread) => thread.id === activeAiThreadId) ?? aiThreads[0] ?? null;
+  const activeAiMessages = activeAiThread?.messages ?? [];
+
+  useEffect(() => {
+    if (sidebarTab !== "ai") {
+      return;
+    }
+    aiMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeAiMessages, sidebarTab]);
+
+  const updateThreadMessages = (threadId: string, message: AiChatMessage) => {
+    setAiThreads((current) => {
+      const next = current.map((thread) => {
+        if (thread.id !== threadId) {
+          return thread;
+        }
+
+        const shouldUpdateTitle =
+          thread.messages.length === 0 &&
+          thread.title === AI_DEFAULT_THREAD_TITLE &&
+          message.role === "user";
+
+        return {
+          ...thread,
+          title: shouldUpdateTitle ? buildThreadTitle(message.text) : thread.title,
+          updatedAt: message.createdAt,
+          messages: [...thread.messages, message],
+        };
+      });
+
+      return [...next].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    });
+  };
+
+  const handleAiEcho = () => {
+    if (!activeAiThread) {
+      return;
+    }
+
+    const normalizedPrompt = aiPrompt.trim();
+    if (!normalizedPrompt || respondingAiThreadId !== null) {
+      return;
+    }
+
+    const threadId = activeAiThread.id;
+    const userMessage = createAiMessage("user", normalizedPrompt);
+    updateThreadMessages(threadId, userMessage);
+
+    setAiPrompt("");
+    setRespondingAiThreadId(threadId);
+
+    window.setTimeout(() => {
+      const assistantMessage = createAiMessage("assistant", normalizedPrompt);
+      updateThreadMessages(threadId, assistantMessage);
+      setRespondingAiThreadId((current) => (current === threadId ? null : current));
+    }, 250);
+  };
+
+  const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleAiEcho();
+    }
+  };
+
+  const handleCreateAiThread = () => {
+    const newThread = createAiThread();
+    setAiThreads((current) => [newThread, ...current]);
+    setActiveAiThreadId(newThread.id);
+    setAiPrompt("");
+    setAiThreadMenuOpenId(null);
+    setIsAiHistoryOpen(true);
+  };
+
+  const handleRenameAiThread = (thread: AiChatThread) => {
+    const nextTitle = window.prompt("チャット名を入力してください", thread.title);
+    if (!nextTitle || nextTitle.trim() === "") {
+      setAiThreadMenuOpenId(null);
+      return;
+    }
+
+    const normalizedTitle = nextTitle.trim().slice(0, 40);
+    setAiThreads((current) =>
+      current.map((item) =>
+        item.id === thread.id
+          ? {
+              ...item,
+              title: normalizedTitle,
+            }
+          : item,
+      ),
+    );
+    setAiThreadMenuOpenId(null);
+  };
+
+  const handleDeleteAiThread = (thread: AiChatThread) => {
+    if (!window.confirm(`「${thread.title}」を削除しますか？`)) {
+      setAiThreadMenuOpenId(null);
+      return;
+    }
+
+    const filteredThreads = aiThreads.filter((item) => item.id !== thread.id);
+    const nextThreads = filteredThreads.length > 0 ? filteredThreads : [createAiThread()];
+    setAiThreads(nextThreads);
+
+    if (!nextThreads.some((item) => item.id === activeAiThreadId)) {
+      setActiveAiThreadId(nextThreads[0].id);
+    }
+
+    if (respondingAiThreadId === thread.id) {
+      setRespondingAiThreadId(null);
+    }
+
+    setAiThreadMenuOpenId(null);
+  };
+
   if (!editor || !session) {
     return (
       <div className="container">
@@ -1159,6 +1416,13 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
               >
                 履歴
               </button>
+              <button
+                type="button"
+                className={`sidebarTab${sidebarTab === "ai" ? " is-active" : ""}`}
+                onClick={() => setSidebarTab("ai")}
+              >
+                AI
+              </button>
             </div>
 
             {sidebarTab === "comments" && (
@@ -1209,6 +1473,165 @@ function Page({ title: initialTitle, content, version: initialVersion }: PressRe
                 applyingTemplateId={applyingTemplateId}
                 applyTemplate={applyTemplate}
               />
+            )}
+
+            {sidebarTab === "ai" && (
+              <section className="aiPanel" aria-label="AIアシスタント">
+                <div className="aiPanelHeader">
+                  <h2 className="aiPanelTitle">AIアシスタント</h2>
+                  <p className="aiPanelDescription">
+                    チャットを選択して会話できます。Enterで送信、Shift+Enterで改行できます。
+                  </p>
+                </div>
+
+                <div className={`aiLayout${isAiHistoryOpen ? " is-thread-open" : ""}`}>
+                  {isAiHistoryOpen && (
+                    <aside className="aiThreadPane" aria-label="AIチャット一覧">
+                      <div className="aiThreadPaneHeader">
+                        <button
+                          type="button"
+                          className="aiHistoryToggle"
+                          onClick={() => {
+                            setIsAiHistoryOpen(false);
+                            setAiThreadMenuOpenId(null);
+                          }}
+                        >
+                          ← 履歴を閉じる
+                        </button>
+                        <button type="button" className="aiNewChatButton" onClick={handleCreateAiThread}>
+                          + 新しいチャット
+                        </button>
+                      </div>
+                      <div className="aiThreadList">
+                        {aiThreads.map((thread) => {
+                          const lastMessage = thread.messages[thread.messages.length - 1];
+                          return (
+                            <article
+                              key={thread.id}
+                              className={`aiThreadItem${thread.id === activeAiThreadId ? " is-active" : ""}`}
+                            >
+                              <button
+                                type="button"
+                                className="aiThreadMain"
+                                onClick={() => {
+                                  setActiveAiThreadId(thread.id);
+                                  setAiThreadMenuOpenId(null);
+                                  setIsAiHistoryOpen(false);
+                                }}
+                              >
+                                <span className="aiThreadTitle">{thread.title}</span>
+                                <span className="aiThreadPreview">
+                                  {lastMessage ? lastMessage.text.slice(0, 36) : "メッセージなし"}
+                                </span>
+                                <span className="aiThreadTime">{formatThreadTime(thread.updatedAt)}</span>
+                              </button>
+                              <div className="aiThreadMenuWrap">
+                                <button
+                                  type="button"
+                                  className="aiThreadMenuButton"
+                                  onClick={() =>
+                                    setAiThreadMenuOpenId((current) => (current === thread.id ? null : thread.id))
+                                  }
+                                  aria-label="チャットメニュー"
+                                >
+                                  ⋯
+                                </button>
+                                {aiThreadMenuOpenId === thread.id && (
+                                  <div className="aiThreadMenu">
+                                    <button
+                                      type="button"
+                                      className="aiThreadMenuItem"
+                                      onClick={() => handleRenameAiThread(thread)}
+                                    >
+                                      名前変更
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="aiThreadMenuItem aiThreadMenuItemDanger"
+                                      onClick={() => handleDeleteAiThread(thread)}
+                                    >
+                                      削除
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </aside>
+                  )}
+
+                  <div className="aiChatArea">
+                    <div className="aiChatTopBar">
+                      <button
+                        type="button"
+                        className="aiHistoryToggle"
+                        onClick={() => {
+                          setIsAiHistoryOpen(true);
+                          setAiThreadMenuOpenId(null);
+                        }}
+                      >
+                        ← 履歴を開く
+                      </button>
+                      <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
+                    </div>
+                    <div className="aiChatList" aria-live="polite">
+                      {activeAiMessages.length === 0 && (
+                        <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
+                      )}
+                      {activeAiMessages.map((message) => (
+                        <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
+                          <header className="aiMessageHeader">
+                            <span className="aiMessageRole">{message.role === "user" ? "あなた" : "AI"}</span>
+                            <time className="aiMessageTime">{formatMessageTime(message.createdAt)}</time>
+                          </header>
+                          <p className="aiMessageBody">{message.text}</p>
+                        </article>
+                      ))}
+                      {respondingAiThreadId === activeAiThread?.id && (
+                        <p className="aiTyping">AIが返信を作成中です...</p>
+                      )}
+                      <div ref={aiMessagesEndRef} />
+                    </div>
+
+                    <div className="aiComposer">
+                      <textarea
+                        className="aiComposerInput"
+                        value={aiPrompt}
+                        onChange={(event) => setAiPrompt(event.target.value)}
+                        onKeyDown={handleAiInputKeyDown}
+                        placeholder="AIに質問してみましょう"
+                        rows={3}
+                      />
+                      <div className="aiComposerFooter">
+                        <div className="aiComposerLeft">
+                          <button type="button" className="aiComposerIconButton" aria-label="追加オプション">
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="aiComposerLinkButton"
+                            onClick={() => setAiPrompt("")}
+                            disabled={aiPrompt.trim() === ""}
+                          >
+                            入力をクリア
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="aiComposerSendButton"
+                          onClick={handleAiEcho}
+                          disabled={isAiResponding || aiPrompt.trim() === ""}
+                          aria-label={isAiResponding ? "返信中" : "送信"}
+                        >
+                          ↑
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             )}
           </aside>
         </div>
