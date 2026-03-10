@@ -44,6 +44,11 @@ export type AiAgentSettings = {
   priorityChecks: string[];
 };
 
+export type AiAutoRecommendStatus = {
+  lineDelta: number;
+  startedAt: string;
+};
+
 type UseAiAssistantOptions = {
   editor: Editor | null;
   onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
@@ -449,6 +454,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   const [respondingAiThreadId, setRespondingAiThreadId] = useState<string | null>(null);
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
+  const [autoRecommendStatus, setAutoRecommendStatus] = useState<AiAutoRecommendStatus | null>(null);
   const [aiSettings, setAiSettings] = useState<AiAgentSettings>(() => {
     if (typeof window === "undefined") {
       return DEFAULT_AI_SETTINGS;
@@ -699,6 +705,10 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       const threadId = activeAiThread.id;
       updateThreadMessages(threadId, userMessage);
       setRespondingAiThreadId(threadId);
+      setAutoRecommendStatus({
+        lineDelta,
+        startedAt: new Date().toISOString(),
+      });
 
       void (async () => {
         try {
@@ -717,6 +727,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
           const message = error instanceof Error ? error.message : "AIリクエストの自動実行に失敗しました";
           updateThreadMessages(threadId, createAiMessage("assistant", message));
         } finally {
+          setAutoRecommendStatus((current) => (current?.lineDelta === lineDelta ? null : current));
           setRespondingAiThreadId((current) => (current === threadId ? null : current));
         }
       })();
@@ -870,6 +881,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     aiAttachmentError,
     aiMessagesEndRef,
     aiPrompt,
+    autoRecommendStatus,
     aiThreadMenuOpenId,
     aiThreads,
     composerAttachments,

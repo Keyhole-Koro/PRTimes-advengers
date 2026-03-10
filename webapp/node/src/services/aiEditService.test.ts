@@ -63,34 +63,6 @@ test('AiEditService resolves same paragraph prompts from conversation history', 
   assert.equal(operation.after.text, 'AI_E2E_THREAD_SECOND二番目の段落です。')
 })
 
-test('AiEditService returns inline review suggestion for typo-check prompts', async () => {
-  const service = new AiEditService('http://example.invalid')
-
-  const result = await service.requestDocumentEdit({
-    prompt: '誤字脱字を探して',
-    title: 'テスト',
-    content: {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'いますぐ下のフォームからエントリーして、未来を掴む第一歩を踏み出' }],
-        },
-      ],
-    },
-  })
-
-  assert.equal(result.suggestions.length, 1)
-  assert.equal(result.suggestions[0]?.presentation, 'inline')
-
-  const operation = result.suggestions[0]?.operations[0]
-  if (!operation || operation.op !== 'modify') {
-    throw new Error('Expected modify operation.')
-  }
-
-  assert.equal(operation.after.text, 'いますぐ下のフォームからエントリーして、未来を掴む第一歩を踏み出そう。')
-})
-
 test('AiEditService forwards ai settings to agent instructions', async () => {
   const originalFetch = globalThis.fetch
   let capturedBody: unknown = null

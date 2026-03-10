@@ -953,6 +953,7 @@ export function PressReleaseEditorPage({
             <EditorSidebar
               activeThreadId={activeThreadId}
               addReply={handleAddReply}
+              autoRecommendLineDelta={aiAssistant.autoRecommendStatus?.lineDelta ?? null}
               cancelCreateComment={() => {
                 setIsCreatingComment(false);
                 setNewCommentBody("");

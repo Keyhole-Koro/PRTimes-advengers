@@ -19,6 +19,7 @@ type RevisionSummary = {
 type EditorSidebarProps = {
   activeThreadId: number | null;
   addReply: (threadId: number) => void | Promise<void>;
+  autoRecommendLineDelta: number | null;
   cancelCreateComment: () => void;
   commentThreads: CommentThreadResponse[];
   editor: Editor;
@@ -51,6 +52,7 @@ type EditorSidebarProps = {
 export function EditorSidebar({
   activeThreadId,
   addReply,
+  autoRecommendLineDelta,
   cancelCreateComment,
   commentThreads,
   editor,
@@ -82,6 +84,7 @@ export function EditorSidebar({
   return (
     <aside className="sidebarShell" aria-label="サイドパネル">
       <EditorHeader
+        autoRecommendLineDelta={autoRecommendLineDelta}
         remoteUserCount={remoteUserCount}
         saveStatus={saveStatus}
         version={version}

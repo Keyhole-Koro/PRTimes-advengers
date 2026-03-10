@@ -123,16 +123,6 @@ type DeterministicInstruction = {
   token: string
 }
 
-type LocalInlineIssue = {
-  afterText: string
-  beforeText: string
-  block: AgentDocumentBlock
-  category: 'body' | 'readability' | 'risk'
-  navigationLabel: string
-  reason: string
-  summary: string
-}
-
 const INLINE_ELIGIBLE_CATEGORIES = new Set<AgentDocumentEditSuggestion['category']>(['body', 'readability'])
 const INLINE_MAX_CHANGED_FRAGMENT_LENGTH = 24
 const INLINE_MAX_BLOCK_TEXT_LENGTH = 180
@@ -307,85 +297,6 @@ function buildDeterministicEditResult(input: RequestAiEditInput): AgentDocumentE
   })
 }
 
-function shouldRunLocalInlineReview(prompt: string): boolean {
-  return /(誤字|脱字|表記ゆれ|数字|日付|整合性|不自然|チェック)/.test(prompt)
-}
-
-function findLocalInlineIssue(blocks: AgentDocumentBlock[]): LocalInlineIssue | null {
-  const truncatedBlock = [...blocks]
-    .reverse()
-    .find((block) => block.type === 'paragraph' && /踏み出$/.test(block.text))
-
-  if (truncatedBlock) {
-    return {
-      block: truncatedBlock,
-      beforeText: truncatedBlock.text,
-      afterText: `${truncatedBlock.text}そう。`,
-      category: 'body',
-      summary: '文末が途中で切れている可能性があります。',
-      reason: '文が「踏み出」で終わっており、脱字または入力途中の可能性があります。',
-      navigationLabel: '文末の提案を見る',
-    }
-  }
-
-  const noTerminalBlock = [...blocks]
-    .reverse()
-    .find((block) => block.type === 'paragraph' && block.text.length > 12 && !/[。！？!?]$/.test(block.text))
-
-  if (noTerminalBlock) {
-    return {
-      block: noTerminalBlock,
-      beforeText: noTerminalBlock.text,
-      afterText: `${noTerminalBlock.text}。`,
-      category: 'readability',
-      summary: '文末の句点が抜けている可能性があります。',
-      reason: '段落末尾に句点がなく、文が未完了に見えます。',
-      navigationLabel: '句点の提案を見る',
-    }
-  }
-
-  return null
-}
-
-function buildLocalInlineReviewResult(input: RequestAiEditInput): AgentDocumentEditResult | null {
-  if (!shouldRunLocalInlineReview(input.prompt)) {
-    return null
-  }
-
-  const blocks = buildAgentBlocks(input.content)
-  const issue = findLocalInlineIssue(blocks)
-  if (!issue) {
-    return null
-  }
-
-  return normalizeEditResult({
-    summary: issue.summary,
-    assistant_message: '局所的な修正候補を本文中に追加しました。',
-    navigation_label: issue.navigationLabel,
-    suggestions: [
-      {
-        id: `inline-review-${issue.block.id}`,
-        presentation: 'inline',
-        category: issue.category,
-        summary: issue.summary,
-        reason: issue.reason,
-        operations: [
-          {
-            op: 'modify',
-            block_id: issue.block.id,
-            before: issue.block,
-            after: {
-              ...issue.block,
-              text: issue.afterText,
-            },
-            reason: issue.reason,
-          },
-        ],
-      },
-    ],
-  })
-}
-
 export class AiEditService {
   constructor(private readonly agentBaseUrl = process.env.AGENT_BASE_URL || 'http://agent:5000') {}
 
@@ -393,11 +304,6 @@ export class AiEditService {
     const deterministicResult = buildDeterministicEditResult(input)
     if (deterministicResult) {
       return deterministicResult
-    }
-
-    const localInlineReviewResult = buildLocalInlineReviewResult(input)
-    if (localInlineReviewResult) {
-      return localInlineReviewResult
     }
 
     let response: Response
