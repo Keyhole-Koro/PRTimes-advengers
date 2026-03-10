@@ -175,7 +175,7 @@ flowchart LR
 
 - `google-adk` がインストール済みであること
 - `GOOGLE_API_KEY` が設定されていること
-- `AGENT_MODEL` 未設定時は `gemini-3-flash`
+- `AGENT_MODEL` 未設定時は `gemini-3-flash-preview`
 - `AGENT_APP_NAME` 未設定時は `press-release-agent`
 
 ### 実行内容
@@ -248,6 +248,7 @@ AI agent の責務は次に限定されています。
 永続化は別 API / 別レイヤで担う前提です。
 
 `document_edit` では提案本体に加えて、チャット欄に出す短い案内文と、提案位置へ移動するための短いボタン文言も agent が返します。
+また、suggestion ごとに `block` 表示か `inline` 表示かを返せるため、局所的な修正だけ本文中に小さく出すこともできます。
 
 ## 9. フロント設定との連携
 

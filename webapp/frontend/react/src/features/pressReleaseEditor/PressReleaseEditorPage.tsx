@@ -74,6 +74,9 @@ function isValidPendingAiSuggestion(value: unknown): value is PendingAiSuggestio
     typeof record.suggestion === "object" &&
     record.suggestion !== null &&
     typeof record.suggestion.id === "string" &&
+    (record.suggestion.presentation === undefined ||
+      record.suggestion.presentation === "block" ||
+      record.suggestion.presentation === "inline") &&
     isValidSuggestionCategory(record.suggestion.category) &&
     typeof record.suggestion.summary === "string" &&
     Array.isArray(record.suggestion.operations)
@@ -109,6 +112,7 @@ function normalizeLegacySuggestion(value: unknown): PendingAiSuggestion | null {
 
   const suggestion: AgentDocumentEditSuggestion = {
     id: `${legacy.id}-legacy`,
+    presentation: "block",
     category: "body",
     summary: legacy.result.summary,
     operations: legacy.result.operations as AgentDocumentEditSuggestion["operations"],

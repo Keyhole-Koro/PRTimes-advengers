@@ -63,6 +63,34 @@ test('AiEditService resolves same paragraph prompts from conversation history', 
   assert.equal(operation.after.text, 'AI_E2E_THREAD_SECOND二番目の段落です。')
 })
 
+test('AiEditService returns inline review suggestion for typo-check prompts', async () => {
+  const service = new AiEditService('http://example.invalid')
+
+  const result = await service.requestDocumentEdit({
+    prompt: '誤字脱字を探して',
+    title: 'テスト',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'いますぐ下のフォームからエントリーして、未来を掴む第一歩を踏み出' }],
+        },
+      ],
+    },
+  })
+
+  assert.equal(result.suggestions.length, 1)
+  assert.equal(result.suggestions[0]?.presentation, 'inline')
+
+  const operation = result.suggestions[0]?.operations[0]
+  if (!operation || operation.op !== 'modify') {
+    throw new Error('Expected modify operation.')
+  }
+
+  assert.equal(operation.after.text, 'いますぐ下のフォームからエントリーして、未来を掴む第一歩を踏み出そう。')
+})
+
 test('AiEditService forwards ai settings to agent instructions', async () => {
   const originalFetch = globalThis.fetch
   let capturedBody: unknown = null
@@ -139,4 +167,192 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
       priority_checks: ['誤字脱字', 'リスク表現'],
     },
   })
+})
+
+test('AiEditService coerces multi-operation inline suggestions to block', async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          assistant_message: '提案を追加しました。',
+          navigation_label: '提案を見る',
+          suggestions: [
+            {
+              id: 'suggestion-1',
+              presentation: 'inline',
+              category: 'body',
+              summary: '複数箇所を修正します。',
+              operations: [
+                {
+                  op: 'modify',
+                  block_id: 'block-1',
+                  before: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: '最初の段落です。',
+                  },
+                  after: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: '更新後の最初の段落です。',
+                  },
+                },
+                {
+                  op: 'modify',
+                  block_id: 'block-2',
+                  before: {
+                    id: 'block-2',
+                    type: 'paragraph',
+                    text: '二番目の段落です。',
+                  },
+                  after: {
+                    id: 'block-2',
+                    type: 'paragraph',
+                    text: '更新後の二番目の段落です。',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestDocumentEdit({
+      prompt: '改善して',
+      title: 'テスト',
+      content,
+    })
+
+    assert.equal(result.suggestions[0]?.presentation, 'block')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('AiEditService coerces long inline rewrites to block', async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          assistant_message: '提案を追加しました。',
+          navigation_label: '提案を見る',
+          suggestions: [
+            {
+              id: 'suggestion-1',
+              presentation: 'inline',
+              category: 'readability',
+              summary: '段落を書き換えます。',
+              operations: [
+                {
+                  op: 'modify',
+                  block_id: 'block-1',
+                  before: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: '最初の段落です。',
+                  },
+                  after: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: 'この段落は意味を大きく変えながら背景説明と要点整理をまとめて入れ直した、かなり長い書き換え案です。',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestDocumentEdit({
+      prompt: '改善して',
+      title: 'テスト',
+      content,
+    })
+
+    assert.equal(result.suggestions[0]?.presentation, 'block')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('AiEditService keeps short single-block inline suggestions as inline', async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          assistant_message: '提案を追加しました。',
+          navigation_label: '提案を見る',
+          suggestions: [
+            {
+              id: 'suggestion-1',
+              presentation: 'inline',
+              category: 'readability',
+              summary: '句点を補います。',
+              operations: [
+                {
+                  op: 'modify',
+                  block_id: 'block-1',
+                  before: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: '最初の段落です',
+                  },
+                  after: {
+                    id: 'block-1',
+                    type: 'paragraph',
+                    text: '最初の段落です。',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestDocumentEdit({
+      prompt: '改善して',
+      title: 'テスト',
+      content,
+    })
+
+    assert.equal(result.suggestions[0]?.presentation, 'inline')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })

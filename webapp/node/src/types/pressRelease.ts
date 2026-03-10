@@ -123,6 +123,7 @@ export type AgentDocumentSuggestionCategory =
 
 export type AgentDocumentEditSuggestion = {
   id: string
+  presentation?: "block" | "inline"
   category: AgentDocumentSuggestionCategory
   summary: string
   reason?: string

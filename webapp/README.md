@@ -88,7 +88,7 @@ app:
 ```bash
 cd webapp
 docker compose down
-docker compose build app
+docker compose build app agent
 docker compose up -d
 ```
 

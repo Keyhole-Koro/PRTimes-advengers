@@ -60,6 +60,7 @@ block の `type` は次に限定されています。
 各 `suggestion` は次を持ちます。
 
 - `id`
+- `presentation`（`block` / `inline`）
 - `category`
 - `summary`
 - `reason`（任意）
@@ -70,6 +71,11 @@ block の `type` は次に限定されています。
 - `add`: `after_block_id` の後ろに新 block を追加
 - `remove`: `block_id` の block を削除
 - `modify`: `block_id` の block を別内容に置換
+
+`presentation=inline` は、1 block 内の 1 modify operation に収まる局所修正だけを想定した表示です。
+対象は、誤字脱字、表記ゆれ、句読点、数字や日付の不自然さ、短い言い換えです。
+フロントでは対象 block に AI バッジ付きの下線を出し、クリックするとミニ吹き出しで差分確認と `反映 / 見送る` ができます。
+複数 operation、`add` / `remove`、複数 block にまたがる提案、大きい書き換えは `presentation=block` に寄せます。
 
 ### 後処理
 

@@ -35,6 +35,7 @@ class TaskServiceTestCase(unittest.TestCase):
                         "suggestions": [
                             {
                                 "id": "suggestion-1",
+                                "presentation": "block",
                                 "category": "body",
                                 "summary": "本文を分かりやすく修正しました。",
                                 "operations": [

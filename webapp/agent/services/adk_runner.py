@@ -10,7 +10,7 @@ class AdkRunnerError(RuntimeError):
 
 class AdkRunner:
     def __init__(self, model: str | None = None):
-        self.model = model or os.getenv("AGENT_MODEL", "gemini-3-flash")
+        self.model = model or os.getenv("AGENT_MODEL", "gemini-3-flash-preview")
         self.app_name = os.getenv("AGENT_APP_NAME", "press-release-agent")
 
     def run_structured_task(self, *, task_name: str, prompt: str, output_schema: dict[str, Any]) -> dict[str, Any]:
@@ -76,17 +76,20 @@ class AdkRunner:
         )
 
         final_text = ""
-        async for event in runner.run_async(
-            user_id="flask-api",
-            session_id=session.id,
-            new_message=new_message,
-        ):
-            if not getattr(event, "content", None):
-                continue
-            for part in getattr(event.content, "parts", []) or []:
-                text = getattr(part, "text", None)
-                if text:
-                    final_text = text
+        try:
+            async for event in runner.run_async(
+                user_id="flask-api",
+                session_id=session.id,
+                new_message=new_message,
+            ):
+                if not getattr(event, "content", None):
+                    continue
+                for part in getattr(event.content, "parts", []) or []:
+                    text = getattr(part, "text", None)
+                    if text:
+                        final_text = text
+        except Exception as exc:
+            raise AdkRunnerError(f"ADK request failed: {exc}") from exc
 
         if not final_text:
             raise AdkRunnerError("ADK returned an empty response.")
