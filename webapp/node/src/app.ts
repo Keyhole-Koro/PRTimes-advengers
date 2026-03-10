@@ -28,8 +28,8 @@ const resolveCorsOrigin = () => {
     // originが存在しない場合（同一オリジンや一部のツールからのアクセス等）はundefinedを返す
     if (!origin) return undefined
 
-    // 1. ローカル開発環境 (localhost) を許可
-    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+    // 1. ローカル開発環境 (localhost / 127.0.0.1) を許可
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return origin
     }
 

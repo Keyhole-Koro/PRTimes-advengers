@@ -673,7 +673,7 @@ body.is-resizing-panels {
 
 .dropZone {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
   border: 2px dashed transparent;
@@ -692,6 +692,11 @@ body.is-resizing-panels {
   opacity: 0.85;
 }
 
+.dropZone > div {
+  min-height: 0;
+  height: 100%;
+}
+
 .dropZoneHint {
   margin-bottom: 0.5rem;
   font-size: 0.85rem;
@@ -701,13 +706,14 @@ body.is-resizing-panels {
 .editorMetaPanel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
   padding: 10px;
   border: 1px solid #dbe5f0;
   border-radius: 12px;
   background: #f8fbff;
   overflow: hidden;
+  align-content: start;
 }
 
 .editorMetaPanelHeader {
@@ -731,31 +737,17 @@ body.is-resizing-panels {
   line-height: 1.5;
 }
 
-.editorMetaRestoreButtons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
-}
-
-.metaRestoreButton {
-  padding: 5px 8px;
-  border: 1px solid #d0dbe8;
-  border-radius: 8px;
-  background: #fff;
-  color: #12385f;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .editorMetaCards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-content: start;
   overflow: auto;
+}
+
+.editorMetaContent {
+  display: grid;
+  gap: 8px;
 }
 
 .editorMetaCard {
@@ -807,20 +799,6 @@ body.is-resizing-panels {
   color: #12385f;
   font-size: 13px;
   font-weight: 700;
-}
-
-.metaDismissButton {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #d0dbe8;
-  border-radius: 999px;
-  background: #fff;
-  color: #5b6b7f;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
 }
 
 .editorMetaChipList {
@@ -1030,6 +1008,10 @@ body.is-resizing-panels {
   border-radius: 6px;
   outline: none;
   line-height: 1.7;
+}
+
+.tiptap.ProseMirror {
+  box-sizing: border-box;
 }
 
 .tiptap strong {

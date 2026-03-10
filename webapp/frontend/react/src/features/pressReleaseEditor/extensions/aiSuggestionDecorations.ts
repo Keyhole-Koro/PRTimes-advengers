@@ -162,7 +162,7 @@ function createOperationDiff(
   const apply = document.createElement("button");
   apply.type = "button";
   apply.className = "aiSuggestionAccept";
-  apply.textContent = "この差分を適用";
+  apply.textContent = "この変更を反映";
   apply.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -175,7 +175,7 @@ function createOperationDiff(
   const discard = document.createElement("button");
   discard.type = "button";
   discard.className = "aiSuggestionDiscard";
-  discard.textContent = "この差分を破棄";
+  discard.textContent = "この変更は見送る";
   discard.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -293,7 +293,7 @@ function createSuggestionWidget(
       const accept = document.createElement("button");
       accept.type = "button";
       accept.className = "aiSuggestionAccept";
-      accept.textContent = "まとめて適用";
+      accept.textContent = "まとめて反映";
       accept.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -304,7 +304,7 @@ function createSuggestionWidget(
       const discard = document.createElement("button");
       discard.type = "button";
       discard.className = "aiSuggestionDiscard";
-      discard.textContent = "まとめて破棄";
+      discard.textContent = "まとめて見送る";
       discard.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
