@@ -4,6 +4,6 @@
   "compilerOptions": {
     "module": "NodeNext",             // または "Node16"
     "moduleResolution": "NodeNext",   // または "Node16"
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   }
 }
