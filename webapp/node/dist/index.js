@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import { app } from './app.js';
 import { collaborationHub } from './realtime/collaborationHub.js';
 import { parseClientRealtimeMessage } from './realtime/messages.js';
+import { v4 as uuidv4 } from 'uuid';
 const port = parseInt(process.env.PORT || '8080', 10);
 const requestListener = getRequestListener(app.fetch);
 const server = createServer(requestListener);
@@ -34,7 +35,7 @@ server.on('upgrade', (request, socket, head) => {
         return;
     }
     const pressReleaseId = parseInt(matched[1], 10);
-    const clientId = globalThis.crypto.randomUUID();
+    const clientId = globalThis.uuidv4();
     const userId = requestUrl.searchParams.get('userId') || clientId;
     const name = requestUrl.searchParams.get('name') || `User ${clientId.slice(0, 4)}`;
     const color = requestUrl.searchParams.get('color') || '#2563eb';
