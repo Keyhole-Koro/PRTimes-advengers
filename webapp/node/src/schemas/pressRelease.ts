@@ -10,3 +10,9 @@ export const PressReleaseInputSchema = z.object({
   content: PressReleaseContentSchema,
   version: z.number().int().positive().optional(),
 })
+
+export const PressReleaseAiEditRequestSchema = z.object({
+  prompt: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+  content: PressReleaseContentSchema,
+})

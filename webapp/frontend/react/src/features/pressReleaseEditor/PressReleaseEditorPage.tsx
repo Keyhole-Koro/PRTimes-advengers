@@ -23,13 +23,20 @@ import {
   REVISIONS_QUERY_KEY,
   WS_BASE_URL,
 } from "./constants";
+import {
+  createAiSuggestionDecorations,
+  setActiveAiSuggestion,
+  setAiSuggestions,
+} from "./extensions/aiSuggestionDecorations";
 import { useAssetActions } from "./hooks/useAssetActions";
 import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import { useAiAssistant } from "./hooks/useAiAssistant";
 import type {
+  AgentDocumentEditResult,
   MarkType,
+  PendingAiSuggestion,
   PressRelease,
   RealtimeMessage,
   SaveStatus,
@@ -37,6 +44,7 @@ import type {
   SidebarTab,
   ToolbarGroupConfig,
 } from "./types";
+import { applyAgentDocumentEdit } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./utils/realtime";
 
 export function PressReleaseEditorPage({
@@ -44,6 +52,8 @@ export function PressReleaseEditorPage({
   content,
   version: initialVersion,
 }: PressRelease) {
+  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
+  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
   const queryClient = useQueryClient();
   const [identity] = useState(createRealtimeIdentity);
   const [title, setTitle] = useState(() => initialTitle);
@@ -53,13 +63,64 @@ export function PressReleaseEditorPage({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [editorResetToken, setEditorResetToken] = useState(0);
   const [restoringRevisionId, setRestoringRevisionId] = useState<number | null>(null);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("history");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>(() => {
+    if (typeof window === "undefined") {
+      return "history";
+    }
+
+    const raw = window.localStorage.getItem(sidebarTabStorageKey);
+    return raw === "comments" || raw === "history" || raw === "ai" ? raw : "history";
+  });
+  const [pendingAiSuggestions, setPendingAiSuggestions] = useState<PendingAiSuggestion[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+
+    try {
+      const raw = window.localStorage.getItem(aiSuggestionStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? (parsed as PendingAiSuggestion[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeAiSuggestionId, setActiveAiSuggestionId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const htmlInputRef = useRef<HTMLInputElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const isApplyingRemoteRef = useRef(false);
   const lastSentBatchRef = useRef<string | null>(null);
+  const pendingAiSuggestionsRef = useRef<PendingAiSuggestion[]>([]);
+  const requestFlushRef = useRef<() => void>(() => {});
+  const [aiSuggestionExtension] = useState(() =>
+    createAiSuggestionDecorations({
+      onAcceptSuggestion: (suggestionId) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (!suggestion || !editorRef.current) {
+          return;
+        }
+
+        const nextContent = applyAgentDocumentEdit(editorRef.current.getJSON(), suggestion.result);
+        editorRef.current.commands.setContent(nextContent);
+        setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+        setActiveAiSuggestionId(null);
+        setSaveStatus("dirty");
+        requestFlushRef.current();
+      },
+      onActivateSuggestion: (suggestionId) => {
+        setActiveAiSuggestionId(suggestionId);
+      },
+      onDiscardSuggestion: (suggestionId) => {
+        setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+        setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
+      },
+    }),
+  );
 
   const editor = useEditor(
     {
@@ -70,12 +131,13 @@ export function PressReleaseEditorPage({
             StarterKit,
             Underline,
             RemovableImage,
+            aiSuggestionExtension,
             LinkCard,
             RemotePresence,
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, RemovableImage, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, Underline, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -84,6 +146,42 @@ export function PressReleaseEditorPage({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  useEffect(() => {
+    pendingAiSuggestionsRef.current = pendingAiSuggestions;
+  }, [pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(aiSuggestionStorageKey, JSON.stringify(pendingAiSuggestions));
+  }, [aiSuggestionStorageKey, pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(sidebarTabStorageKey, sidebarTab);
+  }, [sidebarTab, sidebarTabStorageKey]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    setAiSuggestions(editor, pendingAiSuggestions);
+  }, [editor, pendingAiSuggestions]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    setActiveAiSuggestion(editor, activeAiSuggestionId);
+  }, [activeAiSuggestionId, editor]);
 
   const sendPendingSteps = (currentEditor: Editor) => {
     const websocket = websocketRef.current;
@@ -292,6 +390,8 @@ export function PressReleaseEditorPage({
     websocket.send(JSON.stringify({ type: "document.flush" }));
   };
 
+  requestFlushRef.current = requestFlush;
+
   const sendTitleUpdate = (nextTitle: string) => {
     const websocket = websocketRef.current;
     if (!websocket || websocket.readyState !== WebSocket.OPEN) {
@@ -392,7 +492,12 @@ export function PressReleaseEditorPage({
     title,
   });
 
-  const aiAssistant = useAiAssistant();
+  const handleCreateAiSuggestion = (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => {
+    setPendingAiSuggestions((current) => [...current, { id: suggestionId, prompt, result }]);
+    setActiveAiSuggestionId(suggestionId);
+  };
+
+  const aiAssistant = useAiAssistant({ editor, onCreateDocumentSuggestion: handleCreateAiSuggestion, title });
 
   const handleStartComment = () => {
     if (!editor) {

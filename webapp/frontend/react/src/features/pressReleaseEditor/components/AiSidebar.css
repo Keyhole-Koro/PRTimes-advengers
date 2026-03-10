@@ -296,6 +296,13 @@
   opacity: 0.9;
 }
 
+.aiMessageHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #1d4ed8;
+}
+
 .aiTyping {
   margin: 0;
   font-size: 12px;

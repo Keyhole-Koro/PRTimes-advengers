@@ -187,42 +187,47 @@ export function AiSidebar({
         ) : (
           <div className="aiChatArea">
             <div className="aiChatTopBar">
-            <button
-              type="button"
-              className="aiHistoryToggle"
-              onClick={() => {
-                setIsAiHistoryOpen(true);
-                setAiThreadMenuOpenId(null);
-              }}
-            >
-              ← 履歴を開く
-            </button>
-            <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
+              <button
+                type="button"
+                className="aiHistoryToggle"
+                onClick={() => {
+                  setIsAiHistoryOpen(true);
+                  setAiThreadMenuOpenId(null);
+                }}
+              >
+                ← 履歴を開く
+              </button>
+              <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
             </div>
             <div className="aiChatList" aria-live="polite">
-            {activeAiMessages.length === 0 && (
-              <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
-            )}
-            {activeAiMessages.map((message) => (
-              <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
-                <header className="aiMessageHeader">
-                  <span className="aiMessageRole">{message.role === "user" ? "あなた" : "AI"}</span>
-                  <time className="aiMessageTime">{formatAiMessageTime(message.createdAt)}</time>
-                </header>
-                <p className="aiMessageBody">{message.text}</p>
-                {message.attachments && message.attachments.length > 0 && (
-                  <ul className="aiMessageAttachmentList">
-                    {message.attachments.map((attachment) => (
-                      <li key={attachment.id} className="aiMessageAttachmentItem">
-                        {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
-            {respondingAiThreadId === activeAiThread?.id && <p className="aiTyping">AIが返信を作成中です...</p>}
-            <div ref={aiMessagesEndRef} />
+              {activeAiMessages.length === 0 && (
+                <p className="aiEmpty">まだ会話はありません。下の入力欄から開始してください。</p>
+              )}
+              {activeAiMessages.map((message) => (
+                <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
+                  <header className="aiMessageHeader">
+                    <span className="aiMessageRole">{message.role === "user" ? "あなた" : "AI"}</span>
+                    <time className="aiMessageTime">{formatAiMessageTime(message.createdAt)}</time>
+                  </header>
+                  <p className="aiMessageBody">{message.text}</p>
+                  {message.attachments && message.attachments.length > 0 && (
+                    <ul className="aiMessageAttachmentList">
+                      {message.attachments.map((attachment) => (
+                        <li key={attachment.id} className="aiMessageAttachmentItem">
+                          {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {message.documentEditResult && (
+                    <p className="aiMessageHint">
+                      文書内に {message.documentEditResult.operations.length} 件の提案を追加しました。本文中の提案を確認してください。
+                    </p>
+                  )}
+                </article>
+              ))}
+              {respondingAiThreadId === activeAiThread?.id && <p className="aiTyping">AIが返信を作成中です...</p>}
+              <div ref={aiMessagesEndRef} />
             </div>
 
             <div className="aiComposer">

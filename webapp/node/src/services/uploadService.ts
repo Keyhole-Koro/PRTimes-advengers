@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import uuidv4 from 'uuid/v4'
 import { extname, join, resolve } from 'node:path'
+import { v4 as uuidv4 } from 'uuid'
 
 const UPLOAD_DIR = resolve(process.cwd(), 'uploads')
 const MAX_FILE_SIZE = 10 * 1024 * 1024

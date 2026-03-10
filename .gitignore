@@ -49,6 +49,9 @@ yarn-error.log*
 
 # Frontend / runtime caches
 **/.vite/
+**/dist/
+**/playwright-report/
+**/test-results/
 
 # Local uploads
 webapp/node/uploads/

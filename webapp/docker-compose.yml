@@ -32,10 +32,13 @@ services:
       DB_USER: press_release
       DB_PASSWORD: press_release
       DB_NAME: press_release_db
+      AGENT_BASE_URL: http://agent:5000
     command: sh -c "npm install && npm run dev"
     depends_on:
       postgresql:
         condition: service_healthy
+      agent:
+        condition: service_started
 
   agent:
     build: ./agent

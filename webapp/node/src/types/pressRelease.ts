@@ -60,6 +60,46 @@ export type UpdatePressReleaseInput = {
   version?: number
 }
 
+export type RequestAiEditInput = {
+  prompt: string
+  title: string
+  content: PressReleaseContent
+}
+
+export type AgentDocumentBlock = {
+  id: string
+  type: 'heading' | 'paragraph' | 'bullet_list' | 'ordered_list' | 'blockquote'
+  text: string
+  attrs?: Record<string, unknown>
+}
+
+export type AgentDocumentEditOperation =
+  | {
+      op: 'add'
+      after_block_id: string | null
+      block: AgentDocumentBlock
+      reason?: string
+    }
+  | {
+      op: 'remove'
+      block_id: string
+      removed_block?: AgentDocumentBlock
+      reason?: string
+    }
+  | {
+      op: 'modify'
+      block_id: string
+      before?: AgentDocumentBlock
+      after: AgentDocumentBlock
+      reason?: string
+    }
+
+export type AgentDocumentEditResult = {
+  summary: string
+  operations: AgentDocumentEditOperation[]
+  notes?: string[]
+}
+
 export type CreatePressReleaseTemplateInput = {
   name: string
   title: string

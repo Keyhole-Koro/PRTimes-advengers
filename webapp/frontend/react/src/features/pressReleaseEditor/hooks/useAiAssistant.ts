@@ -1,6 +1,9 @@
+import type { Editor } from "@tiptap/react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuidv4 } from 'uuid'
+
+import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
+import type { AgentDocumentEditResult, PressReleaseResponse } from "../types";
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {
@@ -22,6 +25,7 @@ export type AiChatMessage = {
   text: string;
   createdAt: string;
   attachments?: AiAttachmentMeta[];
+  documentEditResult?: AgentDocumentEditResult;
 };
 
 export type AiChatThread = {
@@ -29,6 +33,18 @@ export type AiChatThread = {
   title: string;
   updatedAt: string;
   messages: AiChatMessage[];
+};
+
+type UseAiAssistantOptions = {
+  editor: Editor | null;
+  onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
+  title: string;
+};
+
+type ConversationHistoryEntry = {
+  role: "user" | "assistant";
+  text: string;
+  created_at: string;
 };
 
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
@@ -47,7 +63,7 @@ const AI_ALLOWED_FILE_MIME_TYPES = new Set([
 
 function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
   return {
-    id: uuidv4(),
+    id: globalThis.crypto.randomUUID(),
     title,
     updatedAt: new Date().toISOString(),
     messages: [],
@@ -56,7 +72,7 @@ function createAiThread(title = AI_DEFAULT_THREAD_TITLE): AiChatThread {
 
 function createAiMessage(role: AiChatMessage["role"], text: string): AiChatMessage {
   return {
-    id: uuidv4(),
+    id: globalThis.crypto.randomUUID(),
     role,
     text,
     createdAt: new Date().toISOString(),
@@ -81,6 +97,20 @@ function buildThreadTitle(text: string): string {
   return normalized.length > 24 ? `${normalized.slice(0, 24)}...` : normalized;
 }
 
+function isValidAiAttachmentMeta(value: unknown): value is AiAttachmentMeta {
+  if (typeof value !== "object" || !value) {
+    return false;
+  }
+  const attachment = value as Partial<AiAttachmentMeta>;
+  return (
+    typeof attachment.id === "string" &&
+    (attachment.kind === "image" || attachment.kind === "file") &&
+    typeof attachment.name === "string" &&
+    typeof attachment.size === "number" &&
+    typeof attachment.mimeType === "string"
+  );
+}
+
 function isValidAiMessage(value: unknown): value is AiChatMessage {
   if (typeof value !== "object" || !value) {
     return false;
@@ -93,20 +123,6 @@ function isValidAiMessage(value: unknown): value is AiChatMessage {
     typeof message.createdAt === "string" &&
     (message.attachments === undefined ||
       (Array.isArray(message.attachments) && message.attachments.every(isValidAiAttachmentMeta)))
-  );
-}
-
-function isValidAiAttachmentMeta(value: unknown): value is AiAttachmentMeta {
-  if (typeof value !== "object" || !value) {
-    return false;
-  }
-  const attachment = value as Partial<AiAttachmentMeta>;
-  return (
-    typeof attachment.id === "string" &&
-    (attachment.kind === "image" || attachment.kind === "file") &&
-    typeof attachment.name === "string" &&
-    typeof attachment.size === "number" &&
-    typeof attachment.mimeType === "string"
   );
 }
 
@@ -153,6 +169,73 @@ function parseStoredAiThreads(rawValue: string | null): AiChatThread[] {
   }
 }
 
+function describeAttachments(attachments: AiAttachmentMeta[]): string {
+  if (attachments.length === 0) {
+    return "";
+  }
+
+  return attachments.map((attachment) => `${attachment.kind === "image" ? "画像" : "ファイル"}: ${attachment.name}`).join(", ");
+}
+
+function buildMessageText(text: string, attachments: AiAttachmentMeta[]): string {
+  if (text.trim() !== "") {
+    return text.trim();
+  }
+
+  if (attachments.length > 0) {
+    return `添付を追加しました。${describeAttachments(attachments)}`;
+  }
+
+  return "";
+}
+
+function serializeMessageForHistory(message: AiChatMessage): ConversationHistoryEntry {
+  const attachmentDescription =
+    message.attachments && message.attachments.length > 0 ? `\n添付: ${describeAttachments(message.attachments)}` : "";
+
+  return {
+    role: message.role,
+    text: `${message.text}${attachmentDescription}`.trim(),
+    created_at: message.createdAt,
+  };
+}
+
+async function requestDocumentEdit(
+  prompt: string,
+  editor: Editor,
+  title: string,
+  conversationHistory: ConversationHistoryEntry[],
+): Promise<AgentDocumentEditResult> {
+  const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/ai-edit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt,
+      title,
+      content: editor.getJSON(),
+      conversation_history: conversationHistory,
+    }),
+  });
+
+  const responseBody = (await response.json()) as
+    | AgentDocumentEditResult
+    | PressReleaseResponse
+    | { result?: AgentDocumentEditResult; message?: string }
+    | undefined;
+
+  if (!response.ok) {
+    const message =
+      responseBody && typeof responseBody === "object" && "message" in responseBody && typeof responseBody.message === "string"
+        ? responseBody.message
+        : `AI編集の取得に失敗しました (${response.status})`;
+    throw new Error(message);
+  }
+
+  return responseBody as AgentDocumentEditResult;
+}
+
 export function formatAiMessageTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString("ja-JP", {
     hour: "2-digit",
@@ -169,7 +252,7 @@ export function formatAiThreadTime(isoString: string): string {
   });
 }
 
-export function useAiAssistant() {
+export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: UseAiAssistantOptions) {
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAttachmentError, setAiAttachmentError] = useState<string | null>(null);
   const [isAiAttachMenuOpen, setIsAiAttachMenuOpen] = useState(false);
@@ -292,7 +375,7 @@ export function useAiAssistant() {
         }
 
         next.push({
-          id: uuidv4(),
+          id: globalThis.crypto.randomUUID(),
           file,
           kind,
           name: file.name || (kind === "image" ? "pasted-image.png" : "untitled"),
@@ -331,7 +414,7 @@ export function useAiAssistant() {
     });
   };
 
-  const handleAiEcho = () => {
+  const handleAiEcho = async () => {
     if (!activeAiThread) {
       return;
     }
@@ -342,8 +425,19 @@ export function useAiAssistant() {
       return;
     }
 
+    if (!editor) {
+      window.alert("エディタの初期化完了後に再度お試しください。");
+      return;
+    }
+
+    const displayText = buildMessageText(normalizedPrompt, attachments);
+    const effectivePrompt =
+      normalizedPrompt !== ""
+        ? normalizedPrompt
+        : `添付資料を踏まえて文書を編集してください。添付: ${describeAttachments(attachments)}`;
+
     const threadId = activeAiThread.id;
-    const userMessage = createAiMessage("user", normalizedPrompt);
+    const userMessage = createAiMessage("user", displayText);
     if (attachments.length > 0) {
       userMessage.attachments = attachments;
     }
@@ -355,23 +449,30 @@ export function useAiAssistant() {
     setIsAiAttachMenuOpen(false);
     setRespondingAiThreadId(threadId);
 
-    window.setTimeout(() => {
-      const assistantReply =
-        normalizedPrompt !== ""
-          ? normalizedPrompt
-          : attachments.length > 0
-            ? `${attachments.length}件の添付を受け取りました。`
-            : "";
-      const assistantMessage = createAiMessage("assistant", assistantReply);
+    try {
+      const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
+      const documentEditResult = await requestDocumentEdit(effectivePrompt, editor, title, conversationHistory);
+      const assistantMessage = {
+        ...createAiMessage(
+          "assistant",
+          "提案を文書内に追加しました。該当箇所をクリックして差分を確認し、適用または破棄してください。",
+        ),
+        documentEditResult,
+      };
       updateThreadMessages(threadId, assistantMessage);
+      onCreateDocumentSuggestion(assistantMessage.id, effectivePrompt, documentEditResult);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "AI編集の取得に失敗しました";
+      updateThreadMessages(threadId, createAiMessage("assistant", message));
+    } finally {
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
-    }, 250);
+    }
   };
 
   const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      handleAiEcho();
+      void handleAiEcho();
     }
   };
 
