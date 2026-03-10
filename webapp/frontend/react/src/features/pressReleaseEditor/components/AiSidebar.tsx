@@ -8,6 +8,25 @@ import type {
   RefObject,
   SetStateAction,
 } from "react";
+import {
+  ArrowDownCircle,
+  Bot,
+  ChevronLeft,
+  ChevronRight,
+  CircleEllipsis,
+  Eraser,
+  FileText,
+  ImagePlus,
+  MessageSquarePlus,
+  Paperclip,
+  Pencil,
+  Plus,
+  Send,
+  Sparkles,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
 
 import type { AiChatMessage, AiChatThread, AiComposerAttachment } from "../hooks/useAiAssistant";
 import { formatAiMessageTime, formatAiThreadTime } from "../hooks/useAiAssistant";
@@ -53,6 +72,7 @@ export type AiSidebarProps = {
   handleAiImageFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   handleAiInputPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   handleAiInputKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleJumpToSuggestion: (messageId: string) => void;
   handleClearAiComposer: () => void;
   handleCreateAiThread: () => void;
   handleDeleteAiThread: (thread: AiChatThread) => void;
@@ -87,6 +107,7 @@ export function AiSidebar({
   handleAiImageFileChange,
   handleAiInputPaste,
   handleAiInputKeyDown,
+  handleJumpToSuggestion,
   handleClearAiComposer,
   handleCreateAiThread,
   handleDeleteAiThread,
@@ -127,10 +148,10 @@ export function AiSidebar({
   return (
     <section className="aiPanel" aria-label="AIアシスタント">
       <div className="aiPanelHeader">
-        <h2 className="aiPanelTitle">AIアシスタント</h2>
-        <p className="aiPanelDescription">
-          チャットを選択して会話できます。Enterで送信、Shift+Enterで改行できます。
-        </p>
+        <h2 className="aiPanelTitle">
+          <Sparkles className="aiIcon aiIcon-title" aria-hidden="true" />
+          AIアシスタント
+        </h2>
       </div>
 
       <div className={`aiLayout${isAiHistoryOpen ? " is-thread-open" : ""}`}>
@@ -145,10 +166,12 @@ export function AiSidebar({
                   setAiThreadMenuOpenId(null);
                 }}
               >
-                ← 履歴を閉じる
+                <ChevronLeft className="aiIcon" aria-hidden="true" />
+                履歴を閉じる
               </button>
               <button type="button" className="aiNewChatButton" onClick={handleCreateAiThread}>
-                + 新しいチャット
+                <MessageSquarePlus className="aiIcon" aria-hidden="true" />
+                新しいチャット
               </button>
             </div>
             <div className="aiThreadList">
@@ -179,11 +202,12 @@ export function AiSidebar({
                         onClick={() => setAiThreadMenuOpenId((current) => (current === thread.id ? null : thread.id))}
                         aria-label="チャットメニュー"
                       >
-                        ⋯
+                        <CircleEllipsis className="aiIcon" aria-hidden="true" />
                       </button>
                       {aiThreadMenuOpenId === thread.id && (
                         <div className="aiThreadMenu">
                           <button type="button" className="aiThreadMenuItem" onClick={() => handleRenameAiThread(thread)}>
+                            <Pencil className="aiIcon" aria-hidden="true" />
                             名前変更
                           </button>
                           <button
@@ -191,6 +215,7 @@ export function AiSidebar({
                             className="aiThreadMenuItem aiThreadMenuItemDanger"
                             onClick={() => handleDeleteAiThread(thread)}
                           >
+                            <Trash2 className="aiIcon" aria-hidden="true" />
                             削除
                           </button>
                         </div>
@@ -212,7 +237,8 @@ export function AiSidebar({
                   setAiThreadMenuOpenId(null);
                 }}
               >
-                ← 履歴を開く
+                <ChevronRight className="aiIcon" aria-hidden="true" />
+                履歴を開く
               </button>
               <span className="aiActiveThreadTitle">{activeAiThread?.title ?? AI_DEFAULT_THREAD_TITLE}</span>
             </div>
@@ -223,7 +249,14 @@ export function AiSidebar({
               {activeAiMessages.map((message) => (
                 <article key={message.id} className={`aiMessage aiMessage-${message.role}`}>
                   <header className="aiMessageHeader">
-                    <span className="aiMessageRole">{message.role === "user" ? "あなた" : "AI"}</span>
+                    <span className="aiMessageRole">
+                      {message.role === "user" ? (
+                        <User className="aiIcon" aria-hidden="true" />
+                      ) : (
+                        <Bot className="aiIcon" aria-hidden="true" />
+                      )}
+                      {message.role === "user" ? "あなた" : "AI"}
+                    </span>
                     <time className="aiMessageTime">{formatAiMessageTime(message.createdAt)}</time>
                   </header>
                   <p className="aiMessageBody">{message.text}</p>
@@ -231,15 +264,21 @@ export function AiSidebar({
                     <ul className="aiMessageAttachmentList">
                       {message.attachments.map((attachment) => (
                         <li key={attachment.id} className="aiMessageAttachmentItem">
+                          {attachment.kind === "image" ? (
+                            <ImagePlus className="aiIcon" aria-hidden="true" />
+                          ) : (
+                            <FileText className="aiIcon" aria-hidden="true" />
+                          )}
                           {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
                         </li>
                       ))}
                     </ul>
                   )}
                   {message.documentEditResult && (
-                    <p className="aiMessageHint">
-                      文書内に {getSuggestionCount(message)} 件の提案を追加しました。本文中の提案を確認してください。
-                    </p>
+                    <button type="button" className="aiMessageHintButton" onClick={() => handleJumpToSuggestion(message.id)}>
+                      <ArrowDownCircle className="aiIcon" aria-hidden="true" />
+                      文書内に {getSuggestionCount(message)} 件の提案を追加しました。ここをクリックして移動できます。
+                    </button>
                   )}
                 </article>
               ))}
@@ -277,6 +316,11 @@ export function AiSidebar({
                   {composerAttachments.map((attachment) => (
                     <li key={attachment.id} className="aiComposerAttachmentItem">
                       <span className="aiComposerAttachmentLabel">
+                        {attachment.kind === "image" ? (
+                          <ImagePlus className="aiIcon" aria-hidden="true" />
+                        ) : (
+                          <FileText className="aiIcon" aria-hidden="true" />
+                        )}
                         {attachment.kind === "image" ? "画像" : "ファイル"}: {attachment.name} ({formatAttachmentSize(attachment.size)})
                       </span>
                       <button
@@ -285,7 +329,7 @@ export function AiSidebar({
                         onClick={() => removeComposerAttachment(attachment.id)}
                         aria-label={`${attachment.name} を削除`}
                       >
-                        ×
+                        <X className="aiIcon" aria-hidden="true" />
                       </button>
                     </li>
                   ))}
@@ -309,7 +353,7 @@ export function AiSidebar({
                     aria-label="追加オプション"
                     onClick={handleToggleAttachMenu}
                   >
-                    +
+                    <Plus className="aiIcon" aria-hidden="true" />
                   </button>
                   {isAiAttachMenuOpen && (
                     <div className="aiAttachMenu">
@@ -320,6 +364,7 @@ export function AiSidebar({
                             className="aiAttachMenuItem"
                             onClick={() => imageFileInputRef.current?.click()}
                           >
+                            <ImagePlus className="aiIcon" aria-hidden="true" />
                             写真を追加
                           </button>
                           <button
@@ -327,6 +372,7 @@ export function AiSidebar({
                             className="aiAttachMenuItem"
                             onClick={() => generalFileInputRef.current?.click()}
                           >
+                            <Paperclip className="aiIcon" aria-hidden="true" />
                             ファイルを追加
                           </button>
                         </>
@@ -336,6 +382,7 @@ export function AiSidebar({
                           className="aiAttachMenuItem"
                           onClick={() => mixedFileInputRef.current?.click()}
                         >
+                          <Paperclip className="aiIcon" aria-hidden="true" />
                           写真とファイルを追加
                         </button>
                       )}
@@ -347,6 +394,7 @@ export function AiSidebar({
                     onClick={handleClearAiComposer}
                     disabled={aiPrompt.trim() === "" && composerAttachments.length === 0}
                   >
+                    <Eraser className="aiIcon" aria-hidden="true" />
                     入力をクリア
                   </button>
                 </div>
@@ -357,7 +405,7 @@ export function AiSidebar({
                   disabled={isAiResponding || (aiPrompt.trim() === "" && composerAttachments.length === 0)}
                   aria-label={isAiResponding ? "返信中" : "送信"}
                 >
-                  ↑
+                  {isAiResponding ? <Sparkles className="aiIcon" aria-hidden="true" /> : <Send className="aiIcon" aria-hidden="true" />}
                 </button>
               </div>
             </div>

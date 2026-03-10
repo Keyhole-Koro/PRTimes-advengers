@@ -230,7 +230,18 @@ function createSuggestionWidget(
     trigger.type = "button";
     trigger.className = "aiSuggestionTrigger";
     const promptPreview = suggestion.prompt.length > 28 ? `${suggestion.prompt.slice(0, 28)}...` : suggestion.prompt;
-    trigger.textContent = isActive ? `AI提案を閉じる: ${promptPreview}` : `AI提案を確認: ${promptPreview}`;
+    const lineStart = document.createElement("span");
+    lineStart.className = "aiSuggestionTriggerLine";
+    trigger.append(lineStart);
+
+    const label = document.createElement("span");
+    label.className = "aiSuggestionTriggerLabel";
+    label.textContent = isActive ? `AI提案を閉じる: ${promptPreview}` : `AI提案を確認: ${promptPreview}`;
+    trigger.append(label);
+
+    const lineEnd = document.createElement("span");
+    lineEnd.className = "aiSuggestionTriggerLine";
+    trigger.append(lineEnd);
     trigger.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
