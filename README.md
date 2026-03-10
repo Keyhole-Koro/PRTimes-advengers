@@ -56,3 +56,4 @@ npm run dev
 バックエンドAPI仕様・実装切り替え手順は以下を参照してください。
 
 - [webapp/README.md](./webapp/README.md)
+- [DBスキーマと保存フロー](./webapp/docs/db-schema-and-flow.md)

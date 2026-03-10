@@ -6,6 +6,14 @@ webapp/nodejs/node_modules/
 webapp/go/vendor/
 webapp/python/venv/
 webapp/python/__pycache__/
+webapp/agent/.venv/
+webapp/agent/venv/
+webapp/agent/__pycache__/
+webapp/agent/.pytest_cache/
+webapp/agent/.mypy_cache/
+webapp/agent/.ruff_cache/
+webapp/agent/**/*.pyc
+webapp/agent/**/__pycache__/
 
 # Environment variables
 .env
