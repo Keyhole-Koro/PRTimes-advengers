@@ -53,6 +53,9 @@ const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const AI_MAX_ATTACHMENT_COUNT = 4;
 const AI_MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const AI_AUTO_RECOMMEND_LINE_THRESHOLD = 3;
+const AI_AUTO_RECOMMEND_PROMPT =
+  "直近の編集内容を確認して、文章品質を上げるための改善レコメンドを提示してください。";
 const AI_ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const AI_ALLOWED_FILE_MIME_TYPES = new Set([
   "application/pdf",
@@ -288,6 +291,15 @@ function serializeMessageForHistory(message: AiChatMessage): ConversationHistory
   };
 }
 
+function countDocumentLines(editor: Editor): number {
+  const text = editor.getText({ blockSeparator: "\n" }).trimEnd();
+  if (text === "") {
+    return 0;
+  }
+
+  return text.split(/\r?\n/).length;
+}
+
 async function requestDocumentEdit(
   prompt: string,
   editor: Editor,
@@ -361,6 +373,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const autoRecommendBaselineLineCountRef = useRef<number | null>(null);
 
   const isAiResponding = respondingAiThreadId !== null;
   const activeAiThread = useMemo(
@@ -395,6 +408,15 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       });
     };
   }, [composerAttachments]);
+
+  useEffect(() => {
+    if (!editor) {
+      autoRecommendBaselineLineCountRef.current = null;
+      return;
+    }
+
+    autoRecommendBaselineLineCountRef.current = countDocumentLines(editor);
+  }, [editor]);
 
   const clearComposerAttachments = () => {
     setComposerAttachments((current) => {
@@ -523,6 +545,8 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       return;
     }
 
+    autoRecommendBaselineLineCountRef.current = countDocumentLines(editor);
+
     const displayText = buildMessageText(normalizedPrompt, attachments);
     const effectivePrompt =
       normalizedPrompt !== ""
@@ -561,6 +585,66 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
     }
   };
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    const handleAutoRecommend = () => {
+      if (respondingAiThreadId !== null || !activeAiThread) {
+        return;
+      }
+
+      const currentLineCount = countDocumentLines(editor);
+      const previousLineCount = autoRecommendBaselineLineCountRef.current ?? currentLineCount;
+      const lineDelta = Math.abs(currentLineCount - previousLineCount);
+      if (lineDelta < AI_AUTO_RECOMMEND_LINE_THRESHOLD) {
+        return;
+      }
+
+      autoRecommendBaselineLineCountRef.current = currentLineCount;
+      const autoPrompt = `${AI_AUTO_RECOMMEND_PROMPT}（行数差分: ${lineDelta}行）`;
+      const userMessage = createAiMessage("user", `自動レコメンドを実行します（行数差分: ${lineDelta}行）。`);
+      const threadId = activeAiThread.id;
+      updateThreadMessages(threadId, userMessage);
+      setRespondingAiThreadId(threadId);
+
+      void (async () => {
+        try {
+          const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
+          const documentEditResult = await requestDocumentEdit(autoPrompt, editor, title, conversationHistory);
+          const assistantMessage = {
+            ...createAiMessage(
+              "assistant",
+              "行数差分が3行に達したため、自動レコメンドを作成しました。提案を確認してください。",
+            ),
+            documentEditResult,
+          };
+          updateThreadMessages(threadId, assistantMessage);
+          onCreateDocumentSuggestion(assistantMessage.id, autoPrompt, documentEditResult);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "AIリクエストの自動実行に失敗しました";
+          updateThreadMessages(threadId, createAiMessage("assistant", message));
+        } finally {
+          setRespondingAiThreadId((current) => (current === threadId ? null : current));
+        }
+      })();
+    };
+
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) {
+        return;
+      }
+
+      handleAutoRecommend();
+    };
+
+    editor.on("transaction", handleTransaction);
+    return () => {
+      editor.off("transaction", handleTransaction);
+    };
+  }, [activeAiThread, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
 
   const handleAiInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {

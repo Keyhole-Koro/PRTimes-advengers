@@ -92,6 +92,66 @@ docker compose build app
 docker compose up -d
 ```
 
+## AI Agent E2E
+
+AI エージェントの E2E は、Node バックエンド、Agent、PostgreSQL、Vite フロントエンドがそろって起動している前提です。現在の E2E は AI 提案が対象段落だけに適用されることを確認します。
+
+### ローカルで実行する手順
+
+1. バックエンド群を起動します。
+
+```bash
+cd webapp
+docker compose up -d --build postgresql agent app
+```
+
+2. ヘルスチェックが返ることを確認します。
+
+```bash
+curl http://127.0.0.1:5001/health
+curl http://127.0.0.1:8080/health
+```
+
+3. フロントエンド依存関係と Playwright ブラウザを入れます。
+
+```bash
+cd webapp/frontend/react
+npm ci
+npx playwright install --with-deps chromium
+```
+
+4. フロントエンドを起動します。
+
+```bash
+cd webapp/frontend/react
+npm run dev -- --host 0.0.0.0
+```
+
+5. 別ターミナルで E2E を実行します。
+
+```bash
+cd webapp/frontend/react
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e:ai-agent
+```
+
+AI エージェント関連の Node 側テストだけを確認したい場合は、以下を使います。
+
+```bash
+cd webapp/node
+npm test -- aiEditService.test.ts
+```
+
+### CI での実行
+
+GitHub Actions では [ai-agent-e2e.yml](../.github/workflows/ai-agent-e2e.yml) が同じ流れで以下を行います。
+
+- `docker compose up -d --build postgresql agent app`
+- `http://127.0.0.1:5001/health` と `http://127.0.0.1:8080/health` の待機
+- Vite 開発サーバーの起動
+- `npm run test:e2e`
+
+失敗時は `webapp/frontend/react/playwright-report` と `webapp/frontend/react/test-results` が artifact として保存されます。
+
 ## API仕様
 
 ### GET /health
