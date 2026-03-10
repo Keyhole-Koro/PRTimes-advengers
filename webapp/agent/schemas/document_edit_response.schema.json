@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "operations"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/addOperation" },
+          { "$ref": "#/$defs/removeOperation" },
+          { "$ref": "#/$defs/modifyOperation" }
+        ]
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "documentBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["heading", "paragraph", "bullet_list", "ordered_list", "blockquote"]
+        },
+        "text": { "type": "string" },
+        "attrs": { "type": "object" }
+      }
+    },
+    "addOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "after_block_id", "block"],
+      "properties": {
+        "op": { "const": "add" },
+        "after_block_id": {
+          "type": ["string", "null"]
+        },
+        "block": { "$ref": "#/$defs/documentBlock" },
+        "reason": { "type": "string" }
+      }
+    },
+    "removeOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "block_id"],
+      "properties": {
+        "op": { "const": "remove" },
+        "block_id": { "type": "string" },
+        "removed_block": { "$ref": "#/$defs/documentBlock" },
+        "reason": { "type": "string" }
+      }
+    },
+    "modifyOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "block_id", "after"],
+      "properties": {
+        "op": { "const": "modify" },
+        "block_id": { "type": "string" },
+        "before": { "$ref": "#/$defs/documentBlock" },
+        "after": { "$ref": "#/$defs/documentBlock" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

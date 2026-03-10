@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { receiveTransaction, sendableSteps } from "@tiptap/pm/collab";
 import { Step } from "@tiptap/pm/transform";
@@ -25,6 +24,7 @@ import {
   WS_BASE_URL,
 } from "./constants";
 import { useAssetActions } from "./hooks/useAssetActions";
+import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import { MOCK_TEMPLATES } from "./mockTemplates";
@@ -74,13 +74,13 @@ export function PressReleaseEditorPage({
         ? [
             StarterKit,
             Underline,
-            Image,
+            RemovableImage,
             LinkCard,
             RemotePresence,
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, Underline, Image, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, Underline, RemovableImage, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],

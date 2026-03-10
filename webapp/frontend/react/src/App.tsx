@@ -1,6 +1,5 @@
-import { PressReleaseEditorPage } from "./features/pressReleaseEditor/PressReleaseEditorPage";
-import { EMPTY_CONTENT } from "./features/pressReleaseEditor/constants";
 import { usePressReleaseQuery } from "./features/pressReleaseEditor/hooks/usePressReleaseQueries";
+import { PressReleaseEditorPage } from "./features/pressReleaseEditor/PressReleaseEditorPage";
 
 export function App() {
   const { data, error, isError, isPending } = usePressReleaseQuery();
@@ -31,5 +30,11 @@ export function App() {
     );
   }
 
-  return <PressReleaseEditorPage title={data.title} content={data.content ?? EMPTY_CONTENT} version={data.version} />;
+  return (
+    <PressReleaseEditorPage
+      title={data.title}
+      content={data.content}
+      version={data.version}
+    />
+  );
 }
