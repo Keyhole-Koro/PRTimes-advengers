@@ -467,19 +467,13 @@ export function PressReleaseEditorPage({
 
   const {
     fileActions: { handleImageSelected, handleImportHtml, handlePickHtml, handlePickImage },
-    imageUrl,
     isDraggingImage,
-    isFetchingLinkPreview,
     isUploadingImage,
-    linkUrl,
-    setImageUrl,
-    setLinkUrl,
     uploadActions: {
       handleDragEnter,
       handleDragLeave,
       handleDragOver,
       handleDrop,
-      handleInsertImage,
       handleInsertLinkCard,
     },
   } = useAssetActions({
@@ -563,6 +557,7 @@ export function PressReleaseEditorPage({
         isActive: markState?.[button.key] ?? false,
         key: button.key,
         label: button.label,
+        tooltip: button.tooltip,
         onClick: () => toggleMark(button.key),
       })),
       label: "書式",
@@ -579,12 +574,14 @@ export function PressReleaseEditorPage({
           isActive: editor.isActive("heading", { level: 1 }),
           key: "heading-1",
           label: "H1",
+          tooltip: "見出し1",
           onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
         },
         {
           isActive: editor.isActive("heading", { level: 2 }),
           key: "heading-2",
           label: "H2",
+          tooltip: "見出し2",
           onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
         },
       ],
@@ -617,9 +614,15 @@ export function PressReleaseEditorPage({
         },
         {
           isActive: false,
-          key: "html-import",
-          label: "HTMLをインポート",
-          onClick: handlePickHtml,
+          key: "insert-link-card",
+          label: "リンクを追加",
+          onClick: () => {
+            const url = window.prompt("リンクURLを入力してください (https://...)");
+            if (!url) {
+              return;
+            }
+            void handleInsertLinkCard(url);
+          },
         },
       ],
       label: "画像",
@@ -634,6 +637,17 @@ export function PressReleaseEditorPage({
         },
       ],
       label: "コメント",
+    },
+    {
+      buttons: [
+        {
+          isActive: false,
+          key: "html-import",
+          label: "HTMLをインポート",
+          onClick: handlePickHtml,
+        },
+      ],
+      label: "リンク",
     },
   ];
 
@@ -650,18 +664,10 @@ export function PressReleaseEditorPage({
             handleDrop={handleDrop}
             handleImageSelected={handleImageSelected}
             handleImportHtml={handleImportHtml}
-            handleInsertImage={handleInsertImage}
-            handleInsertLinkCard={handleInsertLinkCard}
-            handlePickImage={handlePickImage}
             htmlInputRef={htmlInputRef}
-            imageUrl={imageUrl}
             isDraggingImage={isDraggingImage}
-            isFetchingLinkPreview={isFetchingLinkPreview}
             isUploadingImage={isUploadingImage}
-            linkUrl={linkUrl}
             onTitleChange={handleTitleChange}
-            setImageUrl={setImageUrl}
-            setLinkUrl={setLinkUrl}
             title={title}
             toolbarGroups={toolbarGroups}
           />

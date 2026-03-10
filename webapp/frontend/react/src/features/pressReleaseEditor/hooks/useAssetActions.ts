@@ -104,12 +104,12 @@ export function useAssetActions({
     flushAfterImageChange();
   };
 
-  const handleInsertLinkCard = async () => {
+  const handleInsertLinkCard = async (urlOverride?: string) => {
     if (!editor) {
       return;
     }
 
-    const trimmedUrl = linkUrl.trim();
+    const trimmedUrl = (urlOverride ?? linkUrl).trim();
     if (!trimmedUrl) {
       alert("URLを入力してください");
       return;

@@ -72,6 +72,7 @@ export type SidebarTab = "history" | "comments" | "ai";
 export type ToolbarButtonConfig = {
   key: string;
   label: string;
+  tooltip?: string;
   isActive: boolean;
   onClick: () => void;
 };
