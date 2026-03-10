@@ -6,6 +6,7 @@ import type {
   PressReleaseTemplateResponse,
   SidebarTab,
 } from "../types";
+import { AiSidebar, type AiSidebarProps } from "./AiSidebar";
 import { CommentsSidebar } from "./CommentsSidebar";
 import { HistorySidebar } from "./HistorySidebar";
 
@@ -47,6 +48,7 @@ type EditorSidebarProps = {
   templateName: string;
   templates: PressReleaseTemplateResponse[];
   toggleResolveThread: (thread: CommentThreadResponse) => void | Promise<void>;
+  aiSidebarProps: AiSidebarProps;
 };
 
 export function EditorSidebar({
@@ -82,6 +84,7 @@ export function EditorSidebar({
   templateName,
   templates,
   toggleResolveThread,
+  aiSidebarProps,
 }: EditorSidebarProps) {
   return (
     <aside className="sidebarPanel" aria-label="サイドパネル">
@@ -99,6 +102,13 @@ export function EditorSidebar({
           onClick={() => setSidebarTab("history")}
         >
           履歴
+        </button>
+        <button
+          type="button"
+          className={`sidebarTab${sidebarTab === "ai" ? " is-active" : ""}`}
+          onClick={() => setSidebarTab("ai")}
+        >
+          AI
         </button>
       </div>
 
@@ -141,6 +151,8 @@ export function EditorSidebar({
           applyTemplate={applyTemplate}
         />
       )}
+
+      {sidebarTab === "ai" && <AiSidebar {...aiSidebarProps} />}
     </aside>
   );
 }

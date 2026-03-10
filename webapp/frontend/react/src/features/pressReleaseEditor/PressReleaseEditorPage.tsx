@@ -27,6 +27,7 @@ import { useAssetActions } from "./hooks/useAssetActions";
 import { RemovableImage } from "./extensions/removableImage";
 import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
+import { useAiAssistant } from "./hooks/useAiAssistant";
 import { MOCK_TEMPLATES } from "./mockTemplates";
 import type {
   MarkType,
@@ -456,6 +457,8 @@ export function PressReleaseEditorPage({
     title,
   });
 
+  const aiAssistant = useAiAssistant();
+
   const handleStartComment = () => {
     if (!editor) {
       return;
@@ -632,7 +635,7 @@ export function PressReleaseEditorPage({
             toolbarGroups={toolbarGroups}
           />
 
-          <EditorSidebar
+      <EditorSidebar
             activeThreadId={activeThreadId}
             addReply={handleAddReply}
             applyTemplate={applyTemplate}
@@ -670,12 +673,13 @@ export function PressReleaseEditorPage({
             showResolvedComments={showResolvedComments}
             sidebarTab={sidebarTab}
             submitCreateComment={handleCreateComment}
-            templateName={templateName}
-            templates={templates}
-            toggleResolveThread={(thread) =>
-              thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
-            }
-          />
+        templateName={templateName}
+        templates={templates}
+        toggleResolveThread={(thread) =>
+          thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
+        }
+        aiSidebarProps={aiAssistant}
+      />
         </div>
       </main>
     </div>
