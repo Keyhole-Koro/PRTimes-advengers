@@ -6,7 +6,7 @@ import { ensureDatabaseSchema } from './db/schemaSetup.js'
 import { collaborationHub } from './realtime/collaborationHub.js'
 import { parseClientRealtimeMessage } from './realtime/messages.js'
 import { pressReleaseService } from './services/pressReleaseService.js'
-import uuidv4 from 'uuid/v4'
+import { v4 as uuidv4 } from 'uuid'
 // Wire up the collaboration hub notification through the service callback
 // so that routes don't need to know about the collaboration hub
 pressReleaseService.onPressReleaseSaved((pressRelease) => {
