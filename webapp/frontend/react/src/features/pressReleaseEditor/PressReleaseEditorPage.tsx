@@ -948,9 +948,7 @@ export function PressReleaseEditorPage({
 
           <div className="sidebarColumn">
             <EditorHeader
-              identityColor={identity.color}
-              identityName={identity.name}
-              remoteUsers={remoteUsers}
+              remoteUserCount={remoteUsers.length}
               saveStatus={saveStatus}
               version={version}
             />
