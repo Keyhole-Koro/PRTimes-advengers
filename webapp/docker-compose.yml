@@ -37,6 +37,27 @@ services:
       postgresql:
         condition: service_healthy
 
+  flask_app:
+    build: ./python
+    container_name: press-release-flask
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./python:/app
+    environment:
+      FLASK_APP: app.py # 実際のFlaskのエントリーポイントファイル名に合わせて変更してください
+      FLASK_ENV: development
+      DB_HOST: postgresql
+      DB_PORT: 5432
+      DB_USER: press_release
+      DB_PASSWORD: press_release
+      DB_NAME: press_release_db
+    # requirements.txtをインストール後、0.0.0.0で起動し外部からのアクセスを許可します
+    command: sh -c "pip install -r requirements.txt && flask run --host=0.0.0.0 --port=5000"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   node_modules:
