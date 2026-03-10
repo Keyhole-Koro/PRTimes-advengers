@@ -3,37 +3,40 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      # Node.js 20を指定して Vite のバージョン要件をクリアする
       nodejs: 20
     commands:
-      # 環境変数を使って確実に目的のディレクトリへ移動
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm install
 
   pre_build:
     commands:
+      # --- ① React（フロントエンド）用の環境変数設定 ---
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
-      # CodeBuildの環境変数 APP_API_BASE_URL を .env に書き出す
-      # (注意: Viteで読み込むために VITE_ プレフィックスを付けています)
       - echo "VITE_APP_API_BASE_URL=$APP_API_BASE_URL" >> .env
       - echo "VITE_WS_BASE_URL=$WS_BASE_URL" >> .env
       - echo "APP_ENV=$APP_ENV" >> .env
 
+      # --- ② Docker Compose（バックエンド/エージェント）用の環境変数設定 ---
+      # docker-compose.yml が置かれているディレクトリ（ここでは webapp 直下と想定）に移動
+      - cd $CODEBUILD_SRC_DIR/webapp
+      # Pipeline/CodeBuildに設定した環境変数を .env ファイルに書き出す
+      - echo "GOOGLE_API_KEY=$GOOGLE_API_KEY" >> .env
+      # 必要に応じて他の環境変数もここに追加できます
+      # - echo "AGENT_MODEL=gemini-3-flash" >> .env
+
   build:
     commands:
-      # 各フェーズの最初で確実にディレクトリを指定する
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - npm run build
 
   post_build:
     commands:
-      # S3へのデプロイ時も確実にディレクトリを指定
       - cd $CODEBUILD_SRC_DIR/webapp/frontend/react
       - aws s3 sync dist s3://pr-times-4/ --delete
-      # EC2へ送るアーティファクトを軽くするため、S3デプロイ後にnode_modulesを削除する
       - rm -rf node_modules
 
 artifacts:
   base-directory: webapp
   files:
     - '**/*'
+    # .env は隠しファイルですが、 '**/*' に含まれるためアーティファクトとして一緒にZip化されます
