@@ -3,7 +3,6 @@ import type { JSONContent } from "@tiptap/core";
 import type { MarkType } from "./types";
 
 
-import 'dotenv/config'
 
 export const QUERY_KEY = ["fetch-press-release"];
 export const BASE_URL = import.meta.env.VITE_APP_API_BASE_URL || "http://localhost:8080";
