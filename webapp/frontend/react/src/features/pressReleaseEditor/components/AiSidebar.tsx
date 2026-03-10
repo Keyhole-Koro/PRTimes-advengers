@@ -20,6 +20,23 @@ function formatAttachmentSize(size: number): string {
   return `${Math.max(1, Math.round(size / 1024))}KB`;
 }
 
+function getSuggestionCount(message: AiChatMessage): number {
+  const result = message.documentEditResult as { suggestions?: unknown; operations?: unknown[] } | undefined;
+  if (!result) {
+    return 0;
+  }
+
+  if (Array.isArray(result.suggestions)) {
+    return result.suggestions.length;
+  }
+
+  if (Array.isArray(result.operations)) {
+    return result.operations.length > 0 ? 1 : 0;
+  }
+
+  return 0;
+}
+
 export type AiSidebarProps = {
   activeAiMessages: AiChatMessage[];
   activeAiThread: AiChatThread | null;
@@ -221,7 +238,7 @@ export function AiSidebar({
                   )}
                   {message.documentEditResult && (
                     <p className="aiMessageHint">
-                      文書内に {message.documentEditResult.operations.length} 件の提案を追加しました。本文中の提案を確認してください。
+                      文書内に {getSuggestionCount(message)} 件の提案を追加しました。本文中の提案を確認してください。
                     </p>
                   )}
                 </article>

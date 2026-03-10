@@ -12,8 +12,10 @@ type SuggestionDecorationState = {
 
 type SuggestionExtensionOptions = {
   onAcceptSuggestion: (suggestionId: string) => void;
+  onAcceptSuggestionOperation: (suggestionId: string, operationIndex: number, nextText?: string) => void;
   onActivateSuggestion: (suggestionId: string | null) => void;
   onDiscardSuggestion: (suggestionId: string) => void;
+  onDiscardSuggestionOperation: (suggestionId: string, operationIndex: number) => void;
 };
 
 type IndexedBlockPosition = {
@@ -61,7 +63,12 @@ function appendDiffSegments(container: HTMLElement, beforeText: string, afterTex
   }
 }
 
-function createOperationDiff(operation: PendingAiSuggestion["result"]["operations"][number]) {
+function createOperationDiff(
+  suggestion: PendingAiSuggestion,
+  operation: PendingAiSuggestion["suggestion"]["operations"][number],
+  operationIndex: number,
+  options: SuggestionExtensionOptions,
+) {
   const card = document.createElement("article");
   card.className = "aiSuggestionDiffCard";
 
@@ -103,6 +110,12 @@ function createOperationDiff(operation: PendingAiSuggestion["result"]["operation
     afterBody.className = "aiSuggestionDiffInline";
     appendDiffSegments(afterBody, operation.before?.text ?? "", operation.after.text);
     after.append(afterBody);
+
+    const editor = document.createElement("textarea");
+    editor.className = "aiSuggestionOperationEditor";
+    editor.value = operation.after.text;
+    editor.rows = Math.min(Math.max(operation.after.text.split("\n").length, 3), 8);
+    after.append(editor);
     card.append(after);
   } else if (operation.op === "add") {
     const after = document.createElement("div");
@@ -115,6 +128,12 @@ function createOperationDiff(operation: PendingAiSuggestion["result"]["operation
     afterBody.className = "aiSuggestionDiffInline";
     appendDiffSegments(afterBody, "", operation.block.text);
     after.append(afterBody);
+
+    const editor = document.createElement("textarea");
+    editor.className = "aiSuggestionOperationEditor";
+    editor.value = operation.block.text;
+    editor.rows = Math.min(Math.max(operation.block.text.split("\n").length, 3), 8);
+    after.append(editor);
     card.append(after);
   } else {
     const removed = document.createElement("div");
@@ -137,12 +156,46 @@ function createOperationDiff(operation: PendingAiSuggestion["result"]["operation
     card.append(reason);
   }
 
+  const operationActions = document.createElement("div");
+  operationActions.className = "aiSuggestionOperationActions";
+
+  const apply = document.createElement("button");
+  apply.type = "button";
+  apply.className = "aiSuggestionAccept";
+  apply.textContent = "この差分を適用";
+  apply.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const editor = card.querySelector<HTMLTextAreaElement>(".aiSuggestionOperationEditor");
+    const nextText = editor?.value;
+    options.onAcceptSuggestionOperation(suggestion.id, operationIndex, nextText);
+  });
+  operationActions.append(apply);
+
+  const discard = document.createElement("button");
+  discard.type = "button";
+  discard.className = "aiSuggestionDiscard";
+  discard.textContent = "この差分を破棄";
+  discard.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    options.onDiscardSuggestionOperation(suggestion.id, operationIndex);
+  });
+  operationActions.append(discard);
+
+  card.append(operationActions);
+
   return card;
 }
 
 function getSuggestionAnchorPosition(state: EditorState, suggestion: PendingAiSuggestion): number {
   const positions = buildIndexedBlockPositions(state);
-  const firstOperation = suggestion.result.operations[0];
+  const operations = suggestion.suggestion?.operations;
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return positions[0]?.to ?? state.doc.content.size;
+  }
+
+  const firstOperation = operations[0];
   if (!firstOperation) {
     return state.doc.content.size;
   }
@@ -196,7 +249,7 @@ function createSuggestionWidget(
 
       const title = document.createElement("p");
       title.className = "aiSuggestionTitle";
-      title.textContent = suggestion.result.summary;
+      title.textContent = suggestion.suggestion.summary;
       panel.append(title);
 
       const prompt = document.createElement("p");
@@ -204,11 +257,23 @@ function createSuggestionWidget(
       prompt.textContent = `指示: ${suggestion.prompt}`;
       panel.append(prompt);
 
+      const meta = document.createElement("p");
+      meta.className = "aiSuggestionPrompt";
+      meta.textContent = `分類: ${suggestion.suggestion.category}`;
+      panel.append(meta);
+
+      if (suggestion.suggestion.reason) {
+        const suggestionReason = document.createElement("p");
+        suggestionReason.className = "aiSuggestionDiffReason";
+        suggestionReason.textContent = suggestion.suggestion.reason;
+        panel.append(suggestionReason);
+      }
+
       const diffList = document.createElement("div");
       diffList.className = "aiSuggestionDiffList";
-      for (const operation of suggestion.result.operations) {
-        diffList.append(createOperationDiff(operation));
-      }
+      suggestion.suggestion.operations.forEach((operation, operationIndex) => {
+        diffList.append(createOperationDiff(suggestion, operation, operationIndex, options));
+      });
       panel.append(diffList);
 
       const actions = document.createElement("div");
@@ -217,7 +282,7 @@ function createSuggestionWidget(
       const accept = document.createElement("button");
       accept.type = "button";
       accept.className = "aiSuggestionAccept";
-      accept.textContent = "適用";
+      accept.textContent = "まとめて適用";
       accept.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -228,7 +293,7 @@ function createSuggestionWidget(
       const discard = document.createElement("button");
       discard.type = "button";
       discard.className = "aiSuggestionDiscard";
-      discard.textContent = "破棄";
+      discard.textContent = "まとめて破棄";
       discard.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -245,7 +310,9 @@ function createSuggestionWidget(
 }
 
 function buildDecorations(state: EditorState, pluginState: SuggestionDecorationState, options: SuggestionExtensionOptions) {
-  const decorations = pluginState.suggestions.map((suggestion) => {
+  const decorations = pluginState.suggestions
+    .filter((suggestion) => Array.isArray(suggestion.suggestion?.operations))
+    .map((suggestion) => {
     const position = getSuggestionAnchorPosition(state, suggestion);
     const isActive = pluginState.activeSuggestionId === suggestion.id;
     return Decoration.widget(
@@ -261,7 +328,7 @@ function buildDecorations(state: EditorState, pluginState: SuggestionDecorationS
         },
       },
     );
-  });
+    });
 
   return DecorationSet.create(state.doc, decorations);
 }

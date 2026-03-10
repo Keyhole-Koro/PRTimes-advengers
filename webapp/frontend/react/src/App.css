@@ -1444,9 +1444,30 @@
   line-height: 1.5;
 }
 
+.aiSuggestionOperationEditor {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #0f172a;
+  background: #f8fbff;
+  box-sizing: border-box;
+}
+
+.aiSuggestionOperationActions,
 .aiSuggestionActions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aiSuggestionOperationActions {
+  margin-top: 10px;
 }
 
 .aiSuggestionAccept {

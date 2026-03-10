@@ -3,7 +3,7 @@ import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
-import type { AgentDocumentEditResult, PressReleaseResponse } from "../types";
+import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {
@@ -114,6 +114,84 @@ function isValidAiAttachmentMeta(value: unknown): value is AiAttachmentMeta {
   );
 }
 
+function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const operation = value as Partial<AgentDocumentEditOperation>;
+  if (operation.op === "add") {
+    return "block" in operation && "after_block_id" in operation;
+  }
+
+  if (operation.op === "remove") {
+    return typeof operation.block_id === "string";
+  }
+
+  if (operation.op === "modify") {
+    return typeof operation.block_id === "string" && "after" in operation;
+  }
+
+  return false;
+}
+
+function isValidAgentDocumentEditSuggestion(value: unknown): value is AgentDocumentEditSuggestion {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const suggestion = value as Partial<AgentDocumentEditSuggestion>;
+  return (
+    typeof suggestion.id === "string" &&
+    typeof suggestion.category === "string" &&
+    typeof suggestion.summary === "string" &&
+    Array.isArray(suggestion.operations) &&
+    suggestion.operations.every(isValidAgentDocumentEditOperation)
+  );
+}
+
+function normalizeDocumentEditResult(value: unknown): AgentDocumentEditResult | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const result = value as {
+    summary?: unknown;
+    suggestions?: unknown;
+    operations?: unknown;
+    notes?: unknown;
+  };
+
+  if (typeof result.summary !== "string") {
+    return undefined;
+  }
+
+  if (Array.isArray(result.suggestions) && result.suggestions.every(isValidAgentDocumentEditSuggestion)) {
+    return {
+      summary: result.summary,
+      suggestions: result.suggestions,
+      notes: Array.isArray(result.notes) ? result.notes.filter((item): item is string => typeof item === "string") : undefined,
+    };
+  }
+
+  if (Array.isArray(result.operations) && result.operations.every(isValidAgentDocumentEditOperation)) {
+    return {
+      summary: result.summary,
+      suggestions: [
+        {
+          id: "legacy-body-suggestion",
+          category: "body",
+          summary: result.summary,
+          operations: result.operations,
+        },
+      ],
+      notes: Array.isArray(result.notes) ? result.notes.filter((item): item is string => typeof item === "string") : undefined,
+    };
+  }
+
+  return undefined;
+}
+
 function isValidAiMessage(value: unknown): value is AiChatMessage {
   if (typeof value !== "object" || !value) {
     return false;
@@ -124,6 +202,7 @@ function isValidAiMessage(value: unknown): value is AiChatMessage {
     (message.role === "user" || message.role === "assistant") &&
     typeof message.text === "string" &&
     typeof message.createdAt === "string" &&
+    (message.documentEditResult === undefined || normalizeDocumentEditResult(message.documentEditResult) !== undefined) &&
     (message.attachments === undefined ||
       (Array.isArray(message.attachments) && message.attachments.every(isValidAiAttachmentMeta)))
   );
@@ -155,7 +234,10 @@ function parseStoredAiThreads(rawValue: string | null): AiChatThread[] {
     }
 
     if (parsed.length > 0 && parsed.every(isValidAiMessage)) {
-      const legacyMessages = parsed as AiChatMessage[];
+      const legacyMessages = (parsed as AiChatMessage[]).map((message) => ({
+        ...message,
+        documentEditResult: normalizeDocumentEditResult(message.documentEditResult),
+      }));
       return [
         {
           ...createAiThread(buildThreadTitle(legacyMessages[0]?.text ?? "")),
@@ -165,7 +247,13 @@ function parseStoredAiThreads(rawValue: string | null): AiChatThread[] {
       ];
     }
 
-    const threads = parsed.filter(isValidAiThread);
+    const threads = parsed.filter(isValidAiThread).map((thread) => ({
+      ...thread,
+      messages: thread.messages.map((message) => ({
+        ...message,
+        documentEditResult: normalizeDocumentEditResult(message.documentEditResult),
+      })),
+    }));
     return threads.length > 0 ? threads : [createAiThread()];
   } catch {
     return [createAiThread()];
@@ -245,7 +333,12 @@ async function requestDocumentEdit(
     throw new Error(message);
   }
 
-  return responseBody as AgentDocumentEditResult;
+  const normalized = normalizeDocumentEditResult(responseBody);
+  if (!normalized) {
+    throw new Error("AI編集のレスポンス形式が不正です");
+  }
+
+  return normalized;
 }
 
 export function formatAiMessageTime(isoString: string): string {
@@ -479,7 +572,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       const assistantMessage = {
         ...createAiMessage(
           "assistant",
-          "提案を文書内に追加しました。該当箇所をクリックして差分を確認し、適用または破棄してください。",
+          "細かい提案を文書内に追加しました。該当箇所をクリックして差分を確認し、個別に適用または破棄してください。",
         ),
         documentEditResult,
       };

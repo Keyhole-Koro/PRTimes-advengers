@@ -2,6 +2,8 @@ import os
 import unittest
 
 from app import create_app
+from tasks.checklist_generate import build_prompt as build_checklist_prompt
+from tasks.document_edit import build_prompt as build_document_edit_prompt
 from services.task_service import TaskService
 
 
@@ -28,15 +30,22 @@ class TaskServiceTestCase(unittest.TestCase):
                 {
                     "document_edit": {
                         "summary": "文書を整理しました。",
-                        "operations": [
+                        "suggestions": [
                             {
-                                "op": "modify",
-                                "block_id": "p-1",
-                                "after": {
-                                    "id": "p-1",
-                                    "type": "paragraph",
-                                    "text": "更新後の本文です。"
-                                }
+                                "id": "suggestion-1",
+                                "category": "body",
+                                "summary": "本文を分かりやすく修正しました。",
+                                "operations": [
+                                    {
+                                        "op": "modify",
+                                        "block_id": "p-1",
+                                        "after": {
+                                            "id": "p-1",
+                                            "type": "paragraph",
+                                            "text": "更新後の本文です。"
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     }
@@ -65,7 +74,7 @@ class TaskServiceTestCase(unittest.TestCase):
         }
 
         result = service.run_task("document_edit", payload)
-        operation = result["result"]["operations"][0]
+        operation = result["result"]["suggestions"][0]["operations"][0]
 
         self.assertEqual(operation["before"]["text"], "元の本文です。")
         self.assertEqual(operation["after"]["text"], "更新後の本文です。")
@@ -81,6 +90,49 @@ class TaskServiceTestCase(unittest.TestCase):
         task_names = {task["name"] for task in body["tasks"]}
         self.assertIn("document_edit", task_names)
         self.assertIn("checklist_generate", task_names)
+
+    def test_document_edit_prompt_contains_global_editorial_policy(self):
+        prompt = build_document_edit_prompt(
+            {
+                "context": {
+                    "reference_docs": [],
+                    "uploaded_materials": [],
+                },
+                "document": {
+                    "title": "テスト文書",
+                    "blocks": [],
+                },
+                "instructions": {
+                    "goal": "改善する",
+                },
+            }
+        )
+
+        self.assertIn("強いプレスリリースにするための共通編集基準", prompt)
+        self.assertIn("タイトル:", prompt)
+        self.assertIn("メタデータ:", prompt)
+        self.assertIn("リスク:", prompt)
+
+    def test_checklist_prompt_contains_global_editorial_policy(self):
+        prompt = build_checklist_prompt(
+            {
+                "context": {
+                    "reference_docs": [],
+                    "uploaded_materials": [],
+                },
+                "document": {
+                    "title": "テスト文書",
+                    "blocks": [],
+                },
+                "instructions": {
+                    "goal": "チェックリストを作る",
+                },
+            }
+        )
+
+        self.assertIn("強いプレスリリースにするための共通編集基準", prompt)
+        self.assertIn("読者価値:", prompt)
+        self.assertIn("リスク:", prompt)
 
 
 if __name__ == "__main__":
