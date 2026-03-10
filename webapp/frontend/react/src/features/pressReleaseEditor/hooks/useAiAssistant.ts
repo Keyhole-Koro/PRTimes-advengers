@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
 import type { AgentDocumentEditResult, PressReleaseResponse } from "../types";
-
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {

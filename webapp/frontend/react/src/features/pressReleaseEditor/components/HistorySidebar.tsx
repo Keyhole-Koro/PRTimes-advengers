@@ -1,11 +1,5 @@
-import type { ChangeEvent } from "react";
-
 import { buildDiffSegments, extractTextContent } from "../utils/diff";
-import type {
-  DiffSegment,
-  PressReleaseRevisionResponse,
-  PressReleaseTemplateResponse,
-} from "../types";
+import type { DiffSegment, PressReleaseRevisionResponse } from "../types";
 
 type RevisionSummary = {
   added: number;
@@ -21,13 +15,6 @@ type HistorySidebarProps = {
   revisionSummaries: Record<number, RevisionSummary>;
   restoringRevisionId: number | null;
   restoreRevision: (revisionId: number) => void | Promise<void>;
-  templates: PressReleaseTemplateResponse[];
-  templateName: string;
-  setTemplateName: (value: string) => void;
-  saveCurrentAsTemplate: () => void | Promise<void>;
-  isSavingTemplate: boolean;
-  applyingTemplateId: number | null;
-  applyTemplate: (templateId: number) => void | Promise<void>;
 };
 
 function renderDiffTokens(segments: DiffSegment[]) {
@@ -48,13 +35,6 @@ export function HistorySidebar({
   revisionSummaries,
   restoringRevisionId,
   restoreRevision,
-  templates,
-  templateName,
-  setTemplateName,
-  saveCurrentAsTemplate,
-  isSavingTemplate,
-  applyingTemplateId,
-  applyTemplate,
 }: HistorySidebarProps) {
   const titleDiff = selectedRevision
     ? buildDiffSegments(previousRevision?.title ?? "", selectedRevision.title)
@@ -69,45 +49,6 @@ export function HistorySidebar({
 
   return (
     <>
-      <section className="templatePanel">
-        <div className="historyPanelHeader">
-          <h2 className="historyTitle">テンプレート</h2>
-          <span className="historyCount">{templates.length}件</span>
-        </div>
-        <div className="templateSaveRow">
-          <input
-            type="text"
-            value={templateName}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setTemplateName(event.target.value)}
-            placeholder="テンプレート名"
-            className="templateInput"
-          />
-          <button
-            type="button"
-            className="templateButton"
-            onClick={() => void saveCurrentAsTemplate()}
-            disabled={isSavingTemplate}
-          >
-            {isSavingTemplate ? "保存中..." : "保存"}
-          </button>
-        </div>
-        <div className="templateList">
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              className="templateItem"
-              onClick={() => void applyTemplate(template.id)}
-              disabled={applyingTemplateId === template.id}
-            >
-              <span className="templateName">{template.name}</span>
-              <span className="templateMeta">{template.updated_at}</span>
-              <span className="templateTitle">{template.title}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
       <div className="historyPanelHeader">
         <h2 className="historyTitle">変更履歴</h2>
         <span className="historyCount">{revisions.length}件</span>
