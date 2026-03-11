@@ -178,6 +178,16 @@ export type AgentDocumentEditResult = {
   notes?: string[];
 };
 
+export type AiTagSuggestion = {
+  label: string;
+  reason: string;
+};
+
+export type AiTagSuggestResult = {
+  summary: string;
+  tags: AiTagSuggestion[];
+};
+
 export type PendingAiSuggestion = {
   id: string;
   prompt: string;

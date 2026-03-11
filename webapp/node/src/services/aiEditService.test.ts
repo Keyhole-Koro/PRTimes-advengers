@@ -411,3 +411,47 @@ test('AiEditService limits suggestions to two items', async () => {
     globalThis.fetch = originalFetch
   }
 })
+
+test('AiEditService requests tag suggestions from agent', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedUrl = ''
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    capturedUrl = String(input)
+
+    return new Response(
+      JSON.stringify({
+        result: {
+          summary: 'タグ候補を抽出しました。',
+          tags: [
+            { label: 'AI', reason: '生成AIが主題です。' },
+            { label: '#サービス', reason: '提供開始の内容です。' },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestTagSuggestions({
+      prompt: 'タグ候補を提案してください。',
+      title: 'AI新機能を公開',
+      content,
+    })
+
+    assert.equal(capturedUrl, 'http://example.invalid/agent/tasks/tag_suggest:run')
+    assert.deepEqual(result.tags, [
+      { label: '#AI', reason: '生成AIが主題です。' },
+      { label: '#サービス', reason: '提供開始の内容です。' },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

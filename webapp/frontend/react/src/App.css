@@ -365,8 +365,9 @@
 }
 
 .editorAiAssistStrip {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 10px;
   margin: 2px 0 8px;
   padding: 8px 10px;
@@ -374,13 +375,14 @@
   border-radius: 12px;
   background: linear-gradient(180deg, #f8fbff 0%, #f4f8fc 100%);
   overflow: hidden;
+  min-width: 0;
 }
 
 .editorAiAssistHeader {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .editorAiAssistBadge {
@@ -401,24 +403,25 @@
   color: #5f7388;
   font-size: 11px;
   line-height: 1.3;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .editorAiAssistList {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
   min-width: 0;
-  padding-bottom: 1px;
 }
 
 .editorAiAssistCard {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0;
+  min-width: 0;
 }
 
 .editorAiAssistPrompt {
@@ -426,13 +429,13 @@
   color: #12385f;
   font-size: 11px;
   line-height: 1.3;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .editorAiAssistOptions {
   display: flex;
   gap: 6px;
-  white-space: nowrap;
+  flex-wrap: wrap;
 }
 
 .editorAiAssistOption {
@@ -1092,6 +1095,7 @@ body.is-resizing-panels {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .editorCanvasTab.is-active {

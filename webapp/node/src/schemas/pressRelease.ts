@@ -43,3 +43,17 @@ export const PressReleaseAiEditRequestSchema = z.object({
     }),
   ).optional(),
 })
+
+export const PressReleaseAiTagSuggestRequestSchema = z.object({
+  title: z.string().trim().min(1),
+  content: PressReleaseContentSchema,
+  ai_settings: z.object({
+    target_audience: z.string().trim().min(1).optional(),
+    writing_style: z.string().trim().min(1).optional(),
+    tone: z.string().trim().min(1).optional(),
+    brand_voice: z.string().trim().min(1).optional(),
+    consistency_policy: z.string().trim().min(1).optional(),
+    focus_points: z.array(z.string().trim().min(1)).optional(),
+    priority_checks: z.array(z.string().trim().min(1)).optional(),
+  }).optional(),
+})

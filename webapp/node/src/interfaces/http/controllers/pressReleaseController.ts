@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
-import { PressReleaseAiEditRequestSchema, PressReleaseInputSchema } from '../../../schemas/pressRelease.js'
-import { requestDocumentEdit } from '../../../application/ai/requestDocumentEdit.js'
+import { PressReleaseAiEditRequestSchema, PressReleaseAiTagSuggestRequestSchema, PressReleaseInputSchema } from '../../../schemas/pressRelease.js'
+import { requestDocumentEdit, requestTagSuggestions } from '../../../application/ai/requestDocumentEdit.js'
 import { createPressRelease } from '../../../application/pressRelease/createPressRelease.js'
 import { getPressRelease } from '../../../application/pressRelease/getPressRelease.js'
 import { getPressReleaseRevisions } from '../../../application/pressRelease/getPressReleaseRevisions.js'
@@ -126,6 +126,34 @@ export async function requestAiEditAction(c: Context, id: number, data: unknown)
     }
 
     console.error('AI edit error:', error)
+    return c.json(presentInternalError(), 500)
+  }
+}
+
+export async function requestAiTagSuggestAction(c: Context, id: number, data: unknown) {
+  const parsed = PressReleaseAiTagSuggestRequestSchema.safeParse(data)
+  if (!parsed.success) {
+    return c.json(presentInvalidAiPayload(), 400)
+  }
+
+  try {
+    await getPressRelease(id)
+    return c.json(await requestTagSuggestions({
+      prompt: 'タグ候補を提案してください。',
+      title: parsed.data.title,
+      content: parsed.data.content,
+      ai_settings: parsed.data.ai_settings,
+    }))
+  } catch (error) {
+    if (error instanceof PressReleaseNotFoundError) {
+      return c.json(presentNotFound(), 404)
+    }
+
+    if (error instanceof AiEditServiceError) {
+      return c.json({ code: error.code, message: error.message }, error.statusCode)
+    }
+
+    console.error('AI tag suggest error:', error)
     return c.json(presentInternalError(), 500)
   }
 }

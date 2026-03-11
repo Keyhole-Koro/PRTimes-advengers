@@ -1,6 +1,7 @@
 import type {
   AiEditSettings,
   AiEditMemoryEntry,
+  AiTagSuggestResult,
   AgentDocumentBlock,
   AgentDocumentEditOperation,
   AgentDocumentEditResult,
@@ -219,6 +220,21 @@ function normalizeEditResult(result: AgentDocumentEditResult): AgentDocumentEdit
   }
 }
 
+function normalizeTagSuggestResult(result: AiTagSuggestResult): AiTagSuggestResult {
+  const tags = result.tags
+    .map((tag) => ({
+      label: tag.label.startsWith('#') ? tag.label : `#${tag.label}`,
+      reason: tag.reason,
+    }))
+    .filter((tag, index, array) => tag.label.trim() !== '' && array.findIndex((item) => item.label === tag.label) === index)
+    .slice(0, 5)
+
+  return {
+    summary: result.summary,
+    tags,
+  }
+}
+
 function parseInstruction(prompt: string): Omit<DeterministicInstruction, 'paragraphIndex'> & { paragraphIndex?: number } | null {
   const match = prompt.match(/(?:(\d+)つ目の段落|同じ段落)の(先頭|末尾)に「([^」]+)」(?:を)?(?:も)?追加してください。?/) 
   if (!match) {
@@ -362,6 +378,45 @@ export class AiEditService {
     }
 
     return normalizeEditResult(payload.result)
+  }
+
+  async requestTagSuggestions(input: RequestAiEditInput): Promise<AiTagSuggestResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.agentBaseUrl}/agent/tasks/tag_suggest:run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document: {
+            title: input.title,
+            blocks: buildAgentBlocks(input.content),
+          },
+          instructions: buildAgentInstructions('タグ候補を提案してください。', input.ai_settings),
+        }),
+      })
+    } catch (error) {
+      throw new AiEditServiceError(
+        error instanceof Error ? error.message : 'Agent request failed.',
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    const payload = await response.json().catch(() => null) as
+      | { result?: AiTagSuggestResult; message?: string }
+      | null
+
+    if (!response.ok || !payload?.result) {
+      throw new AiEditServiceError(
+        payload?.message ?? `Agent request failed with status ${response.status}`,
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    return normalizeTagSuggestResult(payload.result)
   }
 }
 

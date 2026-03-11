@@ -3,8 +3,9 @@ import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, RefObje
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Eye, PencilLine, Plus, Sparkles, Tag, Trash2 } from "lucide-react";
 
-import type { AiSettingSuggestion } from "../hooks/useAiAssistant";
-import type { ToolbarGroupConfig } from "../types";
+import type { AiAgentSettings, AiSettingSuggestion } from "../hooks/useAiAssistant";
+import { requestTagSuggestions } from "../infrastructure/aiApi";
+import type { AiTagSuggestion, ToolbarGroupConfig } from "../types";
 import { EditorToolbar } from "./EditorToolbar";
 
 type AiTextField = "targetAudience" | "writingStyle" | "tone" | "brandVoice";
@@ -12,6 +13,7 @@ type AiListField = "focusPoints" | "priorityChecks";
 
 type EditorWorkspaceProps = {
   aiSettingSuggestions: AiSettingSuggestion[];
+  aiSettings: AiAgentSettings;
   editor: Editor;
   fileInputRef: RefObject<HTMLInputElement | null>;
   handleDragEnter: (event: DragEvent<HTMLDivElement>) => void;
@@ -24,6 +26,7 @@ type EditorWorkspaceProps = {
   isDraggingImage: boolean;
   isUploadingImage: boolean;
   onTitleChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  pressReleaseId: number;
   setAiSettingText: (field: AiTextField, value: string) => void;
   title: string;
   toggleAiSettingListValue: (field: AiListField, value: string) => void;
@@ -43,37 +46,9 @@ function normalizeMetaValue(value: string, withHash = false): string {
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
 }
 
-function inferTagSuggestions(title: string, bodyText: string): string[] {
-  const normalizedText = `${title}\n${bodyText}`;
-  const candidates: string[] = [];
-
-  const pushTag = (condition: boolean, tag: string) => {
-    if (!condition || candidates.includes(tag)) {
-      return;
-    }
-    candidates.push(tag);
-  };
-
-  pushTag(/(AI|人工知能|生成AI|LLM|機械学習)/i.test(normalizedText), "#AI");
-  pushTag(/(採用|候補者|人材|人事|インターン|キャリア)/.test(normalizedText), "#採用");
-  pushTag(/(サービス|提供開始|リリース|公開|ローンチ|新機能|機能追加)/.test(normalizedText), "#サービス");
-  pushTag(/(製品|プロダクト|SaaS|プラットフォーム)/i.test(normalizedText), "#プロダクト");
-  pushTag(/(調査|アンケート|レポート|分析結果)/.test(normalizedText), "#調査");
-  pushTag(/(イベント|セミナー|ウェビナー|カンファレンス)/.test(normalizedText), "#イベント");
-  pushTag(/(資金調達|出資|シリーズA|シリーズB|調達)/.test(normalizedText), "#資金調達");
-  pushTag(/(導入事例|導入企業|導入実績|事例)/.test(normalizedText), "#導入事例");
-  pushTag(/(提携|連携|協業|パートナー)/.test(normalizedText), "#提携");
-  pushTag(/(DX|デジタル変革|業務効率化)/.test(normalizedText), "#DX");
-
-  if (candidates.length === 0 && normalizedText.trim() !== "") {
-    candidates.push("#PR", "#お知らせ");
-  }
-
-  return candidates.slice(0, 5);
-}
-
 export function EditorWorkspace({
   aiSettingSuggestions,
+  aiSettings,
   editor,
   fileInputRef,
   handleDragEnter,
@@ -86,6 +61,7 @@ export function EditorWorkspace({
   isDraggingImage,
   isUploadingImage,
   onTitleChange,
+  pressReleaseId,
   setAiSettingText,
   title,
   toggleAiSettingListValue,
@@ -105,6 +81,7 @@ export function EditorWorkspace({
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
   const [dismissedSuggestedTags, setDismissedSuggestedTags] = useState<string[]>([]);
+  const [aiTagSuggestions, setAiTagSuggestions] = useState<AiTagSuggestion[]>([]);
   const previewHtml = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => currentEditor?.getHTML() ?? "",
@@ -114,11 +91,8 @@ export function EditorWorkspace({
     selector: ({ editor: currentEditor }) => currentEditor?.getText({ blockSeparator: "\n" }) ?? "",
   });
   const suggestedTags = useMemo(
-    () =>
-      inferTagSuggestions(title, editorText).filter(
-        (tag) => !tags.includes(tag) && !dismissedSuggestedTags.includes(tag),
-      ),
-    [dismissedSuggestedTags, editorText, tags, title],
+    () => aiTagSuggestions.filter((tag) => !tags.includes(tag.label) && !dismissedSuggestedTags.includes(tag.label)),
+    [aiTagSuggestions, dismissedSuggestedTags, tags],
   );
 
   const addTag = () => {
@@ -145,6 +119,32 @@ export function EditorWorkspace({
     }
     window.localStorage.setItem(metaWidthStorageKey, String(metaPanelWidth));
   }, [metaPanelWidth]);
+
+  useEffect(() => {
+    if (!title.trim() && !editorText.trim()) {
+      setAiTagSuggestions([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void requestTagSuggestions({
+        pressReleaseId,
+        editor,
+        title,
+        aiSettings,
+      })
+        .then((result) => {
+          setAiTagSuggestions(result.tags);
+        })
+        .catch(() => {
+          setAiTagSuggestions([]);
+        });
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [aiSettings, editor, editorText, pressReleaseId, title]);
 
   const handleMetaResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     const layout = contentLayoutRef.current;
@@ -322,7 +322,7 @@ export function EditorWorkspace({
                     <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
                   )}
                   {suggestedTags.map((tag) => (
-                    <div key={tag} className="editorMetaSuggestionItem">
+                    <div key={tag.label} className="editorMetaSuggestionItem">
                       <div className="editorMetaSuggestionBody">
                         <div className="editorMetaSuggestionSummary">
                           <span className="editorMetaSuggestionBadge">
@@ -331,17 +331,17 @@ export function EditorWorkspace({
                           </span>
                           <strong className="editorMetaSuggestionValue">
                             <Tag className="editorMetaChipIcon" aria-hidden="true" />
-                            {tag}
+                            {tag.label}
                           </strong>
                         </div>
-                        <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
+                        <p className="editorMetaSuggestionDescription">{tag.reason}</p>
                       </div>
                       <div className="editorMetaSuggestionActions">
-                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>
+                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag.label)}>
                           <Plus className="editorMetaActionIcon" aria-hidden="true" />
                           追加する
                         </button>
-                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag)}>
+                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag.label)}>
                           <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
                           見送る
                         </button>

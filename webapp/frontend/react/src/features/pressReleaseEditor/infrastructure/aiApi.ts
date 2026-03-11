@@ -1,6 +1,12 @@
 import { BASE_URL } from "../constants";
 import type { AiAgentSettings, AiEditMemoryEntry, ConversationHistoryEntry } from "../hooks/useAiAssistant";
-import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
+import type {
+  AgentDocumentEditOperation,
+  AgentDocumentEditResult,
+  AgentDocumentEditSuggestion,
+  AiTagSuggestResult,
+  PressReleaseResponse,
+} from "../types";
 
 function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
   if (typeof value !== "object" || value === null) {
@@ -178,4 +184,63 @@ export async function requestDocumentEdit(params: {
   }
 
   return normalized;
+}
+
+export async function requestTagSuggestions(params: {
+  pressReleaseId: number;
+  editor: { getJSON: () => Record<string, unknown> };
+  title: string;
+  aiSettings: AiAgentSettings;
+}): Promise<AiTagSuggestResult> {
+  const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-tags`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: params.title,
+      content: params.editor.getJSON(),
+      ai_settings: serializeAiSettings(params.aiSettings),
+    }),
+  });
+
+  const responseBody = (await response.json()) as
+    | AiTagSuggestResult
+    | PressReleaseResponse
+    | { message?: string }
+    | undefined;
+
+  if (!response.ok) {
+    const message =
+      responseBody && typeof responseBody === "object" && "message" in responseBody && typeof responseBody.message === "string"
+        ? responseBody.message
+        : `AIタグ提案の取得に失敗しました (${response.status})`;
+    throw new Error(message);
+  }
+
+  if (
+    !responseBody ||
+    typeof responseBody !== "object" ||
+    !("summary" in responseBody) ||
+    typeof responseBody.summary !== "string" ||
+    !("tags" in responseBody) ||
+    !Array.isArray(responseBody.tags)
+  ) {
+    throw new Error("AIタグ提案のレスポンス形式が不正です");
+  }
+
+  return {
+    summary: responseBody.summary,
+    tags: responseBody.tags
+      .filter(
+        (tag): tag is { label: string; reason: string } =>
+          typeof tag === "object" &&
+          tag !== null &&
+          "label" in tag &&
+          typeof tag.label === "string" &&
+          "reason" in tag &&
+          typeof tag.reason === "string",
+      )
+      .slice(0, 5),
+  };
 }

@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     env:
       GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      AGENT_MODEL: gemini-2.5-flash
+      AGENT_MODEL: gemini-3-flash-preview
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173
     defaults:
       run:
@@ -52,7 +52,7 @@ jobs:
             webapp/frontend/react/package-lock.json
 
       - name: Start backend stack
-        working-directory: webapp
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp
         run: |
           docker compose up -d --build postgresql agent app
 
@@ -72,15 +72,15 @@ jobs:
           done
 
       - name: Install frontend dependencies
-        working-directory: webapp/frontend/react
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react
         run: npm ci
 
       - name: Install Playwright browsers
-        working-directory: webapp/frontend/react
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react
         run: npx playwright install --with-deps chromium
 
       - name: Start frontend
-        working-directory: webapp/frontend/react
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react
         run: |
           npm run dev -- --host 0.0.0.0 > /tmp/frontend.log 2>&1 &
           echo $! > /tmp/frontend.pid
@@ -99,7 +99,7 @@ jobs:
           done
 
       - name: Run AI agent E2E tests
-        working-directory: webapp/frontend/react
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react
         run: npm run test:e2e
 
       - name: Upload Playwright report
@@ -108,12 +108,12 @@ jobs:
         with:
           name: playwright-report
           path: |
-            webapp/frontend/react/playwright-report
-            webapp/frontend/react/test-results
+            /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react/playwright-report
+            /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp/frontend/react/test-results
 
       - name: Print logs on failure
         if: failure()
-        working-directory: webapp
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp
         run: |
           echo "--- frontend log ---"
           cat /tmp/frontend.log || true
@@ -128,7 +128,7 @@ jobs:
 
       - name: Stop services
         if: always()
-        working-directory: webapp
+        working-directory: /home/runner/work/PRTimes-advengers/PRTimes-advengers/webapp
         run: |
           if [ -f /tmp/frontend.pid ]; then
             kill "$(cat /tmp/frontend.pid)" || true

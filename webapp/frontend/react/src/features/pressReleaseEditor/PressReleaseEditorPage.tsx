@@ -72,6 +72,14 @@ function buildSuggestionTargetHint(suggestion: AgentDocumentEditSuggestion): str
   return targetHints.length > 0 ? Array.from(new Set(targetHints)).join(", ") : undefined;
 }
 
+function safeEditorHasFocus(editor: Editor): boolean {
+  try {
+    return editor.view.hasFocus();
+  } catch {
+    return false;
+  }
+}
+
 export function PressReleaseEditorPage({
   pressReleaseId,
   title: initialTitle,
@@ -106,6 +114,8 @@ export function PressReleaseEditorPage({
   const isApplyingRemoteRef = useRef(false);
   const lastSentBatchRef = useRef<string | null>(null);
   const requestFlushRef = useRef<() => void>(() => {});
+  const lastEditorSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  const lastEditorHadFocusRef = useRef(false);
   const { sidebarTab, sidebarWidth, setSidebarTab, setSidebarWidth } = useSidebarState({
     sidebarTabStorageKey,
     sidebarWidthStorageKey,
@@ -301,7 +311,7 @@ export function PressReleaseEditorPage({
 
   const preserveEditorViewportState = (currentEditor: Editor, applyUpdate: () => void) => {
     const scrollContainer = currentEditor.view.dom as HTMLElement;
-    const hadFocus = currentEditor.view.hasFocus();
+    const hadFocus = safeEditorHasFocus(currentEditor);
     const { from, to } = currentEditor.state.selection;
     const scrollTop = scrollContainer.scrollTop;
     const scrollLeft = scrollContainer.scrollLeft;
@@ -320,6 +330,21 @@ export function PressReleaseEditorPage({
       } finally {
         scrollContainer.scrollTop = scrollTop;
         scrollContainer.scrollLeft = scrollLeft;
+      }
+    });
+  };
+
+  const restoreEditorSelectionAfterSave = (currentEditor: Editor) => {
+    const selection = lastEditorSelectionRef.current;
+    if (!selection || !lastEditorHadFocusRef.current) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      try {
+        currentEditor.chain().focus().setTextSelection(selection).run();
+      } catch {
+        currentEditor.view.focus();
       }
     });
   };
@@ -435,6 +460,9 @@ export function PressReleaseEditorPage({
         setTitle(message.title);
         setVersion(message.version);
         setSaveStatus("saved");
+        if (editorRef.current) {
+          restoreEditorSelectionAfterSave(editorRef.current);
+        }
         void queryClient.invalidateQueries({ queryKey: buildPressReleaseQueryKey(pressReleaseId) });
         void queryClient.invalidateQueries({ queryKey: buildPressReleaseRevisionsQueryKey(pressReleaseId) });
         return;
@@ -511,6 +539,11 @@ export function PressReleaseEditorPage({
       }
 
       const selection = editor.state.selection;
+      lastEditorSelectionRef.current = {
+        from: selection.from,
+        to: selection.to,
+      };
+      lastEditorHadFocusRef.current = safeEditorHasFocus(editor);
       websocket.send(
         JSON.stringify({
           color: identity.color,
@@ -529,6 +562,12 @@ export function PressReleaseEditorPage({
       if (isApplyingRemoteRef.current || !transaction.docChanged) {
         return;
       }
+
+      lastEditorSelectionRef.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
+      lastEditorHadFocusRef.current = safeEditorHasFocus(editor);
 
       setSaveStatus("dirty");
       sendPendingSteps(editor);
@@ -887,6 +926,7 @@ export function PressReleaseEditorPage({
         >
           <EditorWorkspace
             aiSettingSuggestions={aiAssistant.aiSettingSuggestions}
+            aiSettings={aiAssistant.aiSettings}
             editor={editor}
             fileInputRef={fileInputRef}
             handleDragEnter={handleDragEnter}
@@ -899,6 +939,7 @@ export function PressReleaseEditorPage({
             isDraggingImage={isDraggingImage}
             isUploadingImage={isUploadingImage}
             onTitleChange={handleTitleChange}
+            pressReleaseId={pressReleaseId}
             setAiSettingText={aiAssistant.setAiSettingText}
             title={title}
             toggleAiSettingListValue={aiAssistant.toggleAiSettingListValue}

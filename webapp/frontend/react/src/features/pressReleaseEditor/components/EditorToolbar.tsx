@@ -12,8 +12,8 @@ export function EditorToolbar({ toolbarGroups }: EditorToolbarProps) {
         <div key={group.label} className="toolbarGroup">
           <span className="toolbarGroupLabel">{group.label}</span>
           <div className="toolbarGroupButtons">
-            {group.buttons.map((button) => (
-              <ToolbarButton {...button} />
+            {group.buttons.map(({ key, ...button }) => (
+              <ToolbarButton key={key} {...button} />
             ))}
           </div>
         </div>

@@ -84,6 +84,16 @@ export type AiEditSettings = {
   priority_checks?: string[]
 }
 
+export type AiTagSuggestion = {
+  label: string
+  reason: string
+}
+
+export type AiTagSuggestResult = {
+  summary: string
+  tags: AiTagSuggestion[]
+}
+
 export type AiEditMemoryEntry = {
   decision: 'accepted' | 'dismissed'
   prompt?: string
