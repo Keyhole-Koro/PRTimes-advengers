@@ -118,6 +118,7 @@ export function EditorWorkspace({
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
   const [dismissedSuggestedTags, setDismissedSuggestedTags] = useState<string[]>([]);
+  const [completedChecklistItemIds, setCompletedChecklistItemIds] = useState<string[]>([]);
   const [aiTagSuggestions, setAiTagSuggestions] = useState<AiTagSuggestion[]>([]);
   const previewHtml = useEditorState({
     editor,
@@ -130,6 +131,10 @@ export function EditorWorkspace({
   const suggestedTags = useMemo(
     () => aiTagSuggestions.filter((tag) => !tags.includes(tag.label) && !dismissedSuggestedTags.includes(tag.label)),
     [aiTagSuggestions, dismissedSuggestedTags, tags],
+  );
+  const visibleChecklistItems = useMemo(
+    () => WRITING_CHECKLIST_ITEMS.filter((item) => !completedChecklistItemIds.includes(item.id)),
+    [completedChecklistItemIds],
   );
 
   const addTag = () => {
@@ -148,6 +153,11 @@ export function EditorWorkspace({
 
   const discardSuggestedTag = (tag: string) => {
     setDismissedSuggestedTags((current) => (current.includes(tag) ? current : [...current, tag]));
+  };
+
+  const handleChecklistAction = async (itemId: string, prompt: string, label: string) => {
+    await onRunChecklistAction(prompt, label);
+    setCompletedChecklistItemIds((current) => (current.includes(itemId) ? current : [...current, itemId]));
   };
 
   useEffect(() => {
@@ -173,7 +183,8 @@ export function EditorWorkspace({
         .then((result) => {
           setAiTagSuggestions(result.tags);
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error("Failed to load AI tag suggestions:", error);
           setAiTagSuggestions([]);
         });
     }, 700);
@@ -330,12 +341,15 @@ export function EditorWorkspace({
 
             <div className="editorMetaCards">
               <div className="editorMetaChecklistList">
-                {WRITING_CHECKLIST_ITEMS.map((item) => (
+                {visibleChecklistItems.length === 0 && (
+                  <p className="editorMetaChecklistEmpty">このチェックリストはすべて完了しました。</p>
+                )}
+                {visibleChecklistItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     className="editorMetaChecklistItem"
-                    onClick={() => void onRunChecklistAction(item.prompt, item.label)}
+                    onClick={() => void handleChecklistAction(item.id, item.prompt, item.label)}
                     disabled={isRunningChecklistAction}
                   >
                     <div className="editorMetaChecklistBody">

@@ -35,6 +35,7 @@
       "required": ["goal"],
       "properties": {
         "goal": { "type": "string", "minLength": 1 },
+        "language": { "type": "string" },
         "audience": { "type": "string" },
         "style": { "type": "string" },
         "tone": { "type": "string" },

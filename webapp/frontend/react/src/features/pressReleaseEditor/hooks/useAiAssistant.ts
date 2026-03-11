@@ -823,7 +823,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     try {
       await submitAiRequest({
         displayText: `チェックリストを実行: ${label}`,
-        prompt,
+        prompt: `${prompt}\n\nもしこの観点では現状の文章で十分だと判断した場合は、suggestions を空配列にして、assistant_message で「変更しなくてよい」旨を日本語で明確に伝えてください。改善提案がある場合は、通常どおり suggestions を返してください。`,
       });
     } finally {
       setRunningChecklistActionLabel((current) => (current === label ? null : current));
