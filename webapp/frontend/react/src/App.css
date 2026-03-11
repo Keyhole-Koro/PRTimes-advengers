@@ -1416,6 +1416,17 @@ body.is-resizing-panels {
   align-content: start;
 }
 
+.editorMetaChecklistEmpty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed #c9d9ea;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #5f7388;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .editorMetaChecklistItem {
   display: flex;
   align-items: center;
