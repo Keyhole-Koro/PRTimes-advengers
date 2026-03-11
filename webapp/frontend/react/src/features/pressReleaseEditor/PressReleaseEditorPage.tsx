@@ -860,8 +860,12 @@ export function PressReleaseEditorPage({
             handleImageSelected={handleImageSelected}
             handleImportHtml={handleImportHtml}
             htmlInputRef={htmlInputRef}
+            isAiSettingSuggestionsLoading={aiAssistant.isAiSettingSuggestionsLoading}
             isDraggingImage={isDraggingImage}
             isUploadingImage={isUploadingImage}
+            isRunningChecklistAction={aiAssistant.isAiResponding}
+            runningChecklistActionLabel={aiAssistant.runningChecklistActionLabel}
+            onRunChecklistAction={aiAssistant.handleAiChecklistAction}
             onTitleChange={handleTitleChange}
             onReturnToList={onReturnToList}
             pressReleaseId={pressReleaseId}

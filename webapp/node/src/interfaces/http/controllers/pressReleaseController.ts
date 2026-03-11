@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
-import { PressReleaseAiEditRequestSchema, PressReleaseAiTagSuggestRequestSchema, PressReleaseInputSchema } from '../../../schemas/pressRelease.js'
-import { requestDocumentEdit, requestTagSuggestions } from '../../../application/ai/requestDocumentEdit.js'
+import { PressReleaseAiEditRequestSchema, PressReleaseAiSettingSuggestRequestSchema, PressReleaseAiTagSuggestRequestSchema, PressReleaseInputSchema } from '../../../schemas/pressRelease.js'
+import { requestAiSettingSuggestions, requestDocumentEdit, requestTagSuggestions } from '../../../application/ai/requestDocumentEdit.js'
 import { createPressRelease } from '../../../application/pressRelease/createPressRelease.js'
 import { getPressRelease } from '../../../application/pressRelease/getPressRelease.js'
 import { getPressReleaseRevisions } from '../../../application/pressRelease/getPressReleaseRevisions.js'
@@ -154,6 +154,34 @@ export async function requestAiTagSuggestAction(c: Context, id: number, data: un
     }
 
     console.error('AI tag suggest error:', error)
+    return c.json(presentInternalError(), 500)
+  }
+}
+
+export async function requestAiSettingSuggestAction(c: Context, id: number, data: unknown) {
+  const parsed = PressReleaseAiSettingSuggestRequestSchema.safeParse(data)
+  if (!parsed.success) {
+    return c.json(presentInvalidAiPayload(), 400)
+  }
+
+  try {
+    await getPressRelease(id)
+    return c.json(await requestAiSettingSuggestions({
+      prompt: 'AI設定候補を推測してください。',
+      title: parsed.data.title,
+      content: parsed.data.content,
+      ai_settings: parsed.data.ai_settings,
+    }))
+  } catch (error) {
+    if (error instanceof PressReleaseNotFoundError) {
+      return c.json(presentNotFound(), 404)
+    }
+
+    if (error instanceof AiEditServiceError) {
+      return c.json({ code: error.code, message: error.message }, error.statusCode)
+    }
+
+    console.error('AI setting suggest error:', error)
     return c.json(presentInternalError(), 500)
   }
 }

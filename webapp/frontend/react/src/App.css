@@ -486,6 +486,13 @@
   height: 100%;
 }
 
+.editorMetaColumn {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
 .paneResizeHandle {
   position: relative;
   width: 12px;
@@ -1397,6 +1404,97 @@ body.is-resizing-panels {
 .editorMetaSuggestionActions .metaRejectButton {
   width: 100%;
   justify-content: center;
+}
+
+.editorMetaChecklistList {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.editorMetaChecklistItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.editorMetaChecklistItem:hover:not(:disabled) {
+  border-color: #bfd2e8;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+}
+
+.editorMetaChecklistItem:focus-visible {
+  outline: 2px solid #7aa2d6;
+  outline-offset: 1px;
+}
+
+.editorMetaChecklistItem:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.editorMetaChecklistBody {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editorMetaChecklistIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.editorMetaChecklistText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.editorMetaChecklistLabel {
+  color: #12385f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editorMetaChecklistDescription {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.editorMetaChecklistAction {
+  flex: 0 0 auto;
+  min-width: 92px;
+  padding: 8px 12px;
+  border: 1px solid #cdd9e6;
+  border-radius: 8px;
+  background: #fff;
+  color: #12385f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
 }
 
 .metaAppendButton,

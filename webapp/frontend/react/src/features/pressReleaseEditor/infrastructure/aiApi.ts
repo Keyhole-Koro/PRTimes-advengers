@@ -4,9 +4,20 @@ import type {
   AgentDocumentEditOperation,
   AgentDocumentEditResult,
   AgentDocumentEditSuggestion,
+  AiSettingSuggestionField,
+  AiSettingSuggestResult,
   AiTagSuggestResult,
   PressReleaseResponse,
 } from "../types";
+
+const AI_SETTING_SUGGESTION_FIELDS = new Set<AiSettingSuggestionField>([
+  "targetAudience",
+  "writingStyle",
+  "tone",
+  "brandVoice",
+  "focusPoints",
+  "priorityChecks",
+]);
 
 function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
   if (typeof value !== "object" || value === null) {
@@ -242,5 +253,82 @@ export async function requestTagSuggestions(params: {
           typeof tag.reason === "string",
       )
       .slice(0, 5),
+  };
+}
+
+export async function requestAiSettingSuggestions(params: {
+  pressReleaseId: number;
+  editor: { getJSON: () => Record<string, unknown> };
+  title: string;
+  aiSettings: AiAgentSettings;
+}): Promise<AiSettingSuggestResult> {
+  const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-settings-suggestions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: params.title,
+      content: params.editor.getJSON(),
+      ai_settings: serializeAiSettings(params.aiSettings),
+    }),
+  });
+
+  const responseBody = (await response.json()) as
+    | AiSettingSuggestResult
+    | PressReleaseResponse
+    | { message?: string }
+    | undefined;
+
+  if (!response.ok) {
+    const message =
+      responseBody && typeof responseBody === "object" && "message" in responseBody && typeof responseBody.message === "string"
+        ? responseBody.message
+        : `AI設定候補の取得に失敗しました (${response.status})`;
+    throw new Error(message);
+  }
+
+  if (
+    !responseBody ||
+    typeof responseBody !== "object" ||
+    !("summary" in responseBody) ||
+    typeof responseBody.summary !== "string" ||
+    !("suggestions" in responseBody) ||
+    !Array.isArray(responseBody.suggestions)
+  ) {
+    throw new Error("AI設定候補のレスポンス形式が不正です");
+  }
+
+  return {
+    summary: responseBody.summary,
+    suggestions: responseBody.suggestions
+      .filter(
+        (
+          suggestion,
+        ): suggestion is { field: AiSettingSuggestionField; prompt: string; options: Array<{ label: string; value: string }> } =>
+          typeof suggestion === "object" &&
+          suggestion !== null &&
+          "field" in suggestion &&
+          typeof suggestion.field === "string" &&
+          AI_SETTING_SUGGESTION_FIELDS.has(suggestion.field as AiSettingSuggestionField) &&
+          "prompt" in suggestion &&
+          typeof suggestion.prompt === "string" &&
+          "options" in suggestion &&
+          Array.isArray(suggestion.options),
+      )
+      .map((suggestion) => ({
+        field: suggestion.field,
+        prompt: suggestion.prompt,
+        options: suggestion.options.filter(
+          (option): option is { label: string; value: string } =>
+            typeof option === "object" &&
+            option !== null &&
+            "label" in option &&
+            typeof option.label === "string" &&
+            "value" in option &&
+            typeof option.value === "string",
+        ),
+      }))
+      .slice(0, 4),
   };
 }

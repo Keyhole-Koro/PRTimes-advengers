@@ -455,3 +455,59 @@ test('AiEditService requests tag suggestions from agent', async () => {
     globalThis.fetch = originalFetch
   }
 })
+
+test('AiEditService requests ai setting suggestions from agent', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedUrl = ''
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    capturedUrl = String(input)
+
+    return new Response(
+      JSON.stringify({
+        result: {
+          summary: 'AI設定候補を抽出しました。',
+          suggestions: [
+            {
+              field: 'targetAudience',
+              prompt: 'ターゲット候補',
+              options: [
+                { label: '記者・メディア関係者', value: '記者・メディア関係者' },
+                { label: '広報担当者', value: '広報担当者' },
+              ],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestAiSettingSuggestions({
+      prompt: 'AI設定候補を推測してください。',
+      title: 'AI新機能を公開',
+      content,
+    })
+
+    assert.equal(capturedUrl, 'http://example.invalid/agent/tasks/ai_setting_suggest:run')
+    assert.deepEqual(result.suggestions, [
+      {
+        field: 'targetAudience',
+        prompt: 'ターゲット候補',
+        options: [
+          { label: '記者・メディア関係者', value: '記者・メディア関係者' },
+          { label: '広報担当者', value: '広報担当者' },
+        ],
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
