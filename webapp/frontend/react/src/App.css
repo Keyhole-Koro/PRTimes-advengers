@@ -815,7 +815,7 @@ body.is-resizing-panels {
 .editorMetaPanel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: none;
   gap: 8px;
   padding: 10px;
   border: 1px solid #dbe5f0;
@@ -844,6 +844,59 @@ body.is-resizing-panels {
   color: #64748b;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.editorMockChecklist {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d7e2f0;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.editorMockChecklistHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editorMockChecklistList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.editorMockChecklistItem {
+  margin: 0;
+}
+
+.editorMockChecklistLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.editorMockChecklistLabel input {
+  margin-top: 2px;
+}
+
+.editorTagBox {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d7e2f0;
+  border-radius: 12px;
+  background: #f8fbff;
 }
 
 .editorMetaCards {
@@ -1242,7 +1295,7 @@ body.is-resizing-panels {
 
 .sidebarTabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
   padding: 3px;
   border-radius: 10px;
@@ -2047,7 +2100,7 @@ body.is-resizing-panels {
   }
 
   .editorMetaPanel {
-    grid-template-rows: auto auto;
+    grid-template-rows: none;
   }
 
   .editorMetaCards {

@@ -94,13 +94,6 @@ export function EditorSidebar({
         <div className="sidebarTabs">
           <button
             type="button"
-            className={`sidebarTab${sidebarTab === "comments" ? " is-active" : ""}`}
-            onClick={() => setSidebarTab("comments")}
-          >
-            コメント
-          </button>
-          <button
-            type="button"
             className={`sidebarTab${sidebarTab === "history" ? " is-active" : ""}`}
             onClick={() => setSidebarTab("history")}
           >

@@ -14,7 +14,7 @@ export function useSidebarState({
 }: UseSidebarStateOptions) {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(() => {
     const raw = getStoredString(sidebarTabStorageKey);
-    return raw === "comments" || raw === "history" || raw === "ai" ? raw : "history";
+    return raw === "history" || raw === "ai" ? raw : "history";
   });
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const raw = getStoredString(sidebarWidthStorageKey);

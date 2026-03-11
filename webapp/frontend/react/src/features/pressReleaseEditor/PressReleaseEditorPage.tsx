@@ -534,7 +534,7 @@ export function PressReleaseEditorPage({
     editor,
     onCommentCreated: (threadId) => {
       setActiveThreadId(threadId);
-      setSidebarTab("comments");
+      setSidebarTab("history");
     },
     requestFlush,
     session,
@@ -569,21 +569,6 @@ export function PressReleaseEditorPage({
     title,
   });
 
-  const handleStartComment = () => {
-    if (!editor) {
-      return;
-    }
-
-    const { from, to } = editor.state.selection;
-    if (from === to) {
-      alert("テキストを選択してからコメントを追加してください");
-      return;
-    }
-
-    setIsCreatingComment(true);
-    setSidebarTab("comments");
-  };
-
   useEffect(() => {
     if (!editor || !session) {
       return;
@@ -596,7 +581,7 @@ export function PressReleaseEditorPage({
       const commentMark = marks.find((mark) => mark.type.name === "commentHighlight");
       if (commentMark?.attrs.threadId) {
         setActiveThreadId(commentMark.attrs.threadId as number);
-        setSidebarTab("comments");
+        setSidebarTab("history");
       }
     };
 
@@ -702,17 +687,6 @@ export function PressReleaseEditorPage({
         },
       ],
       label: "画像",
-    },
-    {
-      buttons: [
-        {
-          isActive: isCreatingComment,
-          key: "add-comment",
-          label: "コメント追加",
-          onClick: handleStartComment,
-        },
-      ],
-      label: "コメント",
     },
     {
       buttons: [

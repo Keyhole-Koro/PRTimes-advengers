@@ -65,6 +65,12 @@ export function EditorWorkspace({
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
   const [suggestedTags, setSuggestedTags] = useState<string[]>(["#AI", "#ドラフト"]);
+  const [mockChecklistItems, setMockChecklistItems] = useState([
+    { id: "headline", label: "見出しが30文字前後で要点を含む", done: true },
+    { id: "summary", label: "本文冒頭に結論と背景がある", done: false },
+    { id: "source", label: "リンク先の信頼性を確認済み", done: false },
+    { id: "cta", label: "読者向けの次アクションが明確", done: true },
+  ]);
 
   const addTag = () => {
     const nextTag = normalizeMetaValue(tagInput, true);
@@ -158,87 +164,115 @@ export function EditorWorkspace({
         style={{ gridTemplateColumns: `${metaPanelWidth}px 12px minmax(0, 1fr)` }}
       >
         <section className="editorMetaPanel" aria-label="タグ">
-          <div className="editorMetaPanelHeader">
-            <span className="editorMetaPanelTitle">タグ</span>
-          </div>
-          <p className="editorMetaPanelDescription">タグを設定すると、検索されやすくなり、記事の意図も伝わりやすくなります。</p>
+          <section className="editorMockChecklist" aria-label="AI用モックチェックリスト">
+            <div className="editorMockChecklistHeader">
+              <Bot className="editorMetaChipIcon" aria-hidden="true" />
+              <span>AI用モックチェックリスト</span>
+            </div>
+            <ul className="editorMockChecklistList">
+              {mockChecklistItems.map((item) => (
+                <li key={item.id} className="editorMockChecklistItem">
+                  <label className="editorMockChecklistLabel">
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      onChange={() =>
+                        setMockChecklistItems((current) =>
+                          current.map((currentItem) =>
+                            currentItem.id === item.id ? { ...currentItem, done: !currentItem.done } : currentItem,
+                          ),
+                        )
+                      }
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="editorTagBox" aria-label="タグ設定">
+            <div className="editorMetaPanelHeader">
+              <span className="editorMetaPanelTitle">タグ</span>
+            </div>
+            <p className="editorMetaPanelDescription">タグを設定すると、検索されやすくなり、記事の意図も伝わりやすくなります。</p>
 
-          <div className="editorMetaCards">
+            <div className="editorMetaCards">
               <div className="editorMetaContent">
-              <div className="editorMetaInputRow">
-                <input
-                  type="text"
-                  className="editorMetaInput"
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      addTag();
-                    }
-                  }}
-                  placeholder="タグを追加"
-                />
-                <button type="button" className="metaAppendButton" onClick={addTag}>
-                  追加
-                </button>
-              </div>
-              <div className="editorMetaSection">
-                <span className="editorMetaSectionLabel">現在のタグ</span>
-                <div className="editorMetaChipList">
-                  {tags.map((tag) => (
-                    <span key={tag} className="editorMetaChip">
-                      <Check className="editorMetaChipIcon" aria-hidden="true" />
-                      {tag}
-                      <button
-                        type="button"
-                        className="editorMetaChipRemove"
-                        onClick={() => setTags((current) => current.filter((item) => item !== tag))}
-                        aria-label={`${tag} を削除`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                <div className="editorMetaInputRow">
+                  <input
+                    type="text"
+                    className="editorMetaInput"
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="タグを追加"
+                  />
+                  <button type="button" className="metaAppendButton" onClick={addTag}>
+                    追加
+                  </button>
                 </div>
-              </div>
-              <div className="editorMetaSection">
-                <span className="editorMetaSectionLabel">AIの提案</span>
-                <div className="editorMetaSuggestionList">
-                  {suggestedTags.length === 0 && (
-                    <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
-                  )}
-                  {suggestedTags.map((tag) => (
-                    <div key={tag} className="editorMetaSuggestionItem">
-                      <div className="editorMetaSuggestionBody">
-                        <div className="editorMetaSuggestionSummary">
-                          <span className="editorMetaSuggestionBadge">
-                            <Bot className="editorMetaChipIcon" aria-hidden="true" />
-                            AI提案
-                          </span>
-                          <strong className="editorMetaSuggestionValue">
-                            <Tag className="editorMetaChipIcon" aria-hidden="true" />
-                            {tag}
-                          </strong>
+                <div className="editorMetaSection">
+                  <span className="editorMetaSectionLabel">現在のタグ</span>
+                  <div className="editorMetaChipList">
+                    {tags.map((tag) => (
+                      <span key={tag} className="editorMetaChip">
+                        <Check className="editorMetaChipIcon" aria-hidden="true" />
+                        {tag}
+                        <button
+                          type="button"
+                          className="editorMetaChipRemove"
+                          onClick={() => setTags((current) => current.filter((item) => item !== tag))}
+                          aria-label={`${tag} を削除`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="editorMetaSection">
+                  <span className="editorMetaSectionLabel">AIの提案</span>
+                  <div className="editorMetaSuggestionList">
+                    {suggestedTags.length === 0 && (
+                      <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
+                    )}
+                    {suggestedTags.map((tag) => (
+                      <div key={tag} className="editorMetaSuggestionItem">
+                        <div className="editorMetaSuggestionBody">
+                          <div className="editorMetaSuggestionSummary">
+                            <span className="editorMetaSuggestionBadge">
+                              <Bot className="editorMetaChipIcon" aria-hidden="true" />
+                              AI提案
+                            </span>
+                            <strong className="editorMetaSuggestionValue">
+                              <Tag className="editorMetaChipIcon" aria-hidden="true" />
+                              {tag}
+                            </strong>
+                          </div>
+                          <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
                         </div>
-                        <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
+                        <div className="editorMetaSuggestionActions">
+                          <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>
+                            <Plus className="editorMetaActionIcon" aria-hidden="true" />
+                            追加する
+                          </button>
+                          <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag)}>
+                            <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
+                            見送る
+                          </button>
+                        </div>
                       </div>
-                      <div className="editorMetaSuggestionActions">
-                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>
-                          <Plus className="editorMetaActionIcon" aria-hidden="true" />
-                          追加する
-                        </button>
-                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag)}>
-                          <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
-                          見送る
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-              </div>
-          </div>
+            </div>
+          </section>
         </section>
 
         <div
