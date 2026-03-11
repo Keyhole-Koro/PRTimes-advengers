@@ -59,5 +59,5 @@ npm run dev
 - [DBスキーマと保存フロー](./webapp/docs/db-schema-and-flow.md)
 
 - インフラ構成図
-<img width="2760" height="1504" alt="構成図2" src="https://github.com/user-attachments/assets/4af69606-8876-4e2a-8ede-a0f9ca4596ca" />
+<img width="2816" height="1536" alt="PR_構成図" src="https://github.com/user-attachments/assets/23802a1f-f06f-4d75-ae19-ae68cf95d201" />
 
