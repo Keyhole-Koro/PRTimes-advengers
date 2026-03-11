@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getStoredJson, setStoredJson } from "../infrastructure/localStorageRepository";
-
+import { v4 as uuidv4 } from 'uuid'
 export type AiEditMemoryEntry = {
   id: string;
   decision: "accepted" | "dismissed";
@@ -58,7 +58,7 @@ export function useAiEditMemory({ storageKey }: UseAiEditMemoryOptions) {
 
   const recordAiEditMemory = (input: RecordAiEditMemoryInput) => {
     const nextEntry: AiEditMemoryEntry = {
-      id: globalThis.crypto.randomUUID(),
+      id: uuidv4(),
       createdAt: new Date().toISOString(),
       ...input,
     };
