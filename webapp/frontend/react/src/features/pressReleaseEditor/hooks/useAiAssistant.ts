@@ -2,7 +2,7 @@ import type { Editor } from "@tiptap/react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { diffChars } from "diff";
-
+import { v4 as uuidv4 } from 'uuid';
 import { normalizeDocumentEditResult, requestDocumentEdit } from "../infrastructure/aiApi";
 import type { AgentDocumentEditResult } from "../types";
 export type AiAttachmentKind = "image" | "file";
