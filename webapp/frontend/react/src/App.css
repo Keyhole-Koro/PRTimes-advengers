@@ -436,6 +436,10 @@
   overflow: hidden;
 }
 
+.editorAiAssistCard-loading {
+  opacity: 0.8;
+}
+
 .editorAiAssistPrompt {
   display: inline-block;
   color: #12385f;
