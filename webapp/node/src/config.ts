@@ -9,6 +9,7 @@ type AppConfig = EnvironmentConfig & {
   env: AppEnv
   isAllowedCorsOrigin: (origin: string) => string | undefined
   corsAllowedFrontendOrigin: string
+  corsAllowedOrigins: string[]
 }
 
 const environmentDefaults: Record<AppEnv, EnvironmentConfig> = {
@@ -34,11 +35,34 @@ function resolveOrigin(url: string, fallbackUrl: string): string {
   }
 }
 
+function parseConfiguredOrigins(value: string | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry, index, array) => entry !== '' && array.indexOf(entry) === index)
+}
+
 const env = resolveAppEnv(process.env.APP_ENV)
 const defaults = environmentDefaults[env]
 const corsAllowedFrontendOrigin = resolveOrigin(
   process.env.APP_FRONTEND_URL || defaults.frontendUrl,
   defaults.frontendUrl,
+)
+const corsAllowedOrigins = Array.from(
+  new Set(
+    [
+      environmentDefaults.local.frontendUrl,
+      environmentDefaults.prod.frontendUrl,
+      process.env.APP_FRONTEND_URL,
+      ...parseConfiguredOrigins(process.env.APP_CORS_ALLOWED_ORIGINS),
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
+      .map((value) => resolveOrigin(value, defaults.frontendUrl)),
+  ),
 )
 
 export const config: AppConfig = {
@@ -46,6 +70,7 @@ export const config: AppConfig = {
   frontendUrl: process.env.APP_FRONTEND_URL || defaults.frontendUrl,
   port: Number.parseInt(process.env.PORT || String(defaults.port), 10),
   corsAllowedFrontendOrigin,
+  corsAllowedOrigins,
   isAllowedCorsOrigin: (origin: string) => {
     if (!origin) {
       return undefined
@@ -55,7 +80,7 @@ export const config: AppConfig = {
       return origin
     }
 
-    if (origin === corsAllowedFrontendOrigin) {
+    if (corsAllowedOrigins.includes(origin)) {
       return origin
     }
 
