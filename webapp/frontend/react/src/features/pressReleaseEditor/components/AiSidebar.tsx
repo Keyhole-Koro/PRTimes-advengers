@@ -11,8 +11,6 @@ import type {
 import {
   ArrowDownCircle,
   Bot,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
   CircleEllipsis,
@@ -30,14 +28,9 @@ import {
   X,
 } from "lucide-react";
 
-import type { AiAgentSettings, AiChatMessage, AiChatThread, AiComposerAttachment } from "../hooks/useAiAssistant";
+import type { AiChatMessage, AiChatThread, AiComposerAttachment } from "../hooks/useAiAssistant";
 import { formatAiMessageTime, formatAiThreadTime } from "../hooks/useAiAssistant";
 import "./AiSidebar.css";
-
-const AI_STYLE_OPTIONS = ["", "プレスリリース標準", "ニュースライク", "やわらかめ", "採用向け", "商品訴求寄り"];
-const AI_TONE_OPTIONS = ["", "簡潔", "丁寧", "力強い", "親しみやすい", "落ち着いた"];
-const AI_FOCUS_POINT_OPTIONS = ["タイトル", "導入文", "本文構成", "見出し", "CTA"];
-const AI_PRIORITY_CHECK_OPTIONS = ["誤字脱字", "表記ゆれ", "読みやすさ", "リスク表現", "数字・日付の整合性"];
 
 function formatAttachmentSize(size: number): string {
   if (size >= 1024 * 1024) {
@@ -48,7 +41,6 @@ function formatAttachmentSize(size: number): string {
 
 export type AiSidebarProps = {
   activeAiMessages: AiChatMessage[];
-  aiSettings: AiAgentSettings;
   activeAiThread: AiChatThread | null;
   activeAiThreadId: string;
   aiAttachmentError: string | null;
@@ -72,26 +64,19 @@ export type AiSidebarProps = {
   isAiHistoryOpen: boolean;
   isAiAttachMenuOpen: boolean;
   isAiResponding: boolean;
-  resetAiSettings: () => void;
   removeComposerAttachment: (attachmentId: string) => void;
   respondingAiThreadId: string | null;
   setActiveAiThreadId: (threadId: string) => void;
-  setAiSettingText: (
-    field: "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "consistencyPolicy",
-    value: string,
-  ) => void;
   setAiPrompt: (value: string) => void;
   setIsAiAttachMenuOpen: (open: boolean) => void;
   setAiThreadMenuOpenId: Dispatch<SetStateAction<string | null>>;
   setIsAiHistoryOpen: (open: boolean) => void;
-  toggleAiSettingListValue: (field: "focusPoints" | "priorityChecks", value: string) => void;
 };
 
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
 
 export function AiSidebar({
   activeAiMessages,
-  aiSettings,
   activeAiThread,
   activeAiThreadId,
   aiAttachmentError,
@@ -115,22 +100,18 @@ export function AiSidebar({
   isAiHistoryOpen,
   isAiAttachMenuOpen,
   isAiResponding,
-  resetAiSettings,
   removeComposerAttachment,
   respondingAiThreadId,
   setActiveAiThreadId,
-  setAiSettingText,
   setAiPrompt,
   setIsAiAttachMenuOpen,
   setAiThreadMenuOpenId,
   setIsAiHistoryOpen,
-  toggleAiSettingListValue,
 }: AiSidebarProps) {
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const generalFileInputRef = useRef<HTMLInputElement | null>(null);
   const mixedFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isTouchLikeDevice, setIsTouchLikeDevice] = useState(false);
-  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -340,129 +321,6 @@ export function AiSidebar({
                 </ul>
               )}
               {aiAttachmentError && <p className="aiComposerError">{aiAttachmentError}</p>}
-              <section className="aiSettingsPanel" aria-label="AI設定">
-                <div className="aiSettingsHeader">
-                  <button
-                    type="button"
-                    className="aiSettingsToggle"
-                    onClick={() => setIsAiSettingsOpen((current) => !current)}
-                    aria-expanded={isAiSettingsOpen}
-                  >
-                    <div>
-                      <p className="aiSettingsEyebrow">AI設定</p>
-                      <p className="aiSettingsDescription">想定読者や文体を指定して、提案の方向性をそろえます。</p>
-                    </div>
-                    {isAiSettingsOpen ? (
-                      <ChevronUp className="aiIcon" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="aiIcon" aria-hidden="true" />
-                    )}
-                  </button>
-                  <button type="button" className="aiSettingsResetButton" onClick={resetAiSettings}>
-                    リセット
-                  </button>
-                </div>
-                {isAiSettingsOpen && (
-                  <>
-                    <div className="aiSettingsGrid">
-                      <label className="aiSettingsField">
-                        <span className="aiSettingsLabel">ターゲット</span>
-                        <input
-                          className="aiSettingsInput"
-                          type="text"
-                          value={aiSettings.targetAudience}
-                          onChange={(event) => setAiSettingText("targetAudience", event.target.value)}
-                          placeholder="例: 記者、求職者、既存顧客"
-                        />
-                      </label>
-                      <label className="aiSettingsField">
-                        <span className="aiSettingsLabel">文章スタイル</span>
-                        <select
-                          className="aiSettingsSelect"
-                          value={aiSettings.writingStyle}
-                          onChange={(event) => setAiSettingText("writingStyle", event.target.value)}
-                        >
-                          {AI_STYLE_OPTIONS.map((option) => (
-                            <option key={option || "default"} value={option}>
-                              {option || "指定なし"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="aiSettingsField">
-                        <span className="aiSettingsLabel">トーン</span>
-                        <select
-                          className="aiSettingsSelect"
-                          value={aiSettings.tone}
-                          onChange={(event) => setAiSettingText("tone", event.target.value)}
-                        >
-                          {AI_TONE_OPTIONS.map((option) => (
-                            <option key={option || "default"} value={option}>
-                              {option || "指定なし"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="aiSettingsField">
-                        <span className="aiSettingsLabel">ブランド方針</span>
-                        <input
-                          className="aiSettingsInput"
-                          type="text"
-                          value={aiSettings.brandVoice}
-                          onChange={(event) => setAiSettingText("brandVoice", event.target.value)}
-                          placeholder="例: 信頼感重視、誠実、専門性を強調"
-                        />
-                      </label>
-                      <label className="aiSettingsField aiSettingsField-wide">
-                        <span className="aiSettingsLabel">固定方針</span>
-                        <textarea
-                          className="aiSettingsTextarea"
-                          value={aiSettings.consistencyPolicy}
-                          onChange={(event) => setAiSettingText("consistencyPolicy", event.target.value)}
-                          placeholder="例: 見出しは簡潔に保つ、です・ます調を維持、煽り表現は避ける"
-                          rows={3}
-                        />
-                      </label>
-                    </div>
-                    <div className="aiSettingsGroup">
-                      <span className="aiSettingsLabel">重視ポイント</span>
-                      <div className="aiSettingsChips">
-                        {AI_FOCUS_POINT_OPTIONS.map((option) => {
-                          const isActive = aiSettings.focusPoints.includes(option);
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              className={`aiSettingsChip${isActive ? " is-active" : ""}`}
-                              onClick={() => toggleAiSettingListValue("focusPoints", option)}
-                            >
-                              {option}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="aiSettingsGroup">
-                      <span className="aiSettingsLabel">優先チェック</span>
-                      <div className="aiSettingsChips">
-                        {AI_PRIORITY_CHECK_OPTIONS.map((option) => {
-                          const isActive = aiSettings.priorityChecks.includes(option);
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              className={`aiSettingsChip${isActive ? " is-active" : ""}`}
-                              onClick={() => toggleAiSettingListValue("priorityChecks", option)}
-                            >
-                              {option}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </section>
               <textarea
                 className="aiComposerInput"
                 value={aiPrompt}

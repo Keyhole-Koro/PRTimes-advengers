@@ -35,7 +35,6 @@ import { RemovableImage } from "./editor/tiptapExtensions/removableImage";
 import { EditorSidebar } from "./presentation/components/EditorSidebar";
 import { EditorWorkspace } from "./presentation/components/EditorWorkspace";
 import { useAssetActions } from "./hooks/useAssetActions";
-import { useCommentThreads } from "./hooks/useCommentThreads";
 import { useRevisionHistory } from "./hooks/useRevisionHistory";
 import type {
   AgentDocumentEditSuggestion,
@@ -672,34 +671,6 @@ export function PressReleaseEditorPage({
   };
 
   const {
-    activeThreadId,
-    commentThreads,
-    handleAddReply,
-    handleCreateComment,
-    handleResolveThread,
-    handleUnresolveThread,
-    isCreatingComment,
-    newCommentBody,
-    replyBodies,
-    setActiveThreadId,
-    setIsCreatingComment,
-    setNewCommentBody,
-    setReplyBodies,
-    setShowResolvedComments,
-    showResolvedComments,
-  } = useCommentThreads({
-    createdBy: identity.name,
-    editor,
-    onCommentCreated: (threadId) => {
-      setActiveThreadId(threadId);
-      setSidebarTab("comments");
-    },
-    pressReleaseId,
-    requestFlush,
-    session,
-  });
-
-  const {
     fileActions: { handleImageSelected, handleImportHtml, handlePickHtml, handlePickImage },
     isDraggingImage,
     isUploadingImage,
@@ -729,43 +700,6 @@ export function PressReleaseEditorPage({
     setPendingAiSuggestions,
     title,
   });
-
-  const handleStartComment = () => {
-    if (!editor) {
-      return;
-    }
-
-    const { from, to } = editor.state.selection;
-    if (from === to) {
-      alert("テキストを選択してからコメントを追加してください");
-      return;
-    }
-
-    setIsCreatingComment(true);
-    setSidebarTab("comments");
-  };
-
-  useEffect(() => {
-    if (!editor || !session) {
-      return;
-    }
-
-    const handleClickCommentMark = () => {
-      const { from } = editor.state.selection;
-      const resolved = editor.state.doc.resolve(from);
-      const marks = resolved.marks();
-      const commentMark = marks.find((mark) => mark.type.name === "commentHighlight");
-      if (commentMark?.attrs.threadId) {
-        setActiveThreadId(commentMark.attrs.threadId as number);
-        setSidebarTab("comments");
-      }
-    };
-
-    editor.on("selectionUpdate", handleClickCommentMark);
-    return () => {
-      editor.off("selectionUpdate", handleClickCommentMark);
-    };
-  }, [commentThreads, editor, session, setActiveThreadId]);
 
   if (!editor || !session) {
     return (
@@ -896,17 +830,6 @@ export function PressReleaseEditorPage({
     {
       buttons: [
         {
-          isActive: isCreatingComment,
-          key: "add-comment",
-          label: "コメント追加",
-          onClick: handleStartComment,
-        },
-      ],
-      label: "コメント",
-    },
-    {
-      buttons: [
-        {
           isActive: false,
           key: "html-import",
           label: "HTMLをインポート",
@@ -958,19 +881,8 @@ export function PressReleaseEditorPage({
 
           <div className="sidebarColumn">
             <EditorSidebar
-              activeThreadId={activeThreadId}
-              addReply={handleAddReply}
               autoRecommendDiffSize={aiAssistant.autoRecommendStatus?.diffSize ?? null}
-              cancelCreateComment={() => {
-                setIsCreatingComment(false);
-                setNewCommentBody("");
-              }}
-              commentThreads={commentThreads}
-              editor={editor}
-              isCreatingComment={isCreatingComment}
-              newCommentBody={newCommentBody}
               previousRevision={previousRevision}
-              replyBodies={replyBodies}
               remoteUserCount={remoteUsers.length}
               restoreRevision={restoreRevision}
               restoringRevisionId={restoringRevisionId}
@@ -979,25 +891,49 @@ export function PressReleaseEditorPage({
               saveStatus={saveStatus}
               selectedRevision={selectedRevision}
               selectedRevisionId={selectedRevisionId}
-              setActiveThreadId={setActiveThreadId}
-              setNewCommentBody={setNewCommentBody}
-              setReplyBody={(threadId, value) =>
-                setReplyBodies((current) => ({
-                  ...current,
-                  [threadId]: value,
-                }))
-              }
               setSelectedRevisionId={setSelectedRevisionId}
-              setShowResolvedComments={setShowResolvedComments}
               setSidebarTab={setSidebarTab}
-              showResolvedComments={showResolvedComments}
               sidebarTab={sidebarTab}
-              submitCreateComment={handleCreateComment}
-              toggleResolveThread={(thread) =>
-                thread.is_resolved ? handleUnresolveThread(thread.id) : handleResolveThread(thread.id)
-              }
               version={version}
-              aiSidebarProps={{ ...aiAssistant, handleJumpToSuggestion }}
+              aiSidebarProps={{
+                activeAiMessages: aiAssistant.activeAiMessages,
+                activeAiThread: aiAssistant.activeAiThread,
+                activeAiThreadId: aiAssistant.activeAiThreadId,
+                aiAttachmentError: aiAssistant.aiAttachmentError,
+                aiMessagesContainerRef: aiAssistant.aiMessagesContainerRef,
+                aiMessagesEndRef: aiAssistant.aiMessagesEndRef,
+                aiPrompt: aiAssistant.aiPrompt,
+                aiThreadMenuOpenId: aiAssistant.aiThreadMenuOpenId,
+                aiThreads: aiAssistant.aiThreads,
+                composerAttachments: aiAssistant.composerAttachments,
+                handleAiMixedFileChange: aiAssistant.handleAiMixedFileChange,
+                handleAiGeneralFileChange: aiAssistant.handleAiGeneralFileChange,
+                handleAiEcho: aiAssistant.handleAiEcho,
+                handleAiImageFileChange: aiAssistant.handleAiImageFileChange,
+                handleAiInputPaste: aiAssistant.handleAiInputPaste,
+                handleAiInputKeyDown: aiAssistant.handleAiInputKeyDown,
+                handleJumpToSuggestion,
+                handleClearAiComposer: aiAssistant.handleClearAiComposer,
+                handleCreateAiThread: aiAssistant.handleCreateAiThread,
+                handleDeleteAiThread: aiAssistant.handleDeleteAiThread,
+                handleRenameAiThread: aiAssistant.handleRenameAiThread,
+                isAiHistoryOpen: aiAssistant.isAiHistoryOpen,
+                isAiAttachMenuOpen: aiAssistant.isAiAttachMenuOpen,
+                isAiResponding: aiAssistant.isAiResponding,
+                removeComposerAttachment: aiAssistant.removeComposerAttachment,
+                respondingAiThreadId: aiAssistant.respondingAiThreadId,
+                setActiveAiThreadId: aiAssistant.setActiveAiThreadId,
+                setAiPrompt: aiAssistant.setAiPrompt,
+                setIsAiAttachMenuOpen: aiAssistant.setIsAiAttachMenuOpen,
+                setAiThreadMenuOpenId: aiAssistant.setAiThreadMenuOpenId,
+                setIsAiHistoryOpen: aiAssistant.setIsAiHistoryOpen,
+              }}
+              aiSettingsSidebarProps={{
+                aiSettings: aiAssistant.aiSettings,
+                resetAiSettings: aiAssistant.resetAiSettings,
+                setAiSettingText: aiAssistant.setAiSettingText,
+                toggleAiSettingListValue: aiAssistant.toggleAiSettingListValue,
+              }}
             />
           </div>
         </div>
