@@ -439,6 +439,11 @@
   background: linear-gradient(180deg, #f8fbff 0%, #fdfefe 100%);
 }
 
+.aiSettingsStandaloneBody {
+  min-height: 0;
+  overflow: auto;
+}
+
 .aiSettingsHeader {
   display: flex;
   align-items: flex-start;

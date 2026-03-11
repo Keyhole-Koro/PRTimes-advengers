@@ -337,11 +337,12 @@ function createSuggestionWidget(
 
       const actions = document.createElement("div");
       actions.className = "aiSuggestionActions";
+      const hasMultipleOperations = suggestion.suggestion.operations.length > 1;
 
       const accept = document.createElement("button");
       accept.type = "button";
       accept.className = "aiSuggestionAccept";
-      accept.textContent = "まとめて反映";
+      accept.textContent = hasMultipleOperations ? "まとめて反映" : "反映する";
       accept.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -352,7 +353,7 @@ function createSuggestionWidget(
       const discard = document.createElement("button");
       discard.type = "button";
       discard.className = "aiSuggestionDiscard";
-      discard.textContent = "まとめて見送る";
+      discard.textContent = hasMultipleOperations ? "まとめて見送る" : "見送る";
       discard.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -634,6 +635,16 @@ export const createAiSuggestionDecorations = (options: SuggestionExtensionOption
               if (!(target instanceof HTMLElement)) {
                 options.onActivateSuggestion(null);
                 return false;
+              }
+
+              const trigger = target.closest<HTMLElement>(".aiSuggestionTrigger");
+              if (trigger) {
+                const widget = trigger.closest<HTMLElement>(".aiSuggestionWidget");
+                const suggestionId = widget?.dataset.suggestionId ?? null;
+                const pluginState = aiSuggestionPluginKey.getState(view.state);
+                const isActive = pluginState?.activeSuggestionId === suggestionId;
+                options.onActivateSuggestion(isActive ? null : suggestionId);
+                return true;
               }
 
               if (target.closest(".aiSuggestionWidget")) {

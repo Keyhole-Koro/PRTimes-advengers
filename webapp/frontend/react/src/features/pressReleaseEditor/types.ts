@@ -69,7 +69,7 @@ export type CommentMessageResponse = {
   created_at: string;
 };
 
-export type SidebarTab = "history" | "comments" | "ai";
+export type SidebarTab = "history" | "ai" | "ai-settings";
 
 export type ToolbarButtonConfig =
   | {
