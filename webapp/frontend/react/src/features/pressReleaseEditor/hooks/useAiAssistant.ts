@@ -89,14 +89,6 @@ export type ConversationHistoryEntry = {
   created_at: string;
 };
 
-export type AiChatRequestPayload = {
-  threadId: string;
-  message: {
-    text: string;
-    attachments: AiAttachmentMeta[];
-  };
-};
-
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
 const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -174,19 +166,6 @@ function createAttachmentMeta(attachment: AiComposerAttachment): AiAttachmentMet
     size: attachment.size,
     mimeType: attachment.mimeType,
   };
-}
-
-async function requestAiAssistant(payload: AiChatRequestPayload): Promise<string> {
-  // TODO: replace with backend API call
-  await new Promise((resolve) => window.setTimeout(resolve, 350));
-  const attachmentCount = payload.message.attachments.length;
-  if (payload.message.text.trim() === "" && attachmentCount > 0) {
-    return `${attachmentCount}件の添付を受け取りました。バックエンド接続後に解析結果を返せます。`;
-  }
-  if (attachmentCount > 0) {
-    return `受信: ${payload.message.text}\n（添付 ${attachmentCount} 件）`;
-  }
-  return payload.message.text;
 }
 
 function buildThreadTitle(text: string): string {
@@ -769,7 +748,6 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
   };
 
   const handleAiEcho = async () => {
-  const handleAiEcho = async () => {
     if (!activeAiThread) {
       return;
     }
@@ -822,17 +800,6 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
         ...createAiMessage("assistant", documentEditResult.assistant_message),
         documentEditResult,
       };
-    const requestPayload: AiChatRequestPayload = {
-      threadId,
-      message: {
-        text: normalizedPrompt,
-        attachments,
-      },
-    };
-
-    try {
-      const assistantReply = await requestAiAssistant(requestPayload);
-      const assistantMessage = createAiMessage("assistant", assistantReply);
       updateThreadMessages(threadId, assistantMessage);
       onCreateDocumentSuggestion(assistantMessage.id, effectivePrompt, documentEditResult);
       setAiResponseError(null);
@@ -841,13 +808,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
       setAiResponseError(message);
       updateThreadMessages(threadId, createAiMessage("assistant", message));
     } finally {
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "AIへの問い合わせに失敗しました。再度お試しください。";
-      setAiResponseError(message);
-    } finally {
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
-    }
     }
   };
 
