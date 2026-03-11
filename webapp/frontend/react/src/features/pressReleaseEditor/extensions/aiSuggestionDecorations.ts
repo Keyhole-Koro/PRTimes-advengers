@@ -69,7 +69,6 @@ function createOperationDiff(
   suggestion: PendingAiSuggestion,
   operation: PendingAiSuggestion["suggestion"]["operations"][number],
   operationIndex: number,
-  options: SuggestionExtensionOptions,
 ) {
   const card = document.createElement("article");
   card.className = "aiSuggestionDiffCard";
@@ -189,24 +188,18 @@ function createOperationDiff(
   apply.type = "button";
   apply.className = "aiSuggestionAccept";
   apply.textContent = "この変更を反映";
-  apply.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const editor = card.querySelector<HTMLTextAreaElement>(".aiSuggestionOperationEditor");
-    const nextText = editor?.value;
-    options.onAcceptSuggestionOperation(suggestion.id, operationIndex, nextText);
-  });
+  apply.setAttribute("data-suggestion-action", "accept-operation");
+  apply.setAttribute("data-suggestion-id", suggestion.id);
+  apply.setAttribute("data-operation-index", String(operationIndex));
   operationActions.append(apply);
 
   const discard = document.createElement("button");
   discard.type = "button";
   discard.className = "aiSuggestionDiscard";
   discard.textContent = "この変更は見送る";
-  discard.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    options.onDiscardSuggestionOperation(suggestion.id, operationIndex);
-  });
+  discard.setAttribute("data-suggestion-action", "discard-operation");
+  discard.setAttribute("data-suggestion-id", suggestion.id);
+  discard.setAttribute("data-operation-index", String(operationIndex));
   operationActions.append(discard);
 
   card.append(operationActions);
@@ -331,7 +324,7 @@ function createSuggestionWidget(
       const diffList = document.createElement("div");
       diffList.className = "aiSuggestionDiffList";
       suggestion.suggestion.operations.forEach((operation, operationIndex) => {
-        diffList.append(createOperationDiff(suggestion, operation, operationIndex, options));
+        diffList.append(createOperationDiff(suggestion, operation, operationIndex));
       });
       panel.append(diffList);
 
@@ -343,22 +336,16 @@ function createSuggestionWidget(
       accept.type = "button";
       accept.className = "aiSuggestionAccept";
       accept.textContent = hasMultipleOperations ? "まとめて反映" : "反映する";
-      accept.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        options.onAcceptSuggestion(suggestion.id);
-      });
+      accept.setAttribute("data-suggestion-action", "accept-suggestion");
+      accept.setAttribute("data-suggestion-id", suggestion.id);
       actions.append(accept);
 
       const discard = document.createElement("button");
       discard.type = "button";
       discard.className = "aiSuggestionDiscard";
       discard.textContent = hasMultipleOperations ? "まとめて見送る" : "見送る";
-      discard.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        options.onDiscardSuggestion(suggestion.id);
-      });
+      discard.setAttribute("data-suggestion-action", "discard-suggestion");
+      discard.setAttribute("data-suggestion-id", suggestion.id);
       actions.append(discard);
 
       panel.append(actions);
@@ -369,10 +356,7 @@ function createSuggestionWidget(
   };
 }
 
-function createInlineSuggestionBubble(
-  suggestion: PendingAiSuggestion,
-  options: SuggestionExtensionOptions,
-) {
+function createInlineSuggestionBubble(suggestion: PendingAiSuggestion) {
   return () => {
     const operation = suggestion.suggestion.operations[0];
     if (!operation) {
@@ -448,22 +432,18 @@ function createInlineSuggestionBubble(
     accept.type = "button";
     accept.className = "aiSuggestionAccept aiSuggestionInlineAction";
     accept.textContent = "反映";
-    accept.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      options.onAcceptSuggestionOperation(suggestion.id, 0, operation.op === "modify" ? operation.after.text : undefined);
-    });
+    accept.setAttribute("data-suggestion-action", "accept-operation");
+    accept.setAttribute("data-suggestion-id", suggestion.id);
+    accept.setAttribute("data-operation-index", "0");
     actions.append(accept);
 
     const discard = document.createElement("button");
     discard.type = "button";
     discard.className = "aiSuggestionDiscard aiSuggestionInlineAction";
     discard.textContent = "見送る";
-    discard.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      options.onDiscardSuggestionOperation(suggestion.id, 0);
-    });
+    discard.setAttribute("data-suggestion-action", "discard-operation");
+    discard.setAttribute("data-suggestion-id", suggestion.id);
+    discard.setAttribute("data-operation-index", "0");
     actions.append(discard);
 
     bubble.append(actions);
@@ -493,6 +473,44 @@ function createInlineSuggestionBadge(
     });
     return badge;
   };
+}
+
+function handleSuggestionAction(
+  target: HTMLElement,
+  options: SuggestionExtensionOptions,
+): boolean {
+  const actionButton = target.closest<HTMLElement>("[data-suggestion-action]");
+  if (!actionButton) {
+    return false;
+  }
+
+  const action = actionButton.dataset.suggestionAction ?? "";
+  const suggestionId = actionButton.dataset.suggestionId ?? "";
+  const operationIndex = Number.parseInt(actionButton.dataset.operationIndex ?? "", 10);
+
+  if (action === "accept-suggestion" && suggestionId) {
+    options.onAcceptSuggestion(suggestionId);
+    return true;
+  }
+
+  if (action === "discard-suggestion" && suggestionId) {
+    options.onDiscardSuggestion(suggestionId);
+    return true;
+  }
+
+  if (action === "accept-operation" && suggestionId && Number.isInteger(operationIndex)) {
+    const card = actionButton.closest<HTMLElement>(".aiSuggestionDiffCard, .aiSuggestionInlineBubble");
+    const editor = card?.querySelector<HTMLTextAreaElement>(".aiSuggestionOperationEditor");
+    options.onAcceptSuggestionOperation(suggestionId, operationIndex, editor?.value);
+    return true;
+  }
+
+  if (action === "discard-operation" && suggestionId && Number.isInteger(operationIndex)) {
+    options.onDiscardSuggestionOperation(suggestionId, operationIndex);
+    return true;
+  }
+
+  return false;
 }
 
 function buildDecorations(state: EditorState, pluginState: SuggestionDecorationState, options: SuggestionExtensionOptions) {
@@ -560,14 +578,17 @@ function buildDecorations(state: EditorState, pluginState: SuggestionDecorationS
         inlineDecorations.push(
           Decoration.widget(
             Math.max(0, Math.min(position, state.doc.content.size)),
-            createInlineSuggestionBubble(suggestion, options),
+            createInlineSuggestionBubble(suggestion),
             {
               ignoreSelection: true,
               side: 1,
               key: `ai-inline-suggestion-${suggestion.id}-open`,
               stopEvent: (event) => {
                 const targetNode = event.target;
-                return targetNode instanceof HTMLElement && targetNode.closest(".aiSuggestionWidget") !== null;
+                if (!(targetNode instanceof HTMLElement)) {
+                  return false;
+                }
+                return handleSuggestionAction(targetNode, options) || targetNode.closest(".aiSuggestionWidget") !== null;
               },
             },
           ),
@@ -587,7 +608,10 @@ function buildDecorations(state: EditorState, pluginState: SuggestionDecorationS
           key: `ai-suggestion-${suggestion.id}-${isActive ? "open" : "closed"}`,
           stopEvent: (event) => {
             const target = event.target;
-            return target instanceof HTMLElement && target.closest(".aiSuggestionWidget") !== null;
+            if (!(target instanceof HTMLElement)) {
+              return false;
+            }
+            return handleSuggestionAction(target, options) || target.closest(".aiSuggestionWidget") !== null;
           },
         },
       ),
@@ -635,6 +659,10 @@ export const createAiSuggestionDecorations = (options: SuggestionExtensionOption
               if (!(target instanceof HTMLElement)) {
                 options.onActivateSuggestion(null);
                 return false;
+              }
+
+              if (handleSuggestionAction(target, options)) {
+                return true;
               }
 
               const trigger = target.closest<HTMLElement>(".aiSuggestionTrigger");

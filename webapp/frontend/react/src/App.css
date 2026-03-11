@@ -422,11 +422,13 @@
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .editorAiAssistCard {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -455,7 +457,9 @@
   gap: 6px;
   flex-wrap: nowrap;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .editorAiAssistOption {
@@ -469,8 +473,9 @@
   padding: 6px 10px;
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  flex: 0 0 auto;
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease,
