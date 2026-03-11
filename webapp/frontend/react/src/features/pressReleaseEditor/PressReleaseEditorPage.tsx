@@ -85,7 +85,8 @@ export function PressReleaseEditorPage({
   title: initialTitle,
   content,
   version: initialVersion,
-}: PressRelease & { pressReleaseId: number }) {
+  onReturnToList,
+}: PressRelease & { pressReleaseId: number; onReturnToList: () => void }) {
   const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${pressReleaseId}`;
   const aiEditMemoryStorageKey = `press-release-editor-ai-edit-memory:${pressReleaseId}`;
   const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${pressReleaseId}`;
@@ -939,6 +940,7 @@ export function PressReleaseEditorPage({
             isDraggingImage={isDraggingImage}
             isUploadingImage={isUploadingImage}
             onTitleChange={handleTitleChange}
+            onReturnToList={onReturnToList}
             pressReleaseId={pressReleaseId}
             setAiSettingText={aiAssistant.setAiSettingText}
             title={title}

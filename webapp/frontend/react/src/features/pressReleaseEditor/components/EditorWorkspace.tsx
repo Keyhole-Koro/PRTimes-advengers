@@ -26,6 +26,7 @@ type EditorWorkspaceProps = {
   isDraggingImage: boolean;
   isUploadingImage: boolean;
   onTitleChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onReturnToList: () => void;
   pressReleaseId: number;
   setAiSettingText: (field: AiTextField, value: string) => void;
   title: string;
@@ -61,6 +62,7 @@ export function EditorWorkspace({
   isDraggingImage,
   isUploadingImage,
   onTitleChange,
+  onReturnToList,
   pressReleaseId,
   setAiSettingText,
   title,
@@ -179,6 +181,9 @@ export function EditorWorkspace({
   return (
     <div className="editorWrapper">
       <div className="titleInputWrapper">
+        <button type="button" className="pressReleaseBackButton pressReleaseBackButton-inline" onClick={onReturnToList}>
+          一覧へ戻る
+        </button>
         <input
           type="text"
           value={title}

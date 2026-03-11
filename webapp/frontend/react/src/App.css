@@ -738,10 +738,14 @@ body.is-resizing-panels {
 }
 
 .titleInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
 .titleInput {
+  flex: 1 1 auto;
   width: 100%;
   padding: 10px 12px;
   font-size: 18px;
@@ -763,6 +767,11 @@ body.is-resizing-panels {
 .titleInput:focus {
   border-color: #7aa2d6;
   box-shadow: 0 0 0 2px rgba(122, 162, 214, 0.18);
+}
+
+.pressReleaseBackButton-inline {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .toolbar {

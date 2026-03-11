@@ -193,12 +193,8 @@ export function App() {
 
   return (
     <div className="appShell">
-      <div className="editorTopBar">
-        <button type="button" className="pressReleaseBackButton" onClick={returnToList}>
-          一覧へ戻る
-        </button>
-      </div>
       <PressReleaseEditorScreen
+        onReturnToList={returnToList}
         pressReleaseId={selectedPressReleaseId}
         title={data.title}
         content={data.content ?? EMPTY_CONTENT}
