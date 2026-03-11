@@ -100,9 +100,21 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
         writing_style: 'ニュースライク',
         tone: '簡潔',
         brand_voice: '信頼感重視',
+        consistency_policy: 'です・ます調を維持し、煽り表現を避ける',
         focus_points: ['導入文', 'CTA'],
         priority_checks: ['誤字脱字', 'リスク表現'],
       },
+      edit_memory: [
+        {
+          decision: 'accepted',
+          prompt: '導入を整理して',
+          suggestion_summary: '導入文を簡潔に整理する',
+          suggestion_reason: '冒頭の焦点を明確にするため',
+          operation_reasons: ['冗長な説明を削る'],
+          target_hint: 'block-1',
+          created_at: '2026-03-10T00:00:00.000Z',
+        },
+      ],
     })
   } finally {
     globalThis.fetch = originalFetch
@@ -112,6 +124,17 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
     context: {
       reference_docs: [],
       uploaded_materials: [],
+      edit_history: [
+        {
+          decision: 'accepted',
+          prompt: '導入を整理して',
+          suggestion_summary: '導入文を簡潔に整理する',
+          suggestion_reason: '冒頭の焦点を明確にするため',
+          operation_reasons: ['冗長な説明を削る'],
+          target_hint: 'block-1',
+          created_at: '2026-03-10T00:00:00.000Z',
+        },
+      ],
     },
     document: {
       title: 'テスト',
@@ -135,6 +158,7 @@ test('AiEditService forwards ai settings to agent instructions', async () => {
       style: 'ニュースライク',
       tone: '簡潔',
       brand_voice: '信頼感重視',
+      consistency_policy: 'です・ます調を維持し、煽り表現を避ける',
       focus_points: ['導入文', 'CTA'],
       priority_checks: ['誤字脱字', 'リスク表現'],
     },
@@ -324,6 +348,109 @@ test('AiEditService keeps short single-block inline suggestions as inline', asyn
     })
 
     assert.equal(result.suggestions[0]?.presentation, 'inline')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('AiEditService limits suggestions to two items', async () => {
+  const originalFetch = globalThis.fetch
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        result: {
+          summary: 'ok',
+          assistant_message: '提案を追加しました。',
+          navigation_label: '提案を見る',
+          suggestions: [
+            {
+              id: 'suggestion-1',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案1',
+              operations: [],
+            },
+            {
+              id: 'suggestion-2',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案2',
+              operations: [],
+            },
+            {
+              id: 'suggestion-3',
+              presentation: 'block',
+              category: 'body',
+              summary: '提案3',
+              operations: [],
+            },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestDocumentEdit({
+      prompt: '改善して',
+      title: 'テスト',
+      content,
+    })
+
+    assert.equal(result.suggestions.length, 2)
+    assert.equal(result.suggestions[0]?.id, 'suggestion-1')
+    assert.equal(result.suggestions[1]?.id, 'suggestion-2')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('AiEditService requests tag suggestions from agent', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedUrl = ''
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    capturedUrl = String(input)
+
+    return new Response(
+      JSON.stringify({
+        result: {
+          summary: 'タグ候補を抽出しました。',
+          tags: [
+            { label: 'AI', reason: '生成AIが主題です。' },
+            { label: '#サービス', reason: '提供開始の内容です。' },
+          ],
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as typeof fetch
+
+  try {
+    const service = new AiEditService('http://example.invalid')
+    const result = await service.requestTagSuggestions({
+      prompt: 'タグ候補を提案してください。',
+      title: 'AI新機能を公開',
+      content,
+    })
+
+    assert.equal(capturedUrl, 'http://example.invalid/agent/tasks/tag_suggest:run')
+    assert.deepEqual(result.tags, [
+      { label: '#AI', reason: '生成AIが主題です。' },
+      { label: '#サービス', reason: '提供開始の内容です。' },
+    ])
   } finally {
     globalThis.fetch = originalFetch
   }

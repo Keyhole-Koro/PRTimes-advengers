@@ -1,8 +1,8 @@
 import type { Editor } from "@tiptap/react";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { diffChars } from "diff";
 
-import { PRESS_RELEASE_ID } from "../constants";
 import { normalizeDocumentEditResult, requestDocumentEdit } from "../infrastructure/aiApi";
 import type { AgentDocumentEditResult } from "../types";
 export type AiAttachmentKind = "image" | "file";
@@ -41,18 +41,45 @@ export type AiAgentSettings = {
   writingStyle: string;
   tone: string;
   brandVoice: string;
+  consistencyPolicy: string;
   focusPoints: string[];
   priorityChecks: string[];
 };
 
+export type AiEditMemoryEntry = {
+  id: string;
+  decision: "accepted" | "dismissed";
+  prompt: string;
+  suggestionSummary: string;
+  suggestionReason?: string;
+  operationReasons: string[];
+  targetHint?: string;
+  createdAt: string;
+};
+
+export type AiSettingSuggestionField = "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "focusPoints" | "priorityChecks";
+
+export type AiSettingSuggestionOption = {
+  label: string;
+  value: string;
+};
+
+export type AiSettingSuggestion = {
+  field: AiSettingSuggestionField;
+  prompt: string;
+  options: AiSettingSuggestionOption[];
+};
+
 export type AiAutoRecommendStatus = {
-  lineDelta: number;
+  diffSize: number;
   startedAt: string;
 };
 
 type UseAiAssistantOptions = {
   editor: Editor | null;
+  aiEditMemory: AiEditMemoryEntry[];
   onCreateDocumentSuggestion: (suggestionId: string, prompt: string, result: AgentDocumentEditResult) => void;
+  pressReleaseId: number;
   title: string;
 };
 
@@ -63,14 +90,12 @@ export type ConversationHistoryEntry = {
 };
 
 const AI_CHAT_STORAGE_KEY = "press-release-editor-ai-chat";
-const AI_SETTINGS_STORAGE_KEY = `press-release-editor-ai-settings:${PRESS_RELEASE_ID}`;
-const AI_SCROLL_STORAGE_KEY = `press-release-editor-ai-scroll:${PRESS_RELEASE_ID}`;
 const AI_DEFAULT_THREAD_TITLE = "新しいチャット";
 const AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const AI_MAX_ATTACHMENT_COUNT = 4;
 const AI_MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const AI_AUTO_RECOMMEND_LINE_THRESHOLD = 3;
+const AI_AUTO_RECOMMEND_DIFF_THRESHOLD = 60;
 const AI_AUTO_RECOMMEND_PROMPT =
   "直近の編集内容を確認して、文章品質を上げるための改善レコメンドを提示してください。";
 const AI_ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -85,6 +110,7 @@ const DEFAULT_AI_SETTINGS: AiAgentSettings = {
   writingStyle: "",
   tone: "",
   brandVoice: "",
+  consistencyPolicy: "",
   focusPoints: [],
   priorityChecks: [],
 };
@@ -105,6 +131,7 @@ function parseStoredAiSettings(rawValue: string | null): AiAgentSettings {
       writingStyle: typeof parsed.writingStyle === "string" ? parsed.writingStyle : "",
       tone: typeof parsed.tone === "string" ? parsed.tone : "",
       brandVoice: typeof parsed.brandVoice === "string" ? parsed.brandVoice : "",
+      consistencyPolicy: typeof parsed.consistencyPolicy === "string" ? parsed.consistencyPolicy : "",
       focusPoints: isStringArray(parsed.focusPoints) ? parsed.focusPoints : [],
       priorityChecks: isStringArray(parsed.priorityChecks) ? parsed.priorityChecks : [],
     };
@@ -277,13 +304,95 @@ function serializeMessageForHistory(message: AiChatMessage): ConversationHistory
   };
 }
 
-function countDocumentLines(editor: Editor): number {
-  const text = editor.getText({ blockSeparator: "\n" }).trimEnd();
-  if (text === "") {
-    return 0;
+function getDocumentSnapshotText(editor: Editor, title: string): string {
+  const body = editor.getText({ blockSeparator: "\n" }).trim();
+  return `${title.trim()}\n${body}`.trim();
+}
+
+function computeDocumentDiffSize(previousText: string, nextText: string): number {
+  let diffSize = 0;
+  for (const part of diffChars(previousText, nextText)) {
+    if (part.added || part.removed) {
+      diffSize += part.value.length;
+    }
+  }
+  return diffSize;
+}
+
+function inferAiSettingSuggestions(documentSnapshotText: string, settings: AiAgentSettings): AiSettingSuggestion[] {
+  const normalizedText = documentSnapshotText;
+  const suggestions: AiSettingSuggestion[] = [];
+
+  const hasMediaTerms = /(取材|報道|メディア|発表|お知らせ|公開)/.test(normalizedText);
+  const hasRecruitingTerms = /(採用|募集|インターン|候補者|働く|キャリア)/.test(normalizedText);
+  const hasProductTerms = /(提供開始|リリース|導入|利用|顧客|サービス|製品|機能)/.test(normalizedText);
+  const hasDateOrNumbers = /(\d{4}年|\d{1,2}月|\d+名|\d+円|\d+%)/.test(normalizedText);
+  const hasCallToAction = /(お問い合わせ|詳細|資料請求|お申し込み|こちら)/.test(normalizedText);
+  const hasExclamation = /[!！]/.test(normalizedText);
+  const politeCount = (normalizedText.match(/です|ます/g) ?? []).length;
+
+  if (settings.targetAudience.trim() === "") {
+    const audienceOptions = hasRecruitingTerms
+      ? ["求職者", "採用候補者", "人事担当者"]
+      : hasMediaTerms
+        ? ["記者・メディア関係者", "業界関係者", "投資家・広報関係者"]
+        : hasProductTerms
+          ? ["見込み顧客", "既存顧客", "業界関係者"]
+          : ["業界関係者", "見込み顧客", "記者・メディア関係者"];
+    suggestions.push({
+      field: "targetAudience",
+      prompt: "ターゲット候補",
+      options: audienceOptions.map((option) => ({ label: option, value: option })),
+    });
   }
 
-  return text.split(/\r?\n/).length;
+  if (settings.writingStyle.trim() === "") {
+    const styleOptions = hasMediaTerms
+      ? ["ニュースライク", "プレスリリース標準", "簡潔"]
+      : hasRecruitingTerms
+        ? ["やわらかめ", "採用向け", "プレスリリース標準"]
+        : ["プレスリリース標準", "簡潔", "やわらかめ"];
+    suggestions.push({
+      field: "writingStyle",
+      prompt: "文章スタイル候補",
+      options: styleOptions.map((option) => ({ label: option, value: option })),
+    });
+  }
+
+  if (settings.tone.trim() === "") {
+    const toneOptions = hasExclamation ? ["力強い", "親しみやすい", "丁寧"] : politeCount >= 3 ? ["丁寧", "落ち着いた", "簡潔"] : ["簡潔", "丁寧", "落ち着いた"];
+    suggestions.push({
+      field: "tone",
+      prompt: "トーン候補",
+      options: toneOptions.map((option) => ({ label: option, value: option })),
+    });
+  }
+
+  if (settings.focusPoints.length === 0) {
+    const focusOptions = hasCallToAction
+      ? ["導入文", "本文構成", "CTA"]
+      : hasProductTerms
+        ? ["タイトル", "導入文", "見出し"]
+        : ["タイトル", "導入文", "本文構成"];
+    suggestions.push({
+      field: "focusPoints",
+      prompt: "重視ポイント候補",
+      options: focusOptions.map((option) => ({ label: option, value: option })),
+    });
+  }
+
+  if (settings.priorityChecks.length === 0) {
+    const checkOptions = hasDateOrNumbers
+      ? ["数字・日付の整合性", "誤字脱字", "表記ゆれ"]
+      : ["誤字脱字", "表記ゆれ", "読みやすさ"];
+    suggestions.push({
+      field: "priorityChecks",
+      prompt: "チェック観点候補",
+      options: checkOptions.map((option) => ({ label: option, value: option })),
+    });
+  }
+
+  return suggestions.slice(0, 4);
 }
 
 export function formatAiMessageTime(isoString: string): string {
@@ -302,7 +411,9 @@ export function formatAiThreadTime(isoString: string): string {
   });
 }
 
-export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: UseAiAssistantOptions) {
+export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestion, pressReleaseId, title }: UseAiAssistantOptions) {
+  const aiSettingsStorageKey = `press-release-editor-ai-settings:${pressReleaseId}`;
+  const aiScrollStorageKey = `press-release-editor-ai-scroll:${pressReleaseId}`;
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAttachmentError, setAiAttachmentError] = useState<string | null>(null);
   const [isAiAttachMenuOpen, setIsAiAttachMenuOpen] = useState(false);
@@ -322,15 +433,17 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     if (typeof window === "undefined") {
       return DEFAULT_AI_SETTINGS;
     }
-    return parseStoredAiSettings(window.localStorage.getItem(AI_SETTINGS_STORAGE_KEY));
+    return parseStoredAiSettings(window.localStorage.getItem(aiSettingsStorageKey));
   });
   const aiMessagesContainerRef = useRef<HTMLDivElement | null>(null);
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
-  const autoRecommendBaselineLineCountRef = useRef<number | null>(null);
+  const autoRecommendBaselineTextRef = useRef<string | null>(null);
+  const [editorSnapshotText, setEditorSnapshotText] = useState("");
+  const pendingAutoRecommendRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const hasRestoredScrollRef = useRef(false);
   const storedScrollPositionsRef = useRef<Record<string, number>>(
-    typeof window === "undefined" ? {} : parseStoredAiScrollPositions(window.localStorage.getItem(AI_SCROLL_STORAGE_KEY)),
+    typeof window === "undefined" ? {} : parseStoredAiScrollPositions(window.localStorage.getItem(aiScrollStorageKey)),
   );
 
   const isAiResponding = respondingAiThreadId !== null;
@@ -339,6 +452,64 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     [activeAiThreadId, aiThreads],
   );
   const activeAiMessages = activeAiThread?.messages ?? [];
+  const aiSettingSuggestions = useMemo(
+    () => inferAiSettingSuggestions(editorSnapshotText, aiSettings),
+    [aiSettings, editorSnapshotText],
+  );
+
+  const runAutoRecommend = () => {
+    if (!editor || !activeAiThread) {
+      return;
+    }
+
+    const currentSnapshotText = getDocumentSnapshotText(editor, title);
+    const previousSnapshotText = autoRecommendBaselineTextRef.current ?? currentSnapshotText;
+    const diffSize = computeDocumentDiffSize(previousSnapshotText, currentSnapshotText);
+    if (diffSize < AI_AUTO_RECOMMEND_DIFF_THRESHOLD) {
+      pendingAutoRecommendRef.current = false;
+      return;
+    }
+
+    pendingAutoRecommendRef.current = false;
+    autoRecommendBaselineTextRef.current = currentSnapshotText;
+    const autoPrompt = `${AI_AUTO_RECOMMEND_PROMPT}（推定差分量: ${diffSize}文字）`;
+    const threadId = activeAiThread.id;
+    setRespondingAiThreadId(threadId);
+    setAutoRecommendStatus({
+      diffSize,
+      startedAt: new Date().toISOString(),
+    });
+
+    void (async () => {
+      try {
+        const conversationHistory = activeAiThread.messages.slice(-12).map(serializeMessageForHistory);
+        const documentEditResult = await requestDocumentEdit({
+          pressReleaseId,
+          prompt: autoPrompt,
+          editor,
+          title,
+          conversationHistory,
+          aiSettings,
+          aiEditMemory,
+        });
+        const assistantMessage = {
+          ...createAiMessage(
+            "assistant",
+            documentEditResult.assistant_message,
+          ),
+          documentEditResult,
+        };
+        updateThreadMessages(threadId, assistantMessage);
+        onCreateDocumentSuggestion(assistantMessage.id, autoPrompt, documentEditResult);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "AIリクエストの自動実行に失敗しました";
+        updateThreadMessages(threadId, createAiMessage("assistant", message));
+      } finally {
+        setAutoRecommendStatus((current) => (current?.diffSize === diffSize ? null : current));
+        setRespondingAiThreadId((current) => (current === threadId ? null : current));
+      }
+    })();
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -351,8 +522,8 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(aiSettings));
-  }, [aiSettings]);
+    window.localStorage.setItem(aiSettingsStorageKey, JSON.stringify(aiSettings));
+  }, [aiSettings, aiSettingsStorageKey]);
 
   useEffect(() => {
     if (!aiThreads.some((thread) => thread.id === activeAiThreadId)) {
@@ -375,7 +546,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       shouldStickToBottomRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < 48;
 
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(AI_SCROLL_STORAGE_KEY, JSON.stringify(storedScrollPositionsRef.current));
+        window.localStorage.setItem(aiScrollStorageKey, JSON.stringify(storedScrollPositionsRef.current));
       }
     };
 
@@ -384,7 +555,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     return () => {
       container.removeEventListener("scroll", handleScroll);
     };
-  }, [activeAiThreadId]);
+  }, [activeAiThreadId, aiScrollStorageKey]);
 
   useEffect(() => {
     const container = aiMessagesContainerRef.current;
@@ -435,12 +606,31 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
 
   useEffect(() => {
     if (!editor) {
-      autoRecommendBaselineLineCountRef.current = null;
+      autoRecommendBaselineTextRef.current = null;
+      setEditorSnapshotText("");
       return;
     }
 
-    autoRecommendBaselineLineCountRef.current = countDocumentLines(editor);
-  }, [editor]);
+    const snapshotText = getDocumentSnapshotText(editor, title);
+    autoRecommendBaselineTextRef.current = snapshotText;
+    setEditorSnapshotText(snapshotText);
+
+    const syncSnapshotText = () => {
+      setEditorSnapshotText(getDocumentSnapshotText(editor, title));
+    };
+
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) {
+        return;
+      }
+      syncSnapshotText();
+    };
+
+    editor.on("transaction", handleTransaction);
+    return () => {
+      editor.off("transaction", handleTransaction);
+    };
+  }, [editor, title]);
 
   const clearComposerAttachments = () => {
     setComposerAttachments((current) => {
@@ -569,7 +759,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
       return;
     }
 
-    autoRecommendBaselineLineCountRef.current = countDocumentLines(editor);
+    autoRecommendBaselineTextRef.current = getDocumentSnapshotText(editor, title);
 
     const displayText = buildMessageText(normalizedPrompt, attachments);
     const effectivePrompt =
@@ -593,11 +783,13 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     try {
       const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
       const documentEditResult = await requestDocumentEdit({
+        pressReleaseId,
         prompt: effectivePrompt,
         editor,
         title,
         conversationHistory,
         aiSettings,
+        aiEditMemory,
       });
       const assistantMessage = {
         ...createAiMessage(
@@ -622,55 +814,12 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     }
 
     const handleAutoRecommend = () => {
-      if (respondingAiThreadId !== null || !activeAiThread) {
+      if (respondingAiThreadId !== null) {
+        pendingAutoRecommendRef.current = true;
         return;
       }
 
-      const currentLineCount = countDocumentLines(editor);
-      const previousLineCount = autoRecommendBaselineLineCountRef.current ?? currentLineCount;
-      const lineDelta = Math.abs(currentLineCount - previousLineCount);
-      if (lineDelta < AI_AUTO_RECOMMEND_LINE_THRESHOLD) {
-        return;
-      }
-
-      autoRecommendBaselineLineCountRef.current = currentLineCount;
-      const autoPrompt = `${AI_AUTO_RECOMMEND_PROMPT}（行数差分: ${lineDelta}行）`;
-      const userMessage = createAiMessage("user", `自動レコメンドを実行します（行数差分: ${lineDelta}行）。`);
-      const threadId = activeAiThread.id;
-      updateThreadMessages(threadId, userMessage);
-      setRespondingAiThreadId(threadId);
-      setAutoRecommendStatus({
-        lineDelta,
-        startedAt: new Date().toISOString(),
-      });
-
-      void (async () => {
-        try {
-          const conversationHistory = [...activeAiThread.messages, userMessage].slice(-12).map(serializeMessageForHistory);
-          const documentEditResult = await requestDocumentEdit({
-            prompt: autoPrompt,
-            editor,
-            title,
-            conversationHistory,
-            aiSettings,
-          });
-          const assistantMessage = {
-            ...createAiMessage(
-              "assistant",
-              documentEditResult.assistant_message,
-            ),
-            documentEditResult,
-          };
-          updateThreadMessages(threadId, assistantMessage);
-          onCreateDocumentSuggestion(assistantMessage.id, autoPrompt, documentEditResult);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "AIリクエストの自動実行に失敗しました";
-          updateThreadMessages(threadId, createAiMessage("assistant", message));
-        } finally {
-          setAutoRecommendStatus((current) => (current?.lineDelta === lineDelta ? null : current));
-          setRespondingAiThreadId((current) => (current === threadId ? null : current));
-        }
-      })();
+      runAutoRecommend();
     };
 
     const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
@@ -685,9 +834,24 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
     return () => {
       editor.off("transaction", handleTransaction);
     };
-  }, [activeAiThread, aiSettings, editor, onCreateDocumentSuggestion, respondingAiThreadId, title]);
+  }, [activeAiThread, aiEditMemory, aiSettings, editor, onCreateDocumentSuggestion, pressReleaseId, respondingAiThreadId, title]);
 
-  const setAiSettingText = (field: "targetAudience" | "writingStyle" | "tone" | "brandVoice", value: string) => {
+  useEffect(() => {
+    if (respondingAiThreadId !== null || !pendingAutoRecommendRef.current) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (respondingAiThreadId === null && pendingAutoRecommendRef.current) {
+        runAutoRecommend();
+      }
+    });
+  }, [respondingAiThreadId, runAutoRecommend]);
+
+  const setAiSettingText = (
+    field: "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "consistencyPolicy",
+    value: string,
+  ) => {
     setAiSettings((current) => ({
       ...current,
       [field]: value,
@@ -816,6 +980,7 @@ export function useAiAssistant({ editor, onCreateDocumentSuggestion, title }: Us
   return {
     activeAiMessages,
     aiSettings,
+    aiSettingSuggestions,
     activeAiThread,
     activeAiThreadId,
     aiAttachmentError,

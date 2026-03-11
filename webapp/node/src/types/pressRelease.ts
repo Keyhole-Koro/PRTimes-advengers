@@ -36,6 +36,11 @@ export type PressReleaseResponse = {
   updated_at: string
 }
 
+export type CreatePressReleaseInput = {
+  title: string
+  content: PressReleaseContent
+}
+
 export type PressReleaseRevisionResponse = {
   id: number
   press_release_id: number
@@ -66,6 +71,7 @@ export type RequestAiEditInput = {
   content: PressReleaseContent
   conversation_history?: ConversationHistoryEntry[]
   ai_settings?: AiEditSettings
+  edit_memory?: AiEditMemoryEntry[]
 }
 
 export type AiEditSettings = {
@@ -73,8 +79,29 @@ export type AiEditSettings = {
   writing_style?: string
   tone?: string
   brand_voice?: string
+  consistency_policy?: string
   focus_points?: string[]
   priority_checks?: string[]
+}
+
+export type AiTagSuggestion = {
+  label: string
+  reason: string
+}
+
+export type AiTagSuggestResult = {
+  summary: string
+  tags: AiTagSuggestion[]
+}
+
+export type AiEditMemoryEntry = {
+  decision: 'accepted' | 'dismissed'
+  prompt?: string
+  suggestion_summary: string
+  suggestion_reason?: string
+  operation_reasons?: string[]
+  target_hint?: string
+  created_at: string
 }
 
 export type ConversationHistoryEntry = {
@@ -108,6 +135,12 @@ export type AgentDocumentEditOperation =
       block_id: string
       before?: AgentDocumentBlock
       after: AgentDocumentBlock
+      reason?: string
+    }
+  | {
+      op: 'title_modify'
+      before_title?: string
+      after_title: string
       reason?: string
     }
 

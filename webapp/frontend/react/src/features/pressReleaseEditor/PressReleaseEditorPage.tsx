@@ -11,6 +11,7 @@ import { CommentHighlight } from "../../editor/commentHighlight";
 import { LinkCard } from "../../editor/linkCard";
 import { RemotePresence, setRemotePresence } from "../../editor/remotePresence";
 import { useAiRecommendations } from "./application/useAiRecommendations";
+import { useAiEditMemory } from "./application/useAiEditMemory";
 import { useEditorSession } from "./application/useEditorSession";
 import { usePendingAiSuggestions } from "./application/usePendingAiSuggestions";
 import { useSaveStatus } from "./application/useSaveStatus";
@@ -18,9 +19,8 @@ import { useSidebarState } from "./application/useSidebarState";
 import {
   BASE_URL,
   MARK_BUTTONS,
-  PRESS_RELEASE_ID,
-  QUERY_KEY,
-  REVISIONS_QUERY_KEY,
+  buildPressReleaseQueryKey,
+  buildPressReleaseRevisionsQueryKey,
   WS_BASE_URL,
 } from "./constants";
 import {
@@ -28,6 +28,7 @@ import {
   setActiveAiSuggestion,
   setAiSuggestions,
 } from "./editor/tiptapExtensions/aiSuggestionDecorations";
+import { LineHeight } from "./editor/tiptapExtensions/lineHeight";
 import { withOperationText } from "./domain/pendingAiSuggestion";
 import { openPressReleaseCollaborationSocket, parseRealtimeMessage, sendCollaborationMessage } from "./infrastructure/collaborationGateway";
 import { RemovableImage } from "./editor/tiptapExtensions/removableImage";
@@ -43,17 +44,53 @@ import type {
   PressRelease,
   ToolbarGroupConfig,
 } from "./types";
-import { applyAgentDocumentSuggestion } from "./utils/applyAgentDocumentEdit";
+import { applyAgentDocumentSuggestion, getSuggestedTitle } from "./utils/applyAgentDocumentEdit";
 import { createCollaborationExtension, createRealtimeIdentity } from "./editor/tiptapAdapters/realtime";
 
+function collectSuggestionOperationReasons(suggestion: AgentDocumentEditSuggestion): string[] {
+  return suggestion.operations
+    .map((operation) => operation.reason?.trim() ?? "")
+    .filter((reason, index, array) => reason !== "" && array.indexOf(reason) === index);
+}
+
+function buildSuggestionTargetHint(suggestion: AgentDocumentEditSuggestion): string | undefined {
+  const targetHints = suggestion.operations
+    .map((operation) => {
+      if (operation.op === "title_modify") {
+        return "title";
+      }
+      if ("block_id" in operation && typeof operation.block_id === "string") {
+        return operation.block_id;
+      }
+      if ("after_block_id" in operation && typeof operation.after_block_id === "string") {
+        return operation.after_block_id;
+      }
+      return null;
+    })
+    .filter((value): value is string => value !== null);
+
+  return targetHints.length > 0 ? Array.from(new Set(targetHints)).join(", ") : undefined;
+}
+
+function safeEditorHasFocus(editor: Editor): boolean {
+  try {
+    return editor.view.hasFocus();
+  } catch {
+    return false;
+  }
+}
+
 export function PressReleaseEditorPage({
+  pressReleaseId,
   title: initialTitle,
   content,
   version: initialVersion,
-}: PressRelease) {
-  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${PRESS_RELEASE_ID}`;
-  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${PRESS_RELEASE_ID}`;
-  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${PRESS_RELEASE_ID}`;
+  onReturnToList,
+}: PressRelease & { pressReleaseId: number; onReturnToList: () => void }) {
+  const aiSuggestionStorageKey = `press-release-editor-ai-suggestions:${pressReleaseId}`;
+  const aiEditMemoryStorageKey = `press-release-editor-ai-edit-memory:${pressReleaseId}`;
+  const sidebarTabStorageKey = `press-release-editor-sidebar-tab:${pressReleaseId}`;
+  const sidebarWidthStorageKey = `press-release-editor-sidebar-width:${pressReleaseId}`;
   const queryClient = useQueryClient();
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [identity] = useState(createRealtimeIdentity);
@@ -78,6 +115,8 @@ export function PressReleaseEditorPage({
   const isApplyingRemoteRef = useRef(false);
   const lastSentBatchRef = useRef<string | null>(null);
   const requestFlushRef = useRef<() => void>(() => {});
+  const lastEditorSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  const lastEditorHadFocusRef = useRef(false);
   const { sidebarTab, sidebarWidth, setSidebarTab, setSidebarWidth } = useSidebarState({
     sidebarTabStorageKey,
     sidebarWidthStorageKey,
@@ -91,6 +130,9 @@ export function PressReleaseEditorPage({
   } = usePendingAiSuggestions({
     storageKey: aiSuggestionStorageKey,
   });
+  const { aiEditMemory, recordAiEditMemory } = useAiEditMemory({
+    storageKey: aiEditMemoryStorageKey,
+  });
   const [aiSuggestionExtension] = useState(() =>
     createAiSuggestionDecorations({
       onAcceptSuggestion: (suggestionId) => {
@@ -99,8 +141,21 @@ export function PressReleaseEditorPage({
           return;
         }
 
+        const nextTitle = getSuggestedTitle(suggestion.suggestion.operations);
         const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), suggestion.suggestion);
+        if (nextTitle !== null) {
+          setTitle(nextTitle);
+          sendTitleUpdate(nextTitle);
+        }
         editorRef.current.commands.setContent(nextContent);
+        recordAiEditMemory({
+          decision: "accepted",
+          prompt: suggestion.prompt,
+          suggestionSummary: suggestion.suggestion.summary,
+          suggestionReason: suggestion.suggestion.reason,
+          operationReasons: collectSuggestionOperationReasons(suggestion.suggestion),
+          targetHint: buildSuggestionTargetHint(suggestion.suggestion),
+        });
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId(null);
         setSaveStatus("dirty");
@@ -123,8 +178,21 @@ export function PressReleaseEditorPage({
           operations: [editedOperation],
         };
 
+        const nextTitle = getSuggestedTitle(partialSuggestion.operations);
         const nextContent = applyAgentDocumentSuggestion(editorRef.current.getJSON(), partialSuggestion);
+        if (nextTitle !== null) {
+          setTitle(nextTitle);
+          sendTitleUpdate(nextTitle);
+        }
         editorRef.current.commands.setContent(nextContent);
+        recordAiEditMemory({
+          decision: "accepted",
+          prompt: suggestion.prompt,
+          suggestionSummary: partialSuggestion.summary,
+          suggestionReason: partialSuggestion.reason,
+          operationReasons: collectSuggestionOperationReasons(partialSuggestion),
+          targetHint: buildSuggestionTargetHint(partialSuggestion),
+        });
         let hasRemainingOperations = false;
         setPendingAiSuggestions((current) =>
           current
@@ -157,10 +225,37 @@ export function PressReleaseEditorPage({
         setActiveAiSuggestionId(suggestionId);
       },
       onDiscardSuggestion: (suggestionId) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        if (suggestion) {
+          recordAiEditMemory({
+            decision: "dismissed",
+            prompt: suggestion.prompt,
+            suggestionSummary: suggestion.suggestion.summary,
+            suggestionReason: suggestion.suggestion.reason,
+            operationReasons: collectSuggestionOperationReasons(suggestion.suggestion),
+            targetHint: buildSuggestionTargetHint(suggestion.suggestion),
+          });
+        }
         setPendingAiSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
         setActiveAiSuggestionId((current) => (current === suggestionId ? null : current));
       },
       onDiscardSuggestionOperation: (suggestionId, operationIndex) => {
+        const suggestion = pendingAiSuggestionsRef.current.find((entry) => entry.id === suggestionId);
+        const operation = suggestion?.suggestion.operations[operationIndex];
+        if (suggestion && operation) {
+          const partialSuggestion: AgentDocumentEditSuggestion = {
+            ...suggestion.suggestion,
+            operations: [operation],
+          };
+          recordAiEditMemory({
+            decision: "dismissed",
+            prompt: suggestion.prompt,
+            suggestionSummary: partialSuggestion.summary,
+            suggestionReason: partialSuggestion.reason,
+            operationReasons: collectSuggestionOperationReasons(partialSuggestion),
+            targetHint: buildSuggestionTargetHint(partialSuggestion),
+          });
+        }
         let hasRemainingOperations = false;
         setPendingAiSuggestions((current) =>
           current
@@ -197,6 +292,7 @@ export function PressReleaseEditorPage({
       extensions: session
         ? [
             StarterKit,
+            LineHeight,
             RemovableImage,
             aiSuggestionExtension,
             LinkCard,
@@ -204,7 +300,7 @@ export function PressReleaseEditorPage({
             CommentHighlight,
             createCollaborationExtension(session.revision, session.clientId),
           ]
-        : [StarterKit, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
+        : [StarterKit, LineHeight, RemovableImage, aiSuggestionExtension, LinkCard, RemotePresence, CommentHighlight],
       immediatelyRender: false,
     },
     [session?.clientId, session?.revision, editorResetToken],
@@ -214,12 +310,54 @@ export function PressReleaseEditorPage({
     editorRef.current = editor;
   }, [editor]);
 
+  const preserveEditorViewportState = (currentEditor: Editor, applyUpdate: () => void) => {
+    const scrollContainer = currentEditor.view.dom as HTMLElement;
+    const hadFocus = safeEditorHasFocus(currentEditor);
+    const { from, to } = currentEditor.state.selection;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+
+    applyUpdate();
+
+    window.requestAnimationFrame(() => {
+      try {
+        if (hadFocus) {
+          currentEditor.chain().focus().setTextSelection({ from, to }).run();
+        }
+      } catch {
+        if (hadFocus) {
+          currentEditor.view.focus();
+        }
+      } finally {
+        scrollContainer.scrollTop = scrollTop;
+        scrollContainer.scrollLeft = scrollLeft;
+      }
+    });
+  };
+
+  const restoreEditorSelectionAfterSave = (currentEditor: Editor) => {
+    const selection = lastEditorSelectionRef.current;
+    if (!selection || !lastEditorHadFocusRef.current) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      try {
+        currentEditor.chain().focus().setTextSelection(selection).run();
+      } catch {
+        currentEditor.view.focus();
+      }
+    });
+  };
+
   useEffect(() => {
     if (!editor) {
       return;
     }
 
-    setAiSuggestions(editor, pendingAiSuggestions);
+    preserveEditorViewportState(editor, () => {
+      setAiSuggestions(editor, pendingAiSuggestions);
+    });
   }, [editor, pendingAiSuggestions]);
 
   useEffect(() => {
@@ -227,7 +365,9 @@ export function PressReleaseEditorPage({
       return;
     }
 
-    setActiveAiSuggestion(editor, activeAiSuggestionId);
+    preserveEditorViewportState(editor, () => {
+      setActiveAiSuggestion(editor, activeAiSuggestionId);
+    });
   }, [activeAiSuggestionId, editor]);
 
   const sendPendingSteps = (currentEditor: Editor) => {
@@ -262,6 +402,10 @@ export function PressReleaseEditorPage({
       bold: currentEditor?.isActive("bold") ?? false,
       italic: currentEditor?.isActive("italic") ?? false,
       underline: currentEditor?.isActive("underline") ?? false,
+      lineHeight:
+        typeof currentEditor?.state.selection.$from.parent.attrs.lineHeight === "string"
+          ? currentEditor.state.selection.$from.parent.attrs.lineHeight
+          : "",
     }),
   });
 
@@ -272,7 +416,7 @@ export function PressReleaseEditorPage({
     selectedRevision,
     selectedRevisionId,
     setSelectedRevisionId,
-  } = useRevisionHistory();
+  } = useRevisionHistory(pressReleaseId);
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -282,7 +426,7 @@ export function PressReleaseEditorPage({
     });
 
     const websocket = openPressReleaseCollaborationSocket(
-      `${WS_BASE_URL}/ws/press-releases/${PRESS_RELEASE_ID}?${params.toString()}`,
+      `${WS_BASE_URL}/ws/press-releases/${pressReleaseId}?${params.toString()}`,
     );
     websocketRef.current = websocket;
 
@@ -317,8 +461,11 @@ export function PressReleaseEditorPage({
         setTitle(message.title);
         setVersion(message.version);
         setSaveStatus("saved");
-        void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-        void queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
+        if (editorRef.current) {
+          restoreEditorSelectionAfterSave(editorRef.current);
+        }
+        void queryClient.invalidateQueries({ queryKey: buildPressReleaseQueryKey(pressReleaseId) });
+        void queryClient.invalidateQueries({ queryKey: buildPressReleaseRevisionsQueryKey(pressReleaseId) });
         return;
       }
 
@@ -371,7 +518,7 @@ export function PressReleaseEditorPage({
       websocket.close();
       websocketRef.current = null;
     };
-  }, [identity, queryClient]);
+  }, [identity, pressReleaseId, queryClient]);
 
   useEffect(() => {
     if (!editor) {
@@ -393,6 +540,11 @@ export function PressReleaseEditorPage({
       }
 
       const selection = editor.state.selection;
+      lastEditorSelectionRef.current = {
+        from: selection.from,
+        to: selection.to,
+      };
+      lastEditorHadFocusRef.current = safeEditorHasFocus(editor);
       websocket.send(
         JSON.stringify({
           color: identity.color,
@@ -411,6 +563,12 @@ export function PressReleaseEditorPage({
       if (isApplyingRemoteRef.current || !transaction.docChanged) {
         return;
       }
+
+      lastEditorSelectionRef.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      };
+      lastEditorHadFocusRef.current = safeEditorHasFocus(editor);
 
       setSaveStatus("dirty");
       sendPendingSteps(editor);
@@ -456,7 +614,7 @@ export function PressReleaseEditorPage({
     setSaveStatus("saving");
 
     try {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions/${revisionId}/restore`, {
+      const response = await fetch(`${BASE_URL}/press-releases/${pressReleaseId}/revisions/${revisionId}/restore`, {
         method: "POST",
       });
 
@@ -464,8 +622,8 @@ export function PressReleaseEditorPage({
         throw new Error("変更履歴の復元に失敗しました");
       }
 
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      await queryClient.invalidateQueries({ queryKey: REVISIONS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: buildPressReleaseQueryKey(pressReleaseId) });
+      await queryClient.invalidateQueries({ queryKey: buildPressReleaseRevisionsQueryKey(pressReleaseId) });
       setSaveStatus("saved");
     } catch (restoreError) {
       setSaveStatus("error");
@@ -536,6 +694,7 @@ export function PressReleaseEditorPage({
       setActiveThreadId(threadId);
       setSidebarTab("comments");
     },
+    pressReleaseId,
     requestFlush,
     session,
   });
@@ -562,8 +721,10 @@ export function PressReleaseEditorPage({
   });
 
   const { aiAssistant, handleJumpToSuggestion } = useAiRecommendations({
+    aiEditMemory,
     editor,
     pendingAiSuggestionsRef,
+    pressReleaseId,
     setActiveAiSuggestionId,
     setPendingAiSuggestions,
     title,
@@ -627,6 +788,11 @@ export function PressReleaseEditorPage({
     chain.toggleUnderline().run();
   };
 
+  const setLineHeight = (lineHeight: string) => {
+    const nextValue = lineHeight === "" ? null : lineHeight;
+    editor.chain().focus().setLineHeight(nextValue).run();
+  };
+
   const toolbarGroups: ToolbarGroupConfig[] = [
     {
       buttons: MARK_BUTTONS.map((button) => ({
@@ -637,6 +803,30 @@ export function PressReleaseEditorPage({
         onClick: () => toggleMark(button.key),
       })),
       label: "書式",
+    },
+    {
+      buttons: [
+        {
+          key: "line-height-select",
+          label: "行間",
+          tooltip: "行間",
+          type: "select",
+          value: markState?.lineHeight ?? "",
+          options: [
+            { label: "既定", value: "" },
+            { label: "1.2", value: "1.2" },
+            { label: "1.3", value: "1.3" },
+            { label: "1.4", value: "1.4" },
+            { label: "1.5", value: "1.5" },
+            { label: "1.6", value: "1.6" },
+            { label: "1.7", value: "1.7" },
+            { label: "1.8", value: "1.8" },
+            { label: "2.0", value: "2.0" },
+          ],
+          onChange: (value) => setLineHeight(value),
+        },
+      ],
+      label: "行間",
     },
     {
       buttons: [
@@ -736,6 +926,8 @@ export function PressReleaseEditorPage({
           style={{ gridTemplateColumns: `minmax(0, 1fr) 12px ${sidebarWidth}px` }}
         >
           <EditorWorkspace
+            aiSettingSuggestions={aiAssistant.aiSettingSuggestions}
+            aiSettings={aiAssistant.aiSettings}
             editor={editor}
             fileInputRef={fileInputRef}
             handleDragEnter={handleDragEnter}
@@ -748,7 +940,11 @@ export function PressReleaseEditorPage({
             isDraggingImage={isDraggingImage}
             isUploadingImage={isUploadingImage}
             onTitleChange={handleTitleChange}
+            onReturnToList={onReturnToList}
+            pressReleaseId={pressReleaseId}
+            setAiSettingText={aiAssistant.setAiSettingText}
             title={title}
+            toggleAiSettingListValue={aiAssistant.toggleAiSettingListValue}
             toolbarGroups={toolbarGroups}
           />
 
@@ -764,7 +960,7 @@ export function PressReleaseEditorPage({
             <EditorSidebar
               activeThreadId={activeThreadId}
               addReply={handleAddReply}
-              autoRecommendLineDelta={aiAssistant.autoRecommendStatus?.lineDelta ?? null}
+              autoRecommendDiffSize={aiAssistant.autoRecommendStatus?.diffSize ?? null}
               cancelCreateComment={() => {
                 setIsCreatingComment(false);
                 setNewCommentBody("");

@@ -1,6 +1,12 @@
-import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
-import type { AiAgentSettings, ConversationHistoryEntry } from "../hooks/useAiAssistant";
-import type { AgentDocumentEditOperation, AgentDocumentEditResult, AgentDocumentEditSuggestion, PressReleaseResponse } from "../types";
+import { BASE_URL } from "../constants";
+import type { AiAgentSettings, AiEditMemoryEntry, ConversationHistoryEntry } from "../hooks/useAiAssistant";
+import type {
+  AgentDocumentEditOperation,
+  AgentDocumentEditResult,
+  AgentDocumentEditSuggestion,
+  AiTagSuggestResult,
+  PressReleaseResponse,
+} from "../types";
 
 function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocumentEditOperation {
   if (typeof value !== "object" || value === null) {
@@ -18,6 +24,10 @@ function isValidAgentDocumentEditOperation(value: unknown): value is AgentDocume
 
   if (operation.op === "modify") {
     return typeof operation.block_id === "string" && "after" in operation;
+  }
+
+  if (operation.op === "title_modify") {
+    return typeof operation.after_title === "string";
   }
 
   return false;
@@ -106,6 +116,7 @@ function serializeAiSettings(settings: AiAgentSettings): Record<string, unknown>
     writing_style: normalizeSettingText(settings.writingStyle),
     tone: normalizeSettingText(settings.tone),
     brand_voice: normalizeSettingText(settings.brandVoice),
+    consistency_policy: normalizeSettingText(settings.consistencyPolicy),
     focus_points: settings.focusPoints.length > 0 ? settings.focusPoints : undefined,
     priority_checks: settings.priorityChecks.length > 0 ? settings.priorityChecks : undefined,
   };
@@ -113,14 +124,32 @@ function serializeAiSettings(settings: AiAgentSettings): Record<string, unknown>
   return Object.values(payload).some((value) => value !== undefined) ? payload : undefined;
 }
 
+function serializeAiEditMemory(memory: AiEditMemoryEntry[]): Record<string, unknown>[] | undefined {
+  if (memory.length === 0) {
+    return undefined;
+  }
+
+  return memory.slice(-12).map((entry) => ({
+    decision: entry.decision,
+    prompt: entry.prompt,
+    suggestion_summary: entry.suggestionSummary,
+    suggestion_reason: entry.suggestionReason?.trim() || undefined,
+    operation_reasons: entry.operationReasons.length > 0 ? entry.operationReasons : undefined,
+    target_hint: entry.targetHint?.trim() || undefined,
+    created_at: entry.createdAt,
+  }));
+}
+
 export async function requestDocumentEdit(params: {
+  pressReleaseId: number;
   prompt: string;
   editor: { getJSON: () => Record<string, unknown> };
   title: string;
   conversationHistory: ConversationHistoryEntry[];
   aiSettings: AiAgentSettings;
+  aiEditMemory: AiEditMemoryEntry[];
 }): Promise<AgentDocumentEditResult> {
-  const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/ai-edit`, {
+  const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-edit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -131,6 +160,7 @@ export async function requestDocumentEdit(params: {
       content: params.editor.getJSON(),
       conversation_history: params.conversationHistory,
       ai_settings: serializeAiSettings(params.aiSettings),
+      edit_memory: serializeAiEditMemory(params.aiEditMemory),
     }),
   });
 
@@ -154,4 +184,63 @@ export async function requestDocumentEdit(params: {
   }
 
   return normalized;
+}
+
+export async function requestTagSuggestions(params: {
+  pressReleaseId: number;
+  editor: { getJSON: () => Record<string, unknown> };
+  title: string;
+  aiSettings: AiAgentSettings;
+}): Promise<AiTagSuggestResult> {
+  const response = await fetch(`${BASE_URL}/press-releases/${params.pressReleaseId}/ai-tags`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: params.title,
+      content: params.editor.getJSON(),
+      ai_settings: serializeAiSettings(params.aiSettings),
+    }),
+  });
+
+  const responseBody = (await response.json()) as
+    | AiTagSuggestResult
+    | PressReleaseResponse
+    | { message?: string }
+    | undefined;
+
+  if (!response.ok) {
+    const message =
+      responseBody && typeof responseBody === "object" && "message" in responseBody && typeof responseBody.message === "string"
+        ? responseBody.message
+        : `AIタグ提案の取得に失敗しました (${response.status})`;
+    throw new Error(message);
+  }
+
+  if (
+    !responseBody ||
+    typeof responseBody !== "object" ||
+    !("summary" in responseBody) ||
+    typeof responseBody.summary !== "string" ||
+    !("tags" in responseBody) ||
+    !Array.isArray(responseBody.tags)
+  ) {
+    throw new Error("AIタグ提案のレスポンス形式が不正です");
+  }
+
+  return {
+    summary: responseBody.summary,
+    tags: responseBody.tags
+      .filter(
+        (tag): tag is { label: string; reason: string } =>
+          typeof tag === "object" &&
+          tag !== null &&
+          "label" in tag &&
+          typeof tag.label === "string" &&
+          "reason" in tag &&
+          typeof tag.reason === "string",
+      )
+      .slice(0, 5),
+  };
 }

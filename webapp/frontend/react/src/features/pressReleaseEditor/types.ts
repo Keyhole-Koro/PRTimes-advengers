@@ -7,6 +7,8 @@ export type PressReleaseResponse = {
   title: string;
   content: JSONContent;
   version: number;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type PressRelease = {
@@ -69,13 +71,27 @@ export type CommentMessageResponse = {
 
 export type SidebarTab = "history" | "comments" | "ai";
 
-export type ToolbarButtonConfig = {
-  key: string;
-  label: string;
-  tooltip?: string;
-  isActive: boolean;
-  onClick: () => void;
-};
+export type ToolbarButtonConfig =
+  | {
+      key: string;
+      label: string;
+      tooltip?: string;
+      isActive: boolean;
+      onClick: () => void;
+      type?: "button";
+    }
+  | {
+      key: string;
+      label: string;
+      tooltip?: string;
+      type: "select";
+      value: string;
+      options: Array<{
+        label: string;
+        value: string;
+      }>;
+      onChange: (value: string) => void;
+    };
 
 export type ToolbarGroupConfig = {
   label: string;
@@ -127,6 +143,12 @@ export type AgentDocumentEditOperation =
       before?: AgentDocumentBlock;
       after: AgentDocumentBlock;
       reason?: string;
+    }
+  | {
+      op: "title_modify";
+      before_title?: string;
+      after_title: string;
+      reason?: string;
     };
 
 export type AgentDocumentSuggestionCategory =
@@ -154,6 +176,16 @@ export type AgentDocumentEditResult = {
   navigation_label: string;
   suggestions: AgentDocumentEditSuggestion[];
   notes?: string[];
+};
+
+export type AiTagSuggestion = {
+  label: string;
+  reason: string;
+};
+
+export type AiTagSuggestResult = {
+  summary: string;
+  tags: AiTagSuggestion[];
 };
 
 export type PendingAiSuggestion = {

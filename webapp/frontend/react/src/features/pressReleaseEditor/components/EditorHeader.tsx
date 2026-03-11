@@ -1,14 +1,14 @@
 import type { SaveStatus } from "../types";
 
 type EditorHeaderProps = {
-  autoRecommendLineDelta: number | null;
+  autoRecommendDiffSize: number | null;
   remoteUserCount: number;
   saveStatus: SaveStatus;
   version: number;
 };
 
 export function EditorHeader({
-  autoRecommendLineDelta,
+  autoRecommendDiffSize,
   remoteUserCount,
   saveStatus,
   version,
@@ -34,10 +34,10 @@ export function EditorHeader({
               <span className="statusMeta">{`編集中 ${activeEditors}人`}</span>
               <span className="statusMeta">{`v${version}`}</span>
             </div>
-            {autoRecommendLineDelta !== null && (
+            {autoRecommendDiffSize !== null && (
               <div className="statusMetaRow">
                 <span className="statusMeta statusMeta-ai">AIが差分確認中</span>
-                <span className="statusMeta statusMeta-ai">{`行数差分 ${autoRecommendLineDelta}行`}</span>
+                <span className="statusMeta statusMeta-ai">{`推定差分 ${autoRecommendDiffSize}文字`}</span>
               </div>
             )}
           </div>

@@ -7,7 +7,7 @@
     "context": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference_docs", "uploaded_materials"],
+      "required": ["reference_docs", "uploaded_materials", "edit_history"],
       "properties": {
         "reference_docs": {
           "type": "array",
@@ -16,6 +16,10 @@
         "uploaded_materials": {
           "type": "array",
           "items": { "$ref": "#/$defs/contextDocument" }
+        },
+        "edit_history": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/editHistoryEntry" }
         }
       }
     },
@@ -72,6 +76,26 @@
         "title": { "type": "string" },
         "content": { "type": "string" },
         "source_type": { "type": "string" }
+      }
+    },
+    "editHistoryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "suggestion_summary", "created_at"],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["accepted", "dismissed"]
+        },
+        "prompt": { "type": "string" },
+        "suggestion_summary": { "type": "string" },
+        "suggestion_reason": { "type": "string" },
+        "operation_reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "target_hint": { "type": "string" },
+        "created_at": { "type": "string" }
       }
     },
     "documentBlock": {

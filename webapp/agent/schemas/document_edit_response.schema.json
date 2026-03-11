@@ -76,6 +76,17 @@
         "reason": { "type": "string" }
       }
     },
+    "titleModifyOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "after_title"],
+      "properties": {
+        "op": { "const": "title_modify" },
+        "before_title": { "type": "string" },
+        "after_title": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
     "suggestion": {
       "type": "object",
       "additionalProperties": false,
@@ -99,7 +110,8 @@
             "oneOf": [
               { "$ref": "#/$defs/addOperation" },
               { "$ref": "#/$defs/removeOperation" },
-              { "$ref": "#/$defs/modifyOperation" }
+              { "$ref": "#/$defs/modifyOperation" },
+              { "$ref": "#/$defs/titleModifyOperation" }
             ]
           }
         }

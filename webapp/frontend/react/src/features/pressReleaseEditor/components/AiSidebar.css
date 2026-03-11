@@ -499,6 +499,10 @@
   gap: 4px;
 }
 
+.aiSettingsField-wide {
+  grid-column: 1 / -1;
+}
+
 .aiSettingsLabel {
   font-size: 12px;
   font-weight: 700;
@@ -506,7 +510,8 @@
 }
 
 .aiSettingsInput,
-.aiSettingsSelect {
+.aiSettingsSelect,
+.aiSettingsTextarea {
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
@@ -520,9 +525,15 @@
 }
 
 .aiSettingsInput:focus,
-.aiSettingsSelect:focus {
+.aiSettingsSelect:focus,
+.aiSettingsTextarea:focus {
   outline: 2px solid rgba(29, 78, 216, 0.16);
   border-color: #2563eb;
+}
+
+.aiSettingsTextarea {
+  resize: vertical;
+  min-height: 72px;
 }
 
 .aiSettingsGroup {

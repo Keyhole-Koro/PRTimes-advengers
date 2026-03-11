@@ -1,5 +1,12 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family:
+    "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN",
+    "Yu Gothic",
+    "Yu Gothic UI",
+    "Noto Sans JP",
+    Meiryo,
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -29,6 +36,7 @@ body {
   margin: 0;
   min-width: 320px;
   overflow: hidden;
+  font-family: inherit;
 }
 
 #root {

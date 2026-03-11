@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/pool.js'
 import type {
+  CreatePressReleaseInput,
   PressReleaseContent,
   PressReleaseRecord,
   PressReleaseRevisionRecord,
@@ -31,6 +32,19 @@ type UpdateResult =
   | { status: 'version_conflict'; pressRelease: PressReleaseRecord }
 
 export class PressReleaseRepository {
+  async findAll(): Promise<PressReleaseRecord[]> {
+    const pool = getPool()
+    const result = await pool.query<PressReleaseRow>(
+      `
+        SELECT id, title, content, version, created_at, updated_at
+        FROM press_releases
+        ORDER BY updated_at DESC, id DESC
+      `
+    )
+
+    return result.rows.map(mapRow)
+  }
+
   async findById(id: number): Promise<PressReleaseRecord | null> {
     const pool = getPool()
     const result = await pool.query<PressReleaseRow>(
@@ -95,6 +109,31 @@ export class PressReleaseRepository {
     } finally {
       client.release()
     }
+  }
+
+  async create(input: CreatePressReleaseInput): Promise<PressReleaseRecord> {
+    const pool = getPool()
+    const result = await pool.query<PressReleaseRow>(
+      `
+        INSERT INTO press_releases (title, content, version, created_at, updated_at)
+        VALUES ($1, $2::jsonb, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING id, title, content, version, created_at, updated_at
+      `,
+      [input.title, JSON.stringify(input.content)]
+    )
+
+    const created = mapRow(result.rows[0])
+
+    await pool.query(
+      `
+        INSERT INTO press_release_revisions (press_release_id, version, title, content, created_at)
+        VALUES ($1, $2, $3, $4::jsonb, $5)
+        ON CONFLICT (press_release_id, version) DO NOTHING
+      `,
+      [created.id, created.version, created.title, JSON.stringify(created.content), created.updatedAt]
+    )
+
+    return created
   }
 
   async findRevisionsByPressReleaseId(id: number): Promise<PressReleaseRevisionRecord[]> {

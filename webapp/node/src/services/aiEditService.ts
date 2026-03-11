@@ -1,5 +1,7 @@
 import type {
   AiEditSettings,
+  AiEditMemoryEntry,
+  AiTagSuggestResult,
   AgentDocumentBlock,
   AgentDocumentEditOperation,
   AgentDocumentEditResult,
@@ -112,8 +114,21 @@ function buildAgentInstructions(prompt: string, settings: AiEditSettings | undef
     style: settings?.writing_style?.trim() || undefined,
     tone: settings?.tone?.trim() || undefined,
     brand_voice: settings?.brand_voice?.trim() || undefined,
+    consistency_policy: settings?.consistency_policy?.trim() || undefined,
     focus_points: normalizeSettingList(settings?.focus_points),
     priority_checks: normalizeSettingList(settings?.priority_checks),
+  }
+}
+
+function normalizeEditMemoryEntry(entry: AiEditMemoryEntry): Record<string, unknown> {
+  return {
+    decision: entry.decision,
+    prompt: entry.prompt?.trim() || undefined,
+    suggestion_summary: entry.suggestion_summary.trim(),
+    suggestion_reason: entry.suggestion_reason?.trim() || undefined,
+    operation_reasons: normalizeSettingList(entry.operation_reasons),
+    target_hint: entry.target_hint?.trim() || undefined,
+    created_at: entry.created_at,
   }
 }
 
@@ -126,6 +141,7 @@ type DeterministicInstruction = {
 const INLINE_ELIGIBLE_CATEGORIES = new Set<AgentDocumentEditSuggestion['category']>(['body', 'readability'])
 const INLINE_MAX_CHANGED_FRAGMENT_LENGTH = 24
 const INLINE_MAX_BLOCK_TEXT_LENGTH = 180
+const MAX_VISIBLE_SUGGESTIONS = 2
 
 function getChangedFragments(beforeText: string, afterText: string): { before: string; after: string } {
   let prefixLength = 0
@@ -200,7 +216,22 @@ function normalizeSuggestionPresentation(suggestion: AgentDocumentEditSuggestion
 function normalizeEditResult(result: AgentDocumentEditResult): AgentDocumentEditResult {
   return {
     ...result,
-    suggestions: result.suggestions.map(normalizeSuggestionPresentation),
+    suggestions: result.suggestions.map(normalizeSuggestionPresentation).slice(0, MAX_VISIBLE_SUGGESTIONS),
+  }
+}
+
+function normalizeTagSuggestResult(result: AiTagSuggestResult): AiTagSuggestResult {
+  const tags = result.tags
+    .map((tag) => ({
+      label: tag.label.startsWith('#') ? tag.label : `#${tag.label}`,
+      reason: tag.reason,
+    }))
+    .filter((tag, index, array) => tag.label.trim() !== '' && array.findIndex((item) => item.label === tag.label) === index)
+    .slice(0, 5)
+
+  return {
+    summary: result.summary,
+    tags,
   }
 }
 
@@ -313,13 +344,14 @@ export class AiEditService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          context: {
-            reference_docs: [],
-            uploaded_materials: [],
-          },
-          document: {
-            title: input.title,
+      body: JSON.stringify({
+        context: {
+          reference_docs: [],
+          uploaded_materials: [],
+          edit_history: (input.edit_memory ?? []).slice(-12).map(normalizeEditMemoryEntry),
+        },
+        document: {
+          title: input.title,
             blocks: buildAgentBlocks(input.content),
           },
           instructions: buildAgentInstructions(input.prompt, input.ai_settings),
@@ -346,6 +378,45 @@ export class AiEditService {
     }
 
     return normalizeEditResult(payload.result)
+  }
+
+  async requestTagSuggestions(input: RequestAiEditInput): Promise<AiTagSuggestResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.agentBaseUrl}/agent/tasks/tag_suggest:run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document: {
+            title: input.title,
+            blocks: buildAgentBlocks(input.content),
+          },
+          instructions: buildAgentInstructions('タグ候補を提案してください。', input.ai_settings),
+        }),
+      })
+    } catch (error) {
+      throw new AiEditServiceError(
+        error instanceof Error ? error.message : 'Agent request failed.',
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    const payload = await response.json().catch(() => null) as
+      | { result?: AiTagSuggestResult; message?: string }
+      | null
+
+    if (!response.ok || !payload?.result) {
+      throw new AiEditServiceError(
+        payload?.message ?? `Agent request failed with status ${response.status}`,
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    return normalizeTagSuggestResult(payload.result)
   }
 }
 

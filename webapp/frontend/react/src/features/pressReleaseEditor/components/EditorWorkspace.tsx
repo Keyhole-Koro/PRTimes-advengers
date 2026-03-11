@@ -1,12 +1,19 @@
-import { EditorContent, type Editor } from "@tiptap/react";
+import { EditorContent, type Editor, useEditorState } from "@tiptap/react";
 import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
-import { Bot, Check, Plus, Tag, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Eye, PencilLine, Plus, Sparkles, Tag, Trash2 } from "lucide-react";
 
-import type { ToolbarGroupConfig } from "../types";
+import type { AiAgentSettings, AiSettingSuggestion } from "../hooks/useAiAssistant";
+import { requestTagSuggestions } from "../infrastructure/aiApi";
+import type { AiTagSuggestion, ToolbarGroupConfig } from "../types";
 import { EditorToolbar } from "./EditorToolbar";
 
+type AiTextField = "targetAudience" | "writingStyle" | "tone" | "brandVoice";
+type AiListField = "focusPoints" | "priorityChecks";
+
 type EditorWorkspaceProps = {
+  aiSettingSuggestions: AiSettingSuggestion[];
+  aiSettings: AiAgentSettings;
   editor: Editor;
   fileInputRef: RefObject<HTMLInputElement | null>;
   handleDragEnter: (event: DragEvent<HTMLDivElement>) => void;
@@ -19,7 +26,11 @@ type EditorWorkspaceProps = {
   isDraggingImage: boolean;
   isUploadingImage: boolean;
   onTitleChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onReturnToList: () => void;
+  pressReleaseId: number;
+  setAiSettingText: (field: AiTextField, value: string) => void;
   title: string;
+  toggleAiSettingListValue: (field: AiListField, value: string) => void;
   toolbarGroups: ToolbarGroupConfig[];
 };
 
@@ -37,6 +48,8 @@ function normalizeMetaValue(value: string, withHash = false): string {
 }
 
 export function EditorWorkspace({
+  aiSettingSuggestions,
+  aiSettings,
   editor,
   fileInputRef,
   handleDragEnter,
@@ -49,11 +62,16 @@ export function EditorWorkspace({
   isDraggingImage,
   isUploadingImage,
   onTitleChange,
+  onReturnToList,
+  pressReleaseId,
+  setAiSettingText,
   title,
+  toggleAiSettingListValue,
   toolbarGroups,
 }: EditorWorkspaceProps) {
   const metaWidthStorageKey = "press-release-editor-meta-width";
   const contentLayoutRef = useRef<HTMLDivElement | null>(null);
+  const [canvasMode, setCanvasMode] = useState<"edit" | "preview">("edit");
   const [metaPanelWidth, setMetaPanelWidth] = useState(() => {
     if (typeof window === "undefined") {
       return 300;
@@ -64,7 +82,20 @@ export function EditorWorkspace({
   });
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["#PR"]);
-  const [suggestedTags, setSuggestedTags] = useState<string[]>(["#AI", "#ドラフト"]);
+  const [dismissedSuggestedTags, setDismissedSuggestedTags] = useState<string[]>([]);
+  const [aiTagSuggestions, setAiTagSuggestions] = useState<AiTagSuggestion[]>([]);
+  const previewHtml = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => currentEditor?.getHTML() ?? "",
+  });
+  const editorText = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => currentEditor?.getText({ blockSeparator: "\n" }) ?? "",
+  });
+  const suggestedTags = useMemo(
+    () => aiTagSuggestions.filter((tag) => !tags.includes(tag.label) && !dismissedSuggestedTags.includes(tag.label)),
+    [aiTagSuggestions, dismissedSuggestedTags, tags],
+  );
 
   const addTag = () => {
     const nextTag = normalizeMetaValue(tagInput, true);
@@ -77,11 +108,11 @@ export function EditorWorkspace({
 
   const applySuggestedTag = (tag: string) => {
     setTags((current) => (current.includes(tag) ? current : [...current, tag]));
-    setSuggestedTags((current) => current.filter((item) => item !== tag));
+    setDismissedSuggestedTags((current) => current.filter((item) => item !== tag));
   };
 
   const discardSuggestedTag = (tag: string) => {
-    setSuggestedTags((current) => current.filter((item) => item !== tag));
+    setDismissedSuggestedTags((current) => (current.includes(tag) ? current : [...current, tag]));
   };
 
   useEffect(() => {
@@ -90,6 +121,32 @@ export function EditorWorkspace({
     }
     window.localStorage.setItem(metaWidthStorageKey, String(metaPanelWidth));
   }, [metaPanelWidth]);
+
+  useEffect(() => {
+    if (!title.trim() && !editorText.trim()) {
+      setAiTagSuggestions([]);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void requestTagSuggestions({
+        pressReleaseId,
+        editor,
+        title,
+        aiSettings,
+      })
+        .then((result) => {
+          setAiTagSuggestions(result.tags);
+        })
+        .catch(() => {
+          setAiTagSuggestions([]);
+        });
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [aiSettings, editor, editorText, pressReleaseId, title]);
 
   const handleMetaResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     const layout = contentLayoutRef.current;
@@ -124,6 +181,9 @@ export function EditorWorkspace({
   return (
     <div className="editorWrapper">
       <div className="titleInputWrapper">
+        <button type="button" className="pressReleaseBackButton pressReleaseBackButton-inline" onClick={onReturnToList}>
+          一覧へ戻る
+        </button>
         <input
           type="text"
           value={title}
@@ -134,6 +194,64 @@ export function EditorWorkspace({
       </div>
 
       <EditorToolbar toolbarGroups={toolbarGroups} />
+
+      {aiSettingSuggestions.length > 0 && (
+        <section className="editorAiAssistStrip" aria-label="AI設定の補助提案">
+          <div className="editorAiAssistHeader">
+            <span className="editorAiAssistBadge">
+              <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
+              推測
+            </span>
+            <p className="editorAiAssistText">未設定のAI方針を本文から補っています。</p>
+          </div>
+          <div className="editorAiAssistList">
+            {aiSettingSuggestions.map((suggestion) => (
+              <article key={suggestion.field} className="editorAiAssistCard">
+                <strong className="editorAiAssistPrompt">{suggestion.prompt}</strong>
+                <div className="editorAiAssistOptions">
+                  {suggestion.options.map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      className="editorAiAssistOption"
+                      onClick={() => {
+                        if (suggestion.field === "focusPoints" || suggestion.field === "priorityChecks") {
+                          toggleAiSettingListValue(suggestion.field, option.value);
+                          return;
+                        }
+                        setAiSettingText(suggestion.field, option.value);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="editorCanvasTabsRow">
+        <div className="editorCanvasTabs" role="tablist" aria-label="編集ビュー切替">
+          <button
+            type="button"
+            className={`editorCanvasTab${canvasMode === "edit" ? " is-active" : ""}`}
+            onClick={() => setCanvasMode("edit")}
+          >
+            <PencilLine className="editorMetaChipIcon" aria-hidden="true" />
+            編集
+          </button>
+          <button
+            type="button"
+            className={`editorCanvasTab${canvasMode === "preview" ? " is-active" : ""}`}
+            onClick={() => setCanvasMode("preview")}
+          >
+            <Eye className="editorMetaChipIcon" aria-hidden="true" />
+            プレビュー
+          </button>
+        </div>
+      </div>
 
       <input
         ref={fileInputRef}
@@ -209,26 +327,26 @@ export function EditorWorkspace({
                     <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
                   )}
                   {suggestedTags.map((tag) => (
-                    <div key={tag} className="editorMetaSuggestionItem">
+                    <div key={tag.label} className="editorMetaSuggestionItem">
                       <div className="editorMetaSuggestionBody">
                         <div className="editorMetaSuggestionSummary">
                           <span className="editorMetaSuggestionBadge">
-                            <Bot className="editorMetaChipIcon" aria-hidden="true" />
+                            <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
                             AI提案
                           </span>
                           <strong className="editorMetaSuggestionValue">
                             <Tag className="editorMetaChipIcon" aria-hidden="true" />
-                            {tag}
+                            {tag.label}
                           </strong>
                         </div>
-                        <p className="editorMetaSuggestionDescription">反映するとタグに追加されます</p>
+                        <p className="editorMetaSuggestionDescription">{tag.reason}</p>
                       </div>
                       <div className="editorMetaSuggestionActions">
-                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag)}>
+                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag.label)}>
                           <Plus className="editorMetaActionIcon" aria-hidden="true" />
                           追加する
                         </button>
-                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag)}>
+                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag.label)}>
                           <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
                           見送る
                         </button>
@@ -256,7 +374,13 @@ export function EditorWorkspace({
           onDragLeave={handleDragLeave}
           onDrop={(event) => void handleDrop(event)}
         >
-          <EditorContent editor={editor} />
+          {canvasMode === "edit" ? (
+            <EditorContent editor={editor} />
+          ) : (
+            <section className="editorPreviewPane" aria-label="記事プレビュー">
+              <div className="editorPreviewContent" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            </section>
+          )}
         </div>
       </div>
     </div>

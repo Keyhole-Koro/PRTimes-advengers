@@ -123,6 +123,10 @@ function applyOperations(document: JSONContent, operations: AgentDocumentEditOpe
   const indexedNodes = buildIndexedNodes(document);
 
   for (const operation of operations) {
+    if (operation.op === "title_modify") {
+      continue;
+    }
+
     if (operation.op === "add") {
       const targetIndex = operation.after_block_id === null ? 0 : findIndexByBlockId(indexedNodes, operation.after_block_id) + 1;
       indexedNodes.splice(targetIndex < 0 ? indexedNodes.length : targetIndex, 0, {
@@ -161,4 +165,9 @@ export function applyAgentDocumentOperation(document: JSONContent, operation: Ag
 
 export function applyAgentDocumentSuggestion(document: JSONContent, suggestion: AgentDocumentEditSuggestion): JSONContent {
   return applyOperations(document, suggestion.operations);
+}
+
+export function getSuggestedTitle(operations: AgentDocumentEditOperation[]): string | null {
+  const titleOperation = operations.find((operation) => operation.op === "title_modify");
+  return titleOperation?.op === "title_modify" ? titleOperation.after_title : null;
 }

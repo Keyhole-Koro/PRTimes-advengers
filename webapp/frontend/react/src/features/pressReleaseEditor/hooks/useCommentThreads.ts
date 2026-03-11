@@ -1,13 +1,14 @@
 import type { Editor } from "@tiptap/react";
 import { useEffect, useState } from "react";
 
-import { BASE_URL, PRESS_RELEASE_ID } from "../constants";
+import { BASE_URL } from "../constants";
 import type { CommentThreadResponse, SessionState } from "../types";
 
 type UseCommentThreadsOptions = {
   createdBy: string;
   editor: Editor | null;
   onCommentCreated: (threadId: number) => void;
+  pressReleaseId: number;
   requestFlush: () => void;
   session: SessionState | null;
 };
@@ -16,6 +17,7 @@ export function useCommentThreads({
   createdBy,
   editor,
   onCommentCreated,
+  pressReleaseId,
   requestFlush,
   session,
 }: UseCommentThreadsOptions) {
@@ -29,7 +31,7 @@ export function useCommentThreads({
   const fetchComments = async () => {
     try {
       const response = await fetch(
-        `${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/comments?includeResolved=${showResolvedComments}`,
+        `${BASE_URL}/press-releases/${pressReleaseId}/comments?includeResolved=${showResolvedComments}`,
       );
       if (response.ok) {
         setCommentThreads((await response.json()) as CommentThreadResponse[]);
@@ -60,7 +62,7 @@ export function useCommentThreads({
     const quote = editor.state.doc.textBetween(from, to, " ");
 
     try {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/comments`, {
+      const response = await fetch(`${BASE_URL}/press-releases/${pressReleaseId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

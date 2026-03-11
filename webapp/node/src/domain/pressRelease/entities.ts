@@ -1,4 +1,5 @@
 export type {
+  CreatePressReleaseInput,
   PressReleaseContent,
   PressReleaseRecord,
   PressReleaseResponse,

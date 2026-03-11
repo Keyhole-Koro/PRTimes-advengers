@@ -85,11 +85,35 @@ function createOperationDiff(
   const target = document.createElement("span");
   target.className = "aiSuggestionDiffTarget";
   target.textContent =
-    operation.op === "add" ? operation.block.id : operation.block_id;
+    operation.op === "add" ? operation.block.id : operation.op === "title_modify" ? "title" : operation.block_id;
   header.append(target);
   card.append(header);
 
-  if (operation.op === "modify") {
+  if (operation.op === "title_modify") {
+    const before = document.createElement("div");
+    before.className = "aiSuggestionDiffBlock";
+    const beforeLabel = document.createElement("p");
+    beforeLabel.className = "aiSuggestionDiffBlockLabel";
+    beforeLabel.textContent = "Before";
+    before.append(beforeLabel);
+    const beforeBody = document.createElement("div");
+    beforeBody.className = "aiSuggestionDiffBlockBody";
+    beforeBody.textContent = operation.before_title ?? "";
+    before.append(beforeBody);
+    card.append(before);
+
+    const after = document.createElement("div");
+    after.className = "aiSuggestionDiffBlock";
+    const afterLabel = document.createElement("p");
+    afterLabel.className = "aiSuggestionDiffBlockLabel";
+    afterLabel.textContent = "After";
+    after.append(afterLabel);
+    const afterBody = document.createElement("div");
+    afterBody.className = "aiSuggestionDiffInline";
+    appendDiffSegments(afterBody, operation.before_title ?? "", operation.after_title);
+    after.append(afterBody);
+    card.append(after);
+  } else if (operation.op === "modify") {
     const before = document.createElement("div");
     before.className = "aiSuggestionDiffBlock";
     const beforeLabel = document.createElement("p");
@@ -194,6 +218,22 @@ function isInlineSuggestion(suggestion: PendingAiSuggestion): boolean {
   return suggestion.suggestion.presentation === "inline" && suggestion.suggestion.operations.length === 1;
 }
 
+function getOperationBlockId(operation: PendingAiSuggestion["suggestion"]["operations"][number] | undefined): string | null {
+  if (!operation) {
+    return null;
+  }
+
+  if (operation.op === "add") {
+    return operation.after_block_id;
+  }
+
+  if (operation.op === "modify" || operation.op === "remove") {
+    return operation.block_id;
+  }
+
+  return null;
+}
+
 function getSuggestionAnchorPosition(state: EditorState, suggestion: PendingAiSuggestion): number {
   const positions = buildIndexedBlockPositions(state);
   const operations = suggestion.suggestion?.operations;
@@ -209,6 +249,8 @@ function getSuggestionAnchorPosition(state: EditorState, suggestion: PendingAiSu
   const blockId =
     firstOperation.op === "add"
       ? firstOperation.after_block_id
+      : firstOperation.op === "title_modify"
+        ? null
       : firstOperation.block_id;
 
   if (blockId) {
@@ -218,7 +260,7 @@ function getSuggestionAnchorPosition(state: EditorState, suggestion: PendingAiSu
     }
   }
 
-  return positions[0]?.to ?? state.doc.content.size;
+  return positions[0]?.from ?? 0;
 }
 
 function createSuggestionWidget(
@@ -378,11 +420,16 @@ function createInlineSuggestionBubble(
       removed.className = "aiSuggestionInlineMeta";
       removed.textContent = `削除候補: ${operation.removed_block?.text ?? operation.block_id}`;
       bubble.append(removed);
-    } else {
+    } else if (operation.op === "add") {
       const added = document.createElement("p");
       added.className = "aiSuggestionInlineMeta";
       added.textContent = `追加候補: ${operation.block.text}`;
       bubble.append(added);
+    } else {
+      const titleChange = document.createElement("p");
+      titleChange.className = "aiSuggestionInlineMeta";
+      titleChange.textContent = `タイトル候補: ${operation.after_title}`;
+      bubble.append(titleChange);
     }
 
     const reason = operation.reason || suggestion.suggestion.reason;
@@ -458,7 +505,7 @@ function buildDecorations(state: EditorState, pluginState: SuggestionDecorationS
     }
 
     const operation = suggestion.suggestion.operations[0];
-    const blockId = operation?.op === "add" ? operation.after_block_id : operation?.block_id;
+    const blockId = getOperationBlockId(operation);
     if (!blockId) {
       inlineToneIndexBySuggestionId.set(suggestion.id, 0);
       return;
@@ -479,7 +526,7 @@ function buildDecorations(state: EditorState, pluginState: SuggestionDecorationS
 
     if (isInlineSuggestion(suggestion)) {
       const operation = suggestion.suggestion.operations[0];
-      const blockId = operation?.op === "add" ? operation.after_block_id : operation?.block_id;
+      const blockId = getOperationBlockId(operation);
       const target = blockId ? positions.find((item) => item.id === blockId) : null;
       const toneIndex = inlineToneIndexBySuggestionId.get(suggestion.id) ?? 0;
       const inlineDecorations = [];

@@ -1,13 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { BASE_URL, PRESS_RELEASE_ID, QUERY_KEY, REVISIONS_QUERY_KEY } from "../constants";
+import { BASE_URL, buildPressReleaseQueryKey, buildPressReleaseRevisionsQueryKey, PRESS_RELEASE_LIST_QUERY_KEY } from "../constants";
 import type { PressReleaseResponse, PressReleaseRevisionResponse } from "../types";
 
-export function usePressReleaseQuery() {
-  return useQuery<PressReleaseResponse>({
-    queryKey: QUERY_KEY,
+export function usePressReleaseListQuery() {
+  return useQuery<PressReleaseResponse[]>({
+    queryKey: PRESS_RELEASE_LIST_QUERY_KEY,
     queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}`);
+      const response = await fetch(`${BASE_URL}/press-releases`);
+      if (!response.ok) {
+        throw new Error(`HTTPエラー: ${response.status}`);
+      }
+      return (await response.json()) as PressReleaseResponse[];
+    },
+  });
+}
+
+export function usePressReleaseQuery(pressReleaseId: number | null) {
+  return useQuery<PressReleaseResponse>({
+    enabled: pressReleaseId !== null,
+    queryKey: pressReleaseId === null ? ["fetch-press-release", "disabled"] : buildPressReleaseQueryKey(pressReleaseId),
+    queryFn: async () => {
+      const response = await fetch(`${BASE_URL}/press-releases/${pressReleaseId}`);
       if (!response.ok) {
         throw new Error(`HTTPエラー: ${response.status}`);
       }
@@ -16,11 +30,12 @@ export function usePressReleaseQuery() {
   });
 }
 
-export function usePressReleaseRevisionsQuery() {
+export function usePressReleaseRevisionsQuery(pressReleaseId: number | null) {
   return useQuery<PressReleaseRevisionResponse[]>({
-    queryKey: REVISIONS_QUERY_KEY,
+    enabled: pressReleaseId !== null,
+    queryKey: pressReleaseId === null ? ["fetch-press-release-revisions", "disabled"] : buildPressReleaseRevisionsQueryKey(pressReleaseId),
     queryFn: async () => {
-      const response = await fetch(`${BASE_URL}/press-releases/${PRESS_RELEASE_ID}/revisions`);
+      const response = await fetch(`${BASE_URL}/press-releases/${pressReleaseId}/revisions`);
       if (!response.ok) {
         throw new Error(`HTTPエラー: ${response.status}`);
       }
@@ -28,4 +43,3 @@ export function usePressReleaseRevisionsQuery() {
     },
   });
 }
-

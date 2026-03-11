@@ -7,3 +7,10 @@ export async function requestDocumentEdit(
 ) {
   return service.requestDocumentEdit(input)
 }
+
+export async function requestTagSuggestions(
+  input: RequestAiEditInput,
+  service: AiEditService = aiEditService,
+) {
+  return service.requestTagSuggestions(input)
+}
