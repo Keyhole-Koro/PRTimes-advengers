@@ -57,3 +57,7 @@ npm run dev
 
 - [webapp/README.md](./webapp/README.md)
 - [DBスキーマと保存フロー](./webapp/docs/db-schema-and-flow.md)
+
+- インフラ構成図
+<img width="2760" height="1504" alt="構成図2" src="https://github.com/user-attachments/assets/4af69606-8876-4e2a-8ede-a0f9ca4596ca" />
+
