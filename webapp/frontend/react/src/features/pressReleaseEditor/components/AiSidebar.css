@@ -282,6 +282,7 @@
   background: #fff;
   border: 1px solid #d0dbe8;
   color: #111827;
+  user-select: none;
 }
 
 .aiMessageHeader {
@@ -350,6 +351,7 @@
   font-weight: 700;
   line-height: 1.4;
   cursor: pointer;
+  user-select: none;
 }
 
 .aiMessageHintButton:hover {
