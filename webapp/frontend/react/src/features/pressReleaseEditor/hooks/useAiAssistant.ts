@@ -3,8 +3,8 @@ import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { diffChars } from "diff";
 import { v4 as uuidv4 } from 'uuid';
-import { normalizeDocumentEditResult, requestDocumentEdit } from "../infrastructure/aiApi";
-import type { AgentDocumentEditResult } from "../types";
+import { normalizeDocumentEditResult, requestAiSettingSuggestions, requestDocumentEdit } from "../infrastructure/aiApi";
+import type { AgentDocumentEditResult, AiSettingSuggestResult } from "../types";
 export type AiAttachmentKind = "image" | "file";
 
 export type AiAttachmentMeta = {
@@ -73,6 +73,12 @@ export type AiSettingSuggestion = {
 export type AiAutoRecommendStatus = {
   diffSize: number;
   startedAt: string;
+};
+
+type SubmitAiRequestOptions = {
+  attachments?: AiAttachmentMeta[];
+  displayText?: string;
+  prompt: string;
 };
 
 type UseAiAssistantOptions = {
@@ -319,80 +325,15 @@ function computeDocumentDiffSize(previousText: string, nextText: string): number
   return diffSize;
 }
 
-function inferAiSettingSuggestions(documentSnapshotText: string, settings: AiAgentSettings): AiSettingSuggestion[] {
-  const normalizedText = documentSnapshotText;
-  const suggestions: AiSettingSuggestion[] = [];
-
-  const hasMediaTerms = /(取材|報道|メディア|発表|お知らせ|公開)/.test(normalizedText);
-  const hasRecruitingTerms = /(採用|募集|インターン|候補者|働く|キャリア)/.test(normalizedText);
-  const hasProductTerms = /(提供開始|リリース|導入|利用|顧客|サービス|製品|機能)/.test(normalizedText);
-  const hasDateOrNumbers = /(\d{4}年|\d{1,2}月|\d+名|\d+円|\d+%)/.test(normalizedText);
-  const hasCallToAction = /(お問い合わせ|詳細|資料請求|お申し込み|こちら)/.test(normalizedText);
-  const hasExclamation = /[!！]/.test(normalizedText);
-  const politeCount = (normalizedText.match(/です|ます/g) ?? []).length;
-
-  if (settings.targetAudience.trim() === "") {
-    const audienceOptions = hasRecruitingTerms
-      ? ["求職者", "採用候補者", "人事担当者"]
-      : hasMediaTerms
-        ? ["記者・メディア関係者", "業界関係者", "投資家・広報関係者"]
-        : hasProductTerms
-          ? ["見込み顧客", "既存顧客", "業界関係者"]
-          : ["業界関係者", "見込み顧客", "記者・メディア関係者"];
-    suggestions.push({
-      field: "targetAudience",
-      prompt: "ターゲット候補",
-      options: audienceOptions.map((option) => ({ label: option, value: option })),
-    });
-  }
-
-  if (settings.writingStyle.trim() === "") {
-    const styleOptions = hasMediaTerms
-      ? ["ニュースライク", "プレスリリース標準", "簡潔"]
-      : hasRecruitingTerms
-        ? ["やわらかめ", "採用向け", "プレスリリース標準"]
-        : ["プレスリリース標準", "簡潔", "やわらかめ"];
-    suggestions.push({
-      field: "writingStyle",
-      prompt: "文章スタイル候補",
-      options: styleOptions.map((option) => ({ label: option, value: option })),
-    });
-  }
-
-  if (settings.tone.trim() === "") {
-    const toneOptions = hasExclamation ? ["力強い", "親しみやすい", "丁寧"] : politeCount >= 3 ? ["丁寧", "落ち着いた", "簡潔"] : ["簡潔", "丁寧", "落ち着いた"];
-    suggestions.push({
-      field: "tone",
-      prompt: "トーン候補",
-      options: toneOptions.map((option) => ({ label: option, value: option })),
-    });
-  }
-
-  if (settings.focusPoints.length === 0) {
-    const focusOptions = hasCallToAction
-      ? ["導入文", "本文構成", "CTA"]
-      : hasProductTerms
-        ? ["タイトル", "導入文", "見出し"]
-        : ["タイトル", "導入文", "本文構成"];
-    suggestions.push({
-      field: "focusPoints",
-      prompt: "重視ポイント候補",
-      options: focusOptions.map((option) => ({ label: option, value: option })),
-    });
-  }
-
-  if (settings.priorityChecks.length === 0) {
-    const checkOptions = hasDateOrNumbers
-      ? ["数字・日付の整合性", "誤字脱字", "表記ゆれ"]
-      : ["誤字脱字", "表記ゆれ", "読みやすさ"];
-    suggestions.push({
-      field: "priorityChecks",
-      prompt: "チェック観点候補",
-      options: checkOptions.map((option) => ({ label: option, value: option })),
-    });
-  }
-
-  return suggestions.slice(0, 4);
+function hasUnsetAiSettings(settings: AiAgentSettings): boolean {
+  return (
+    settings.targetAudience.trim() === "" ||
+    settings.writingStyle.trim() === "" ||
+    settings.tone.trim() === "" ||
+    settings.brandVoice.trim() === "" ||
+    settings.focusPoints.length === 0 ||
+    settings.priorityChecks.length === 0
+  );
 }
 
 export function formatAiMessageTime(isoString: string): string {
@@ -426,6 +367,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
   });
   const [activeAiThreadId, setActiveAiThreadId] = useState<string>(() => aiThreads[0]?.id ?? createAiThread().id);
   const [respondingAiThreadId, setRespondingAiThreadId] = useState<string | null>(null);
+  const [runningChecklistActionLabel, setRunningChecklistActionLabel] = useState<string | null>(null);
   const [aiThreadMenuOpenId, setAiThreadMenuOpenId] = useState<string | null>(null);
   const [isAiHistoryOpen, setIsAiHistoryOpen] = useState(false);
   const [autoRecommendStatus, setAutoRecommendStatus] = useState<AiAutoRecommendStatus | null>(null);
@@ -439,6 +381,8 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
   const aiMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const autoRecommendBaselineTextRef = useRef<string | null>(null);
   const [editorSnapshotText, setEditorSnapshotText] = useState("");
+  const [aiSettingSuggestions, setAiSettingSuggestions] = useState<AiSettingSuggestResult["suggestions"]>([]);
+  const [isAiSettingSuggestionsLoading, setIsAiSettingSuggestionsLoading] = useState(false);
   const pendingAutoRecommendRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const hasRestoredScrollRef = useRef(false);
@@ -452,10 +396,6 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     [activeAiThreadId, aiThreads],
   );
   const activeAiMessages = activeAiThread?.messages ?? [];
-  const aiSettingSuggestions = useMemo(
-    () => inferAiSettingSuggestions(editorSnapshotText, aiSettings),
-    [aiSettings, editorSnapshotText],
-  );
 
   const runAutoRecommend = () => {
     if (!editor || !activeAiThread) {
@@ -608,6 +548,8 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     if (!editor) {
       autoRecommendBaselineTextRef.current = null;
       setEditorSnapshotText("");
+      setAiSettingSuggestions([]);
+      setIsAiSettingSuggestionsLoading(false);
       return;
     }
 
@@ -631,6 +573,54 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
       editor.off("transaction", handleTransaction);
     };
   }, [editor, title]);
+
+  useEffect(() => {
+    if (!editor) {
+      setAiSettingSuggestions([]);
+      setIsAiSettingSuggestionsLoading(false);
+      return;
+    }
+
+    if (!title.trim() && !editorSnapshotText.trim()) {
+      setAiSettingSuggestions([]);
+      setIsAiSettingSuggestionsLoading(false);
+      return;
+    }
+
+    if (!hasUnsetAiSettings(aiSettings)) {
+      setAiSettingSuggestions([]);
+      setIsAiSettingSuggestionsLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setIsAiSettingSuggestionsLoading(true);
+      void requestAiSettingSuggestions({
+        pressReleaseId,
+        editor,
+        title,
+        aiSettings,
+      })
+        .then((result) => {
+          if (!isCancelled) {
+            setAiSettingSuggestions(result.suggestions);
+            setIsAiSettingSuggestionsLoading(false);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setAiSettingSuggestions([]);
+            setIsAiSettingSuggestionsLoading(false);
+          }
+        });
+    }, 700);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [aiSettings, editor, editorSnapshotText, pressReleaseId, title]);
 
   const clearComposerAttachments = () => {
     setComposerAttachments((current) => {
@@ -743,13 +733,12 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     });
   };
 
-  const handleAiEcho = async () => {
+  const submitAiRequest = async ({ attachments = [], displayText, prompt }: SubmitAiRequestOptions) => {
     if (!activeAiThread) {
       return;
     }
 
-    const normalizedPrompt = aiPrompt.trim();
-    const attachments = composerAttachments.map(createAttachmentMeta);
+    const normalizedPrompt = prompt.trim();
     if ((normalizedPrompt === "" && attachments.length === 0) || respondingAiThreadId !== null) {
       return;
     }
@@ -761,23 +750,18 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
 
     autoRecommendBaselineTextRef.current = getDocumentSnapshotText(editor, title);
 
-    const displayText = buildMessageText(normalizedPrompt, attachments);
+    const nextDisplayText = displayText ?? buildMessageText(normalizedPrompt, attachments);
     const effectivePrompt =
       normalizedPrompt !== ""
         ? normalizedPrompt
         : `添付資料を踏まえて文書を編集してください。添付: ${describeAttachments(attachments)}`;
 
     const threadId = activeAiThread.id;
-    const userMessage = createAiMessage("user", displayText);
+    const userMessage = createAiMessage("user", nextDisplayText);
     if (attachments.length > 0) {
       userMessage.attachments = attachments;
     }
     updateThreadMessages(threadId, userMessage);
-
-    setAiPrompt("");
-    clearComposerAttachments();
-    setAiAttachmentError(null);
-    setIsAiAttachMenuOpen(false);
     setRespondingAiThreadId(threadId);
 
     try {
@@ -805,6 +789,44 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
       updateThreadMessages(threadId, createAiMessage("assistant", message));
     } finally {
       setRespondingAiThreadId((current) => (current === threadId ? null : current));
+    }
+  };
+
+  const handleAiEcho = async () => {
+    const normalizedPrompt = aiPrompt.trim();
+    const attachments = composerAttachments.map(createAttachmentMeta);
+    if ((normalizedPrompt === "" && attachments.length === 0) || respondingAiThreadId !== null) {
+      return;
+    }
+
+    setAiPrompt("");
+    clearComposerAttachments();
+    setAiAttachmentError(null);
+    setIsAiAttachMenuOpen(false);
+
+    await submitAiRequest({
+      attachments,
+      prompt: normalizedPrompt,
+    });
+  };
+
+  const handleAiChecklistAction = async (prompt: string, label: string) => {
+    if (respondingAiThreadId !== null) {
+      return;
+    }
+
+    clearComposerAttachments();
+    setAiAttachmentError(null);
+    setIsAiAttachMenuOpen(false);
+    setRunningChecklistActionLabel(label);
+
+    try {
+      await submitAiRequest({
+        displayText: `チェックリストを実行: ${label}`,
+        prompt,
+      });
+    } finally {
+      setRunningChecklistActionLabel((current) => (current === label ? null : current));
     }
   };
 
@@ -981,6 +1003,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     activeAiMessages,
     aiSettings,
     aiSettingSuggestions,
+    isAiSettingSuggestionsLoading,
     activeAiThread,
     activeAiThreadId,
     aiAttachmentError,
@@ -994,6 +1017,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     handleAiMixedFileChange,
     handleAiGeneralFileChange,
     handleAiEcho,
+    handleAiChecklistAction,
     handleAiImageFileChange,
     handleAiInputPaste,
     handleAiInputKeyDown,
@@ -1006,6 +1030,7 @@ export function useAiAssistant({ editor, aiEditMemory, onCreateDocumentSuggestio
     isAiHistoryOpen,
     isAiAttachMenuOpen,
     isAiResponding,
+    runningChecklistActionLabel,
     removeComposerAttachment,
     respondingAiThreadId,
     setActiveAiThreadId,

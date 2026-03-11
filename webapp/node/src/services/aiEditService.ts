@@ -1,4 +1,5 @@
 import type {
+  AiSettingSuggestResult,
   AiEditSettings,
   AiEditMemoryEntry,
   AiTagSuggestResult,
@@ -235,6 +236,43 @@ function normalizeTagSuggestResult(result: AiTagSuggestResult): AiTagSuggestResu
   }
 }
 
+function normalizeSettingSuggestResult(result: AiSettingSuggestResult): AiSettingSuggestResult {
+  const validFields = new Set([
+    'targetAudience',
+    'writingStyle',
+    'tone',
+    'brandVoice',
+    'focusPoints',
+    'priorityChecks',
+  ])
+
+  const suggestions = result.suggestions
+    .filter((suggestion) => validFields.has(suggestion.field))
+    .map((suggestion) => ({
+      field: suggestion.field,
+      prompt: suggestion.prompt.trim() || '候補',
+      options: suggestion.options
+        .map((option) => ({
+          label: option.label.trim(),
+          value: option.value.trim(),
+        }))
+        .filter(
+          (option, index, array) =>
+            option.label !== '' &&
+            option.value !== '' &&
+            array.findIndex((item) => item.value === option.value) === index,
+        )
+        .slice(0, 3),
+    }))
+    .filter((suggestion) => suggestion.options.length > 0)
+    .slice(0, 4)
+
+  return {
+    summary: result.summary,
+    suggestions,
+  }
+}
+
 function parseInstruction(prompt: string): Omit<DeterministicInstruction, 'paragraphIndex'> & { paragraphIndex?: number } | null {
   const match = prompt.match(/(?:(\d+)つ目の段落|同じ段落)の(先頭|末尾)に「([^」]+)」(?:を)?(?:も)?追加してください。?/) 
   if (!match) {
@@ -417,6 +455,45 @@ export class AiEditService {
     }
 
     return normalizeTagSuggestResult(payload.result)
+  }
+
+  async requestAiSettingSuggestions(input: RequestAiEditInput): Promise<AiSettingSuggestResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.agentBaseUrl}/agent/tasks/ai_setting_suggest:run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document: {
+            title: input.title,
+            blocks: buildAgentBlocks(input.content),
+          },
+          instructions: buildAgentInstructions('AI設定候補を推測してください。', input.ai_settings),
+        }),
+      })
+    } catch (error) {
+      throw new AiEditServiceError(
+        error instanceof Error ? error.message : 'Agent request failed.',
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    const payload = await response.json().catch(() => null) as
+      | { result?: AiSettingSuggestResult; message?: string }
+      | null
+
+    if (!response.ok || !payload?.result) {
+      throw new AiEditServiceError(
+        payload?.message ?? `Agent request failed with status ${response.status}`,
+        'AGENT_REQUEST_FAILED',
+        502,
+      )
+    }
+
+    return normalizeSettingSuggestResult(payload.result)
   }
 }
 

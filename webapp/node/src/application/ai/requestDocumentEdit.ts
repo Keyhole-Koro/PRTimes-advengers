@@ -14,3 +14,10 @@ export async function requestTagSuggestions(
 ) {
   return service.requestTagSuggestions(input)
 }
+
+export async function requestAiSettingSuggestions(
+  input: RequestAiEditInput,
+  service: AiEditService = aiEditService,
+) {
+  return service.requestAiSettingSuggestions(input)
+}

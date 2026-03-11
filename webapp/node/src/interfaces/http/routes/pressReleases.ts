@@ -5,6 +5,7 @@ import {
   getPressReleaseRevisionsAction,
   listPressReleasesAction,
   requestAiEditAction,
+  requestAiSettingSuggestAction,
   requestAiTagSuggestAction,
   restoreRevisionAction,
   updatePressReleaseAction,
@@ -83,6 +84,20 @@ export function createPressReleaseRoutes(): Hono {
     }
 
     return requestAiTagSuggestAction(c, id, data)
+  })
+
+  pressReleaseRoutes.post('/press-releases/:id/ai-settings-suggestions', async (c) => {
+    const id = parseIdParam(c, 'id')
+    if (id === null) {
+      return invalidIdResponse(c)
+    }
+
+    const data = await parseJsonBody(c)
+    if (data === null) {
+      return invalidJsonResponse(c)
+    }
+
+    return requestAiSettingSuggestAction(c, id, data)
   })
 
   pressReleaseRoutes.post('/press-releases/:id/revisions/:revisionId/restore', async (c) => {

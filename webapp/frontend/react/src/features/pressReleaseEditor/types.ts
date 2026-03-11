@@ -188,6 +188,24 @@ export type AiTagSuggestResult = {
   tags: AiTagSuggestion[];
 };
 
+export type AiSettingSuggestionField = "targetAudience" | "writingStyle" | "tone" | "brandVoice" | "focusPoints" | "priorityChecks";
+
+export type AiSettingSuggestionOption = {
+  label: string;
+  value: string;
+};
+
+export type AiSettingSuggestion = {
+  field: AiSettingSuggestionField;
+  prompt: string;
+  options: AiSettingSuggestionOption[];
+};
+
+export type AiSettingSuggestResult = {
+  summary: string;
+  suggestions: AiSettingSuggestion[];
+};
+
 export type PendingAiSuggestion = {
   id: string;
   prompt: string;

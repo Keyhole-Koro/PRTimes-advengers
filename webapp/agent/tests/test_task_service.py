@@ -2,6 +2,7 @@ import os
 import unittest
 
 from app import create_app
+from tasks.ai_setting_suggest import build_prompt as build_ai_setting_suggest_prompt
 from tasks.checklist_generate import build_prompt as build_checklist_prompt
 from tasks.document_edit import build_prompt as build_document_edit_prompt
 from tasks.tag_suggest import build_prompt as build_tag_suggest_prompt
@@ -95,6 +96,7 @@ class TaskServiceTestCase(unittest.TestCase):
         task_names = {task["name"] for task in body["tasks"]}
         self.assertIn("document_edit", task_names)
         self.assertIn("checklist_generate", task_names)
+        self.assertIn("ai_setting_suggest", task_names)
         self.assertIn("tag_suggest", task_names)
 
     def test_document_edit_prompt_contains_global_editorial_policy(self):
@@ -201,6 +203,30 @@ class TaskServiceTestCase(unittest.TestCase):
         self.assertIn("タグ提案エージェント", prompt)
         self.assertIn("# から始め", prompt)
         self.assertIn("想定読者: 記者", prompt)
+
+    def test_ai_setting_suggest_prompt_contains_field_rules(self):
+        prompt = build_ai_setting_suggest_prompt(
+            {
+                "document": {
+                    "title": "AI新機能を公開",
+                    "blocks": [
+                        {
+                            "id": "p-1",
+                            "type": "paragraph",
+                            "text": "生成AIを活用した新機能を提供開始しました。",
+                        }
+                    ],
+                },
+                "instructions": {
+                    "goal": "AI設定候補を推測する",
+                    "audience": "記者",
+                },
+            }
+        )
+
+        self.assertIn("AI 設定推測エージェント", prompt)
+        self.assertIn("targetAudience / writingStyle / tone / brandVoice / focusPoints / priorityChecks", prompt)
+        self.assertIn("入力JSON", prompt)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import { EditorContent, type Editor, useEditorState } from "@tiptap/react";
 import type { ChangeEvent, DragEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Eye, PencilLine, Plus, Sparkles, Tag, Trash2 } from "lucide-react";
+import { Check, CircleCheckBig, Eye, PencilLine, Plus, Sparkles, Tag, Trash2, WandSparkles } from "lucide-react";
 
 import type { AiAgentSettings, AiSettingSuggestion } from "../hooks/useAiAssistant";
 import { requestTagSuggestions } from "../infrastructure/aiApi";
@@ -25,14 +25,44 @@ type EditorWorkspaceProps = {
   htmlInputRef: RefObject<HTMLInputElement | null>;
   isDraggingImage: boolean;
   isUploadingImage: boolean;
+  isRunningChecklistAction: boolean;
+  onRunChecklistAction: (prompt: string, label: string) => void | Promise<void>;
   onTitleChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onReturnToList: () => void;
   pressReleaseId: number;
+  runningChecklistActionLabel: string | null;
   setAiSettingText: (field: AiTextField, value: string) => void;
   title: string;
   toggleAiSettingListValue: (field: AiListField, value: string) => void;
   toolbarGroups: ToolbarGroupConfig[];
 };
+
+const WRITING_CHECKLIST_ITEMS = [
+  {
+    id: "headline",
+    label: "タイトルを引き締める",
+    description: "要点が先頭で伝わる短い見出しに整えます。",
+    prompt: "このプレスリリースのタイトルを、要点がひと目で伝わるように簡潔で強い表現へ改善してください。",
+  },
+  {
+    id: "lede",
+    label: "導入文を明確にする",
+    description: "冒頭で結論と価値が伝わるようにします。",
+    prompt: "導入文を見直して、何を発表するのかと読者にとっての価値が冒頭で伝わるように改善してください。",
+  },
+  {
+    id: "structure",
+    label: "本文構成を整理する",
+    description: "情報の順番を読みやすく並べ替えます。",
+    prompt: "本文の構成を見直して、背景・発表内容・読者メリットの順で読みやすくなるように改善してください。",
+  },
+  {
+    id: "risk",
+    label: "リスク表現を確認する",
+    description: "誤解や断定表現を抑えた表現に整えます。",
+    prompt: "本文を確認し、強すぎる断定表現や誤解を招きやすい言い回しがあれば、自然で安全な表現に修正してください。",
+  },
+];
 
 function normalizeMetaValue(value: string, withHash = false): string {
   const trimmed = value.trim();
@@ -61,9 +91,12 @@ export function EditorWorkspace({
   htmlInputRef,
   isDraggingImage,
   isUploadingImage,
+  isRunningChecklistAction,
+  onRunChecklistAction,
   onTitleChange,
   onReturnToList,
   pressReleaseId,
+  runningChecklistActionLabel,
   setAiSettingText,
   title,
   toggleAiSettingListValue,
@@ -279,89 +312,127 @@ export function EditorWorkspace({
         className="editorContentLayout"
         style={{ gridTemplateColumns: `${metaPanelWidth}px 12px minmax(0, 1fr)` }}
       >
-        <section className="editorMetaPanel" aria-label="タグ">
-          <div className="editorMetaPanelHeader">
-            <span className="editorMetaPanelTitle">タグ</span>
-          </div>
-          <p className="editorMetaPanelDescription">タグを設定すると、検索されやすくなり、記事の意図も伝わりやすくなります。</p>
+        <div className="editorMetaColumn">
+          <section className="editorMetaPanel" aria-label="文章チェックリスト">
+            <div className="editorMetaPanelHeader">
+              <span className="editorMetaPanelTitle">チェックリスト</span>
+            </div>
+            <p className="editorMetaPanelDescription">良い文章に近づけるための定番タスクです。押すと AI がその観点で提案を作ります。</p>
 
-          <div className="editorMetaCards">
-              <div className="editorMetaContent">
-              <div className="editorMetaInputRow">
-                <input
-                  type="text"
-                  className="editorMetaInput"
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      addTag();
-                    }
-                  }}
-                  placeholder="タグを追加"
-                />
-                <button type="button" className="metaAppendButton" onClick={addTag}>
-                  追加
-                </button>
-              </div>
-              <div className="editorMetaSection">
-                <span className="editorMetaSectionLabel">現在のタグ</span>
-                <div className="editorMetaChipList">
-                  {tags.map((tag) => (
-                    <span key={tag} className="editorMetaChip">
-                      <Check className="editorMetaChipIcon" aria-hidden="true" />
-                      {tag}
-                      <button
-                        type="button"
-                        className="editorMetaChipRemove"
-                        onClick={() => setTags((current) => current.filter((item) => item !== tag))}
-                        aria-label={`${tag} を削除`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="editorMetaSection">
-                <span className="editorMetaSectionLabel">AIの提案</span>
-                <div className="editorMetaSuggestionList">
-                  {suggestedTags.length === 0 && (
-                    <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
-                  )}
-                  {suggestedTags.map((tag) => (
-                    <div key={tag.label} className="editorMetaSuggestionItem">
-                      <div className="editorMetaSuggestionBody">
-                        <div className="editorMetaSuggestionSummary">
-                          <span className="editorMetaSuggestionBadge">
-                            <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
-                            AI提案
-                          </span>
-                          <strong className="editorMetaSuggestionValue">
-                            <Tag className="editorMetaChipIcon" aria-hidden="true" />
-                            {tag.label}
-                          </strong>
-                        </div>
-                        <p className="editorMetaSuggestionDescription">{tag.reason}</p>
-                      </div>
-                      <div className="editorMetaSuggestionActions">
-                        <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag.label)}>
-                          <Plus className="editorMetaActionIcon" aria-hidden="true" />
-                          追加する
-                        </button>
-                        <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag.label)}>
-                          <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
-                          見送る
-                        </button>
+            <div className="editorMetaCards">
+              <div className="editorMetaChecklistList">
+                {WRITING_CHECKLIST_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="editorMetaChecklistItem"
+                    onClick={() => void onRunChecklistAction(item.prompt, item.label)}
+                    disabled={isRunningChecklistAction}
+                  >
+                    <div className="editorMetaChecklistBody">
+                      <span className="editorMetaChecklistIcon">
+                        {runningChecklistActionLabel === item.label ? (
+                          <WandSparkles className="editorMetaChipIcon" aria-hidden="true" />
+                        ) : (
+                          <CircleCheckBig className="editorMetaChipIcon" aria-hidden="true" />
+                        )}
+                      </span>
+                      <div className="editorMetaChecklistText">
+                        <strong className="editorMetaChecklistLabel">{item.label}</strong>
+                        <p className="editorMetaChecklistDescription">{item.description}</p>
                       </div>
                     </div>
-                  ))}
+                    <span className="editorMetaChecklistAction">{runningChecklistActionLabel === item.label ? "実行中..." : "AIに依頼"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="editorMetaPanel" aria-label="タグ">
+            <div className="editorMetaPanelHeader">
+              <span className="editorMetaPanelTitle">タグ</span>
+            </div>
+            <p className="editorMetaPanelDescription">タグを設定すると、検索されやすくなり、記事の意図も伝わりやすくなります。</p>
+
+            <div className="editorMetaCards">
+              <div className="editorMetaContent">
+                <div className="editorMetaInputRow">
+                  <input
+                    type="text"
+                    className="editorMetaInput"
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="タグを追加"
+                  />
+                  <button type="button" className="metaAppendButton" onClick={addTag}>
+                    追加
+                  </button>
+                </div>
+                <div className="editorMetaSection">
+                  <span className="editorMetaSectionLabel">現在のタグ</span>
+                  <div className="editorMetaChipList">
+                    {tags.map((tag) => (
+                      <span key={tag} className="editorMetaChip">
+                        <Check className="editorMetaChipIcon" aria-hidden="true" />
+                        {tag}
+                        <button
+                          type="button"
+                          className="editorMetaChipRemove"
+                          onClick={() => setTags((current) => current.filter((item) => item !== tag))}
+                          aria-label={`${tag} を削除`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="editorMetaSection">
+                  <span className="editorMetaSectionLabel">AIの提案</span>
+                  <div className="editorMetaSuggestionList">
+                    {suggestedTags.length === 0 && (
+                      <p className="editorMetaSuggestionEmpty">AIからのタグ提案はありません。</p>
+                    )}
+                    {suggestedTags.map((tag) => (
+                      <div key={tag.label} className="editorMetaSuggestionItem">
+                        <div className="editorMetaSuggestionBody">
+                          <div className="editorMetaSuggestionSummary">
+                            <span className="editorMetaSuggestionBadge">
+                              <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
+                              AI提案
+                            </span>
+                            <strong className="editorMetaSuggestionValue">
+                              <Tag className="editorMetaChipIcon" aria-hidden="true" />
+                              {tag.label}
+                            </strong>
+                          </div>
+                          <p className="editorMetaSuggestionDescription">{tag.reason}</p>
+                        </div>
+                        <div className="editorMetaSuggestionActions">
+                          <button type="button" className="metaAppendButton" onClick={() => applySuggestedTag(tag.label)}>
+                            <Plus className="editorMetaActionIcon" aria-hidden="true" />
+                            追加する
+                          </button>
+                          <button type="button" className="metaRejectButton" onClick={() => discardSuggestedTag(tag.label)}>
+                            <Trash2 className="editorMetaActionIcon" aria-hidden="true" />
+                            見送る
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              </div>
-          </div>
-        </section>
+            </div>
+          </section>
+        </div>
 
         <div
           className="paneResizeHandle"
