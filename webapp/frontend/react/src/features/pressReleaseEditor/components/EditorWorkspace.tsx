@@ -195,63 +195,67 @@ export function EditorWorkspace({
 
       <EditorToolbar toolbarGroups={toolbarGroups} />
 
-      {aiSettingSuggestions.length > 0 && (
-        <section className="editorAiAssistStrip" aria-label="AI設定の補助提案">
-          <div className="editorAiAssistHeader">
-            <span className="editorAiAssistBadge">
-              <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
-              推測
-            </span>
-            <p className="editorAiAssistText">未設定のAI方針を本文から補っています。</p>
+      <section className="editorUtilityBar" aria-label="編集補助バー">
+        {aiSettingSuggestions.length > 0 && (
+          <div className="editorUtilityBarAssist">
+            <section className="editorAiAssistStrip" aria-label="AI設定の補助提案">
+              <div className="editorAiAssistHeader">
+                <span className="editorAiAssistBadge">
+                  <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
+                  推測
+                </span>
+                <p className="editorAiAssistText">未設定のAI方針を本文から補っています。</p>
+              </div>
+              <div className="editorAiAssistList">
+                {aiSettingSuggestions.map((suggestion) => (
+                  <article key={suggestion.field} className="editorAiAssistCard">
+                    <strong className="editorAiAssistPrompt">{suggestion.prompt}</strong>
+                    <div className="editorAiAssistOptions">
+                      {suggestion.options.map((option) => (
+                        <button
+                          key={option.label}
+                          type="button"
+                          className="editorAiAssistOption"
+                          onClick={() => {
+                            if (suggestion.field === "focusPoints" || suggestion.field === "priorityChecks") {
+                              toggleAiSettingListValue(suggestion.field, option.value);
+                              return;
+                            }
+                            setAiSettingText(suggestion.field, option.value);
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           </div>
-          <div className="editorAiAssistList">
-            {aiSettingSuggestions.map((suggestion) => (
-              <article key={suggestion.field} className="editorAiAssistCard">
-                <strong className="editorAiAssistPrompt">{suggestion.prompt}</strong>
-                <div className="editorAiAssistOptions">
-                  {suggestion.options.map((option) => (
-                    <button
-                      key={option.label}
-                      type="button"
-                      className="editorAiAssistOption"
-                      onClick={() => {
-                        if (suggestion.field === "focusPoints" || suggestion.field === "priorityChecks") {
-                          toggleAiSettingListValue(suggestion.field, option.value);
-                          return;
-                        }
-                        setAiSettingText(suggestion.field, option.value);
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+        )}
 
-      <div className="editorCanvasTabsRow">
-        <div className="editorCanvasTabs" role="tablist" aria-label="編集ビュー切替">
-          <button
-            type="button"
-            className={`editorCanvasTab${canvasMode === "edit" ? " is-active" : ""}`}
-            onClick={() => setCanvasMode("edit")}
-          >
-            <PencilLine className="editorMetaChipIcon" aria-hidden="true" />
-            編集
-          </button>
-          <button
-            type="button"
-            className={`editorCanvasTab${canvasMode === "preview" ? " is-active" : ""}`}
-            onClick={() => setCanvasMode("preview")}
-          >
-            <Eye className="editorMetaChipIcon" aria-hidden="true" />
-            プレビュー
-          </button>
+        <div className="editorCanvasTabsRow">
+          <div className="editorCanvasTabs" role="tablist" aria-label="編集ビュー切替">
+            <button
+              type="button"
+              className={`editorCanvasTab${canvasMode === "edit" ? " is-active" : ""}`}
+              onClick={() => setCanvasMode("edit")}
+            >
+              <PencilLine className="editorMetaChipIcon" aria-hidden="true" />
+              編集
+            </button>
+            <button
+              type="button"
+              className={`editorCanvasTab${canvasMode === "preview" ? " is-active" : ""}`}
+              onClick={() => setCanvasMode("preview")}
+            >
+              <Eye className="editorMetaChipIcon" aria-hidden="true" />
+              プレビュー
+            </button>
+          </div>
         </div>
-      </div>
+      </section>
 
       <input
         ref={fileInputRef}
