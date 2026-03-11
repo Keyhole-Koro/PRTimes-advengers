@@ -23,6 +23,7 @@ type EditorWorkspaceProps = {
   handleImageSelected: (event: ChangeEvent<HTMLInputElement>) => void | Promise<void>;
   handleImportHtml: (event: ChangeEvent<HTMLInputElement>) => void | Promise<void>;
   htmlInputRef: RefObject<HTMLInputElement | null>;
+  isAiSettingSuggestionsLoading: boolean;
   isDraggingImage: boolean;
   isUploadingImage: boolean;
   isRunningChecklistAction: boolean;
@@ -89,6 +90,7 @@ export function EditorWorkspace({
   handleImageSelected,
   handleImportHtml,
   htmlInputRef,
+  isAiSettingSuggestionsLoading,
   isDraggingImage,
   isUploadingImage,
   isRunningChecklistAction,
@@ -229,7 +231,7 @@ export function EditorWorkspace({
       <EditorToolbar toolbarGroups={toolbarGroups} />
 
       <section className="editorUtilityBar" aria-label="編集補助バー">
-        {aiSettingSuggestions.length > 0 && (
+        {(isAiSettingSuggestionsLoading || aiSettingSuggestions.length > 0) && (
           <div className="editorUtilityBarAssist">
             <section className="editorAiAssistStrip" aria-label="AI設定の補助提案">
               <div className="editorAiAssistHeader">
@@ -237,9 +239,16 @@ export function EditorWorkspace({
                   <Sparkles className="editorMetaChipIcon" aria-hidden="true" />
                   推測
                 </span>
-                <p className="editorAiAssistText">未設定のAI方針を本文から補っています。</p>
+                <p className="editorAiAssistText">
+                  {isAiSettingSuggestionsLoading ? "AIが未設定の方針を推測中です。" : "未設定のAI方針を本文から補っています。"}
+                </p>
               </div>
               <div className="editorAiAssistList">
+                {isAiSettingSuggestionsLoading && aiSettingSuggestions.length === 0 && (
+                  <article className="editorAiAssistCard editorAiAssistCard-loading">
+                    <strong className="editorAiAssistPrompt">候補を整理しています...</strong>
+                  </article>
+                )}
                 {aiSettingSuggestions.map((suggestion) => (
                   <article key={suggestion.field} className="editorAiAssistCard">
                     <strong className="editorAiAssistPrompt">{suggestion.prompt}</strong>
