@@ -2,7 +2,7 @@
   height: 100%;
   padding: 4px 24px 24px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .statusScreen,
@@ -198,17 +198,12 @@
 
 .appShell {
   height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   background: linear-gradient(180deg, #f3f6fa 0%, #eef3f8 100%);
-}
-
-.editorTopBar {
-  display: flex;
-  justify-content: flex-start;
-  padding: 16px 20px 4px;
 }
 
 .pressReleaseBackButton,
@@ -1949,6 +1944,7 @@ body.is-resizing-panels {
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -2161,6 +2157,8 @@ body.is-resizing-panels {
 .aiSuggestionTriggerLabel {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: 34px;
   padding: 0 14px;
   border: 1px solid rgba(37, 99, 235, 0.28);
@@ -2168,6 +2166,8 @@ body.is-resizing-panels {
   background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.08);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .aiSuggestionTrigger:hover .aiSuggestionTriggerLabel {
@@ -2359,6 +2359,11 @@ body.is-resizing-panels {
     padding: 16px;
   }
 
+  .appShell {
+    height: auto;
+    min-height: 100dvh;
+  }
+
   .header {
     align-items: flex-start;
     flex-direction: column;
@@ -2383,6 +2388,15 @@ body.is-resizing-panels {
 
   .editorContentLayout {
     grid-template-columns: 1fr;
+  }
+
+  .titleInputWrapper {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pressReleaseBackButton-inline {
+    align-self: flex-start;
   }
 
   .paneResizeHandle {

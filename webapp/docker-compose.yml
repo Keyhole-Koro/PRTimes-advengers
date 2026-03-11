@@ -26,6 +26,9 @@ services:
       - ./node:/app
       - node_modules:/app/node_modules
     environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-}
       PORT: 8080
       DB_HOST: postgresql
       DB_PORT: 5432
