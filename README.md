@@ -1,8 +1,15 @@
-# PRTIMES Avengers
+# Team Avengers
 
 Hackathon 2026 Spring 向けに開発された、プレスリリース作成支援アプリです。
 
-現在の実装は、React 製フロントエンド、Node.js 製 API、Python 製 AI エージェント、PostgreSQL で構成されています。README の古い記述にあった Vue / Next.js / PHP / Go は、このリポジトリの現行構成には含まれていません。
+このプロダクトは、PR TIMES が開催した「PR TIMES HACKATHON 2026 Spring」で制作したものです。
+
+- チーム賞を受賞
+- [@Keyhole-Koro](https://github.com/Keyhole-Koro) が個人賞を受賞
+
+ハッカソン概要:
+
+- [年収550万円以上で即内定！技術×ビジネス思考を磨く27・28卒向けハッカソン受付開始 | 株式会社PR TIMES](https://prtimes.jp/main/html/rd/p/000001614.000000112.html)
 
 ## 主な機能
 

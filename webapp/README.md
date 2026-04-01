@@ -2,6 +2,8 @@
 
 プレスリリースエディターのバックエンド API と AI エージェント実装です。
 
+このプロダクトは PR TIMES HACKATHON 2026 Spring で制作され、最優秀チーム賞を受賞しました。受賞情報の概要は [リポジトリのトップ README](../README.md) にまとめています。
+
 ## 設計ドキュメント
 
 - [DBスキーマと保存フロー](./docs/db-schema-and-flow.md)
