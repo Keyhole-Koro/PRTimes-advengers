@@ -1,261 +1,107 @@
-# プレスリリースエディター - バックエンドAPI
+# プレスリリースエディター バックエンド
 
-プレスリリースエディターのバックエンドAPI実装です。
+このディレクトリには、API サーバー、AI エージェント、DB、フロントエンド関連コードが含まれています。
 
-## 設計ドキュメント
+現状の Docker 構成で起動するバックエンド実装は以下です。
 
-- [DBスキーマと保存フロー](./docs/db-schema-and-flow.md)
+- API サーバー: Node.js + Hono
+- AI エージェント: Python + Flask
+- データベース: PostgreSQL 16
 
-## 構成
-
-- **データベース**: PostgreSQL 16
-- **バックエンド**: 複数言語による参考実装（デフォルトはPHP）
-  - ✅ PHP 8.5
-  - ✅ Python 3.14
-  - ✅ Go 1.25
-  - ✅ Node.js（Hono）
-
-## クイックスタート
-
-### 1. Docker環境の起動
+## 起動
 
 ```bash
 cd webapp
-docker compose up -d
+docker compose up -d --build
 ```
 
-デフォルトでは PHP 実装（`build: ./php`）が起動します。他の言語実装を使用する場合は後述の「他の言語実装を使う場合」を参照してください。
+起動後のエンドポイント:
 
-### 2. 動作確認
+- API: `http://localhost:8080`
+- Agent: `http://localhost:5001`
+- PostgreSQL: `localhost:5432`
+
+停止:
 
 ```bash
-# ヘルスチェック
+docker compose down
+```
+
+## 動作確認
+
+```bash
 curl http://localhost:8080/health
-
-# プレスリリースの取得
-curl http://localhost:8080/press-releases/1
-
-# プレスリリースの保存
-curl -X POST http://localhost:8080/press-releases/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "新しいタイトル",
-    "content": {
-      "type": "doc",
-      "content": [
-        {
-          "type": "paragraph",
-          "content": [
-            { "type": "text", "text": "テキスト内容" }
-          ]
-        }
-      ]
-    },
-    "version": 1
-  }'
+curl http://localhost:8080/press-releases
+curl http://localhost:5001/health
 ```
 
-### 3. 停止
+## フロントエンド
+
+React フロントエンドは別プロセスで起動します。
 
 ```bash
-docker compose down
+cd webapp/frontend/react
+npm install
+npm run dev
 ```
 
-### 他の言語実装を使う場合
+通常は `http://localhost:5173` で確認できます。
 
-`docker-compose.yml` の `app` サービスの `build` を切り替えて再ビルドしてください。
+## 主要 API
 
-```yaml
-# PHP実装を使う場合
-app:
-  build: ./php
-
-# Python実装を使う場合
-app:
-  build: ./python
-
-# Go実装を使う場合
-app:
-  build: ./go
-
-# Node.js実装を使う場合
-app:
-  build: ./node
-```
-
-切り替え後に以下を実行します。
-
-```bash
-cd webapp
-docker compose down
-docker compose build app agent
-docker compose up -d
-```
+- `GET /health`
+- `GET /press-releases`
+- `POST /press-releases`
+- `GET /press-releases/:id`
+- `POST /press-releases/:id`
+- `GET /press-releases/:id/revisions`
+- `POST /press-releases/:id/revisions/:revisionId/restore`
+- `POST /press-releases/:id/ai-edit`
+- `POST /press-releases/:id/ai-tags`
+- `POST /press-releases/:id/ai-settings-suggestions`
+- `GET /press-releases/:id/comments`
+- `POST /press-releases/:id/comments`
+- `POST /comments/:threadId/replies`
+- `PATCH /comments/:threadId/resolve`
+- `PATCH /comments/:threadId/unresolve`
+- `GET /link-previews?url=...`
+- `GET /press-release-templates`
+- `GET /press-release-templates/:id`
+- `POST /press-release-templates`
 
 ## AI Agent E2E
 
-AI エージェントの E2E は、Node バックエンド、Agent、PostgreSQL、Vite フロントエンドがそろって起動している前提です。現在の E2E は AI 提案が対象段落だけに適用されることを確認します。
-
-### ローカルで実行する手順
-
-1. バックエンド群を起動します。
+AI エージェントの E2E は、API、Agent、PostgreSQL、React フロントエンドが起動している前提です。
 
 ```bash
 cd webapp
-docker compose up -d --build postgresql agent app
+docker compose up -d --build
 ```
-
-2. ヘルスチェックが返ることを確認します。
-
-```bash
-curl http://127.0.0.1:5001/health
-curl http://127.0.0.1:8080/health
-```
-
-3. フロントエンド依存関係と Playwright ブラウザを入れます。
 
 ```bash
 cd webapp/frontend/react
 npm ci
 npx playwright install --with-deps chromium
-```
-
-4. フロントエンドを起動します。
-
-```bash
-cd webapp/frontend/react
 npm run dev -- --host 0.0.0.0
 ```
 
-5. 別ターミナルで E2E を実行します。
+別ターミナルで実行:
 
 ```bash
 cd webapp/frontend/react
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e:ai-agent
 ```
 
-AI エージェント関連の Node 側テストだけを確認したい場合は、以下を使います。
+Node 側テスト:
 
 ```bash
 cd webapp/node
 npm test -- aiEditService.test.ts
 ```
 
-### CI での実行
+## ドキュメント
 
-GitHub Actions では [ai-agent-e2e.yml](../.github/workflows/ai-agent-e2e.yml) が同じ流れで以下を行います。
-
-- `docker compose up -d --build postgresql agent app`
-- `http://127.0.0.1:5001/health` と `http://127.0.0.1:8080/health` の待機
-- Vite 開発サーバーの起動
-- `npm run test:e2e`
-
-失敗時は `webapp/frontend/react/playwright-report` と `webapp/frontend/react/test-results` が artifact として保存されます。
-
-## API仕様
-
-### GET /health
-
-バックエンドとデータベース接続のヘルスチェックを行います。
-
-**正常時レスポンス例:**
-```json
-{
-  "status": "ok"
-}
-```
-
-**異常時レスポンス例:**
-```json
-{
-  "status": "error"
-}
-```
-
-### GET /press-releases/:id
-
-プレスリリースを取得します。
-
-**レスポンス例:**
-```json
-{
-  "id": 1,
-  "title": "サンプルプレスリリース",
-  "content": {
-    "type": "doc",
-    "content": [
-      {
-        "type": "heading",
-        "attrs": { "level": 1 },
-        "content": [{ "type": "text", "text": "Sample Press Release" }]
-      }
-    ]
-  },
-  "version": 1,
-  "created_at": "2026-02-13T06:14:04.732533",
-  "updated_at": "2026-02-13T06:14:04.732533"
-}
-```
-
-### POST /press-releases/:id
-
-既存のプレスリリースを更新します（指定IDが存在しない場合は404）。
-
-**リクエストボディ:**
-```json
-{
-  "title": "タイトル",
-  "content": {
-    "type": "doc",
-    "content": [
-      {
-        "type": "paragraph",
-        "content": [{ "type": "text", "text": "本文" }]
-      }
-    ]
-  },
-  "version": 1
-}
-```
-
-`content` フィールドは TipTap 形式の JSON オブジェクトです。共同編集に備えて `version` を返し、更新時はその値を送ります。
-
-**レスポンス（更新されたPressReleaseオブジェクト）:**
-```json
-{
-  "id": 1,
-  "title": "新しいタイトル",
-  "content": {
-    "type": "doc",
-    "content": [
-      {
-        "type": "paragraph",
-        "content": [{ "type": "text", "text": "本文" }]
-      }
-    ]
-  },
-  "version": 2,
-  "created_at": "2026-02-13T06:14:04.732533",
-  "updated_at": "2026-02-16T15:30:00.123456"
-}
-```
-
-## データベース
-
-### 初期データ
-
-起動時に ID=1 の初期プレスリリースが自動的に作成されます（内容は `sql/schema.sql` を参照）。
-
-### テーブル構成
-
-詳細は `sql/schema.sql` を参照してください。
-
-**press_releases テーブル:**
-| カラム名 | 型 | 説明 |
-|---------|-----|------|
-| id | SERIAL | プライマリキー |
-| title | VARCHAR(255) | タイトル |
-| content | JSONB | TipTap形式のJSONオブジェクト |
-| version | INTEGER | 楽観ロック用バージョン |
-| created_at | TIMESTAMP | 作成日時 |
-| updated_at | TIMESTAMP | 更新日時 |
+- [docs/db-schema-and-flow.md](./docs/db-schema-and-flow.md)
+- [docs/db-schema.md](./docs/db-schema.md)
+- [docs/agent-overview.md](./docs/agent-overview.md)
+- [docs/agent-task-flows.md](./docs/agent-task-flows.md)
