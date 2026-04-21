@@ -14,7 +14,7 @@ export const app = new Hono()
 app.use(
   '*',
   cors({
-    origin: config.isAllowedCorsOrigin,
+    origin: config.env === 'local' ? '*' : config.isAllowedCorsOrigin,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type'],
   })
