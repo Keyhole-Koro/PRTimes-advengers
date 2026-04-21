@@ -20,6 +20,8 @@ webapp/agent/**/__pycache__/
 .env.local
 .env.*
 .env.*.local
+!.env.example
+!**/.env.example
 
 # Docker volumes
 webapp/postgres_data/
